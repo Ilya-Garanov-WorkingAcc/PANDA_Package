@@ -1,5 +1,8 @@
 # Окружение и кэши
 .venv/
+.venv-*/
+.coverage
+htmlcov/
 __pycache__/
 *.py[cod]
 .ruff_cache/

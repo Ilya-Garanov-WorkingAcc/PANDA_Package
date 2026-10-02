@@ -2,7 +2,7 @@
 
 Объект: `PANDA/` — https://github.com/FlufffyMelon/PANDA, ветка `main`, коммит `93c6dbb`, v0.2.0.
 Все пути ниже — относительно `PANDA/panda/`. Дата: 28.09.2026.
-Скрипты проверок: `smoke/*.py`, запуск `.venv/bin/python smoke/<file>` из `PANDA_Dev/`.
+Скрипты проверок: `smoke/*.py`, запуск `.venv-legacy/bin/python smoke/<file>` из `PANDA_Dev/`.
 
 ---
 
@@ -10,7 +10,7 @@
 
 ```bash
 python3 -m venv .venv
-.venv/bin/pip install -e ./PANDA
+.venv-legacy/bin/pip install -e ./PANDA
 ```
 
 Python 3.12.3; зависимости поставились без ошибок (numpy 2.4.6, scipy 1.18.1, mdtraj 1.11.1, click, hydra-core …).

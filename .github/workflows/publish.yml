@@ -1,0 +1,60 @@
+name: Publish
+
+# Публикация без токенов: PyPI Trusted Publishing (OIDC).
+# В репозитории и в настройках GitHub нет ни одного секрета PyPI.
+#   - вручную (Run workflow)  -> TestPyPI
+#   - тег vX.Y.Z              -> PyPI
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Версия в pyproject.toml совпадает с тегом
+        if: github.ref_type == 'tag'
+        run: test "v$(uv version --short)" = "${GITHUB_REF_NAME}"
+      - run: uv build
+      - run: uv run --isolated --no-project --with dist/*.whl python -c "import panda_md; print(panda_md.__version__)"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  testpypi:
+    if: github.event_name == 'workflow_dispatch'
+    needs: build
+    runs-on: ubuntu-latest
+    environment: testpypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: astral-sh/setup-uv@v6
+      - run: uv publish --trusted-publishing always --publish-url https://test.pypi.org/legacy/
+
+  pypi:
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: astral-sh/setup-uv@v6
+      - run: uv publish --trusted-publishing always

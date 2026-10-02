@@ -2,7 +2,7 @@
 
 Дата: 28.09.2026. Объект: `PANDA/` (GitHub `main`, `93c6dbb`, v0.2.0) + ноутбуки `roughness_2/angles`.
 Проверки воспроизводимы: `smoke/phase0_synthetic_roll.py`, `smoke/phase1_reduction_check.py`
-(запуск: `.venv/bin/python smoke/<file>`).
+(запуск: `.venv-legacy/bin/python smoke/<file>`).
 
 ## 1. Карта кода (3430 строк)
 

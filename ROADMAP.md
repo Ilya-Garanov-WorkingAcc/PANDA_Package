@@ -54,7 +54,7 @@ TrianglePore         Droplet / Thread / Capsule        ρ(r), площадь, г
 - [x] Исходники: `PANDA/` — клон https://github.com/FlufffyMelon/PANDA (`main`, `93c6dbb`, v0.2.0, MIT).
       В `origin/Dev` 32 коммита, которых нет в `main` (подложки silica/muscovite, `CustomSubstrate`,
       Wolfram-ноутбуки `wolfram/*.nb` с выводом формул); в `main` 17 коммитов, которых нет в `Dev`.
-- [x] Установка: `.venv/` (Python 3.12.3), `pip install -e ./PANDA` — ок; `import panda` и `panda --help` работают
+- [x] Установка: `.venv-legacy/` (с 02.10; `.venv/` теперь окружение uv новой библиотеки) (Python 3.12.3), `pip install -e ./PANDA` — ок; `import panda` и `panda --help` работают
       (CLI пока содержит только `build`).
 - [x] Рабочий пример `examples/contact_angle/*.ipynb` как есть не воспроизводим: его 40-нс траектории
       calcite–decane нет (найденная копия — 1 кадр). Заменён реальными данными из `roughness_2/angles` (см. ниже).
