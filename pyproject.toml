@@ -62,6 +62,7 @@ addopts = "-ra --strict-markers --strict-config"
 markers = ["slow: долгие тесты (синтетическая валидация, МД)"]
 
 [tool.black]
+target-version = ["py310", "py311", "py312", "py313"]
 line-length = 120
 extend-exclude = "/(PANDA|smoke|docs)/"
 
