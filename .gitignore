@@ -1,4 +1,4 @@
-# окружение и кэши
+# Окружение и кэши
 .venv/
 __pycache__/
 *.py[cod]
@@ -8,15 +8,16 @@ __pycache__/
 *.egg-info/
 build/
 dist/
+uv.lock
 
-# старая PANDA — отдельный клон (github.com/FlufffyMelon/PANDA), только справочник
+# Старая PANDA — отдельный клон (github.com/FlufffyMelon/PANDA), только справочник
 /PANDA/
 
-# статьи и ТЗ — не распространяются через репозиторий
+# Статьи и ТЗ — не распространяются через репозиторий
 *.pdf
 *:Zone.Identifier
 
-# результаты прогонов и данные МД
+# Результаты прогонов и данные МД
 smoke/out/
 *.npy
 *.npz
@@ -24,6 +25,6 @@ smoke/out/
 *.trr
 *.gro
 
-# редакторы
+# Редакторы
 .vscode/
 .idea/
