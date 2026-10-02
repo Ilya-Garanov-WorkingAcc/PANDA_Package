@@ -8,6 +8,8 @@ version = "0.0.1"
 description = "PANDA: contact angle and interface shape of confined liquids from 1D density profiles of molecular simulations"
 readme = "README.md"
 requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "Ilya Garanov" }]
 keywords = ["molecular dynamics", "contact angle", "wetting", "nanopores", "density profile"]
 classifiers = [
@@ -54,7 +56,7 @@ dev = [
 packages = ["src/panda_md"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src", "tests", "README.md", "pyproject.toml"]
+include = ["src", "tests", "README.md", "LICENSE", "pyproject.toml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

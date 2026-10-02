@@ -63,3 +63,7 @@ ROADMAP.md      project plan
 ## Previous version
 
 The original research code lives at https://github.com/FlufffyMelon/PANDA.
+
+## License
+
+MIT, see [LICENSE](LICENSE).
