@@ -1,0 +1,29 @@
+# окружение и кэши
+.venv/
+__pycache__/
+*.py[cod]
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
+build/
+dist/
+
+# старая PANDA — отдельный клон (github.com/FlufffyMelon/PANDA), только справочник
+/PANDA/
+
+# статьи и ТЗ — не распространяются через репозиторий
+*.pdf
+*:Zone.Identifier
+
+# результаты прогонов и данные МД
+smoke/out/
+*.npy
+*.npz
+*.xtc
+*.trr
+*.gro
+
+# редакторы
+.vscode/
+.idea/
