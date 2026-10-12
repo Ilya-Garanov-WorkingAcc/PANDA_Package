@@ -1,4 +1,4 @@
-"""PANDA: Predicting ANgle from nanoscale Density Analysis."""
+"""PANDA: Predicting Angle from Nanoscale Density Analysis."""
 
 from importlib.metadata import PackageNotFoundError, version
 

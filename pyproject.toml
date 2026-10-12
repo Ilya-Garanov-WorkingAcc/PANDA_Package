@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "panda-md"
 version = "0.0.1"
-description = "PANDA: contact angle and interface shape of confined liquids from 1D density profiles of molecular simulations"
+description = "PANDA (Predicting Angle from Nanoscale Density Analysis): contact angle and interface shape of confined liquids from 1D density profiles of molecular simulations"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"

@@ -44,6 +44,9 @@
 | D11 | Профиль и модель несут явную систему отсчёта; ядро переводит модель в систему данных |
 | D12 | Траектории читает MDAnalysis (необязательная зависимость) |
 | D13 | Формы подключаются к поре декоратором `@Pore.register` |
+| D14 | Датаклассы не используются. Все объекты-данные — модели pydantic v2 (замечание руководителя, 12.10) |
+| D15 | Имя на PyPI — `panda-md`, импорт — `panda_md`; в примерах ниже `import panda_md as panda` |
+| D16 | Расшифровка: PANDA — Predicting Angle from Nanoscale Density Analysis |
 
 ---
 
@@ -63,9 +66,10 @@ matplotlib — только в `plotting/`.
 ```
 PANDA/
 ├─ pyproject.toml  README.md  LICENSE  CITATION.cff  CHANGELOG.md
-├─ src/panda/
+├─ src/panda_md/
 │  ├─ __init__.py          публичный API
 │  ├─ core/
+│  │  ├─ types.py          базовая модель pydantic, тип массива numpy с проверкой и сериализацией
 │  │  ├─ parameters.py     Parameter, ParameterSet, FreeSpec, стандартные THETA/DELTA/PHI/SHIFT
 │  │  ├─ shape.py          InterfaceShape, проекции, Regime, Frame, SymmetryAxis
 │  │  ├─ pore.py           Pore, реестр форм, InterfaceModel
@@ -92,11 +96,43 @@ PANDA/
 
 ## 3. Объекты и контракты
 
+### 3.0 Объекты-данные — модели pydantic
+
+Датаклассы в проекте не используются (D14). Всё, что хранит данные, наследуется от общей базовой модели
+в `core/types.py`:
+
+```python
+class PandaModel(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid", validate_default=True)
+
+Array = Annotated[np.ndarray, ...]   # проверка: массив float64 нужной размерности, все значения конечны;
+                                     # сериализация в список и обратно
+```
+
+| Объект | Вид | Что проверяет pydantic при создании |
+|--------|-----|-------------------------------------|
+| `Parameter`, `SymmetryAxis` | модель | границы `lo < hi`, умолчание внутри границ, непустое имя |
+| `SlitPore` и другие поры, `Geometry` | модель | H > 0, L > 0, 0 < k ≤ 1, стенки по возрастанию |
+| `Centering`, `FitSpec` | модель | допустимые значения перечислений, `starts ≥ 1`, `n_jobs ≥ 1`, окно `lo < hi` |
+| `DensityProfile`, `ProfileSet` | модель | длины массивов согласованы, координата возрастает, ρ конечна и ≥ 0, N > 0, V > 0 |
+| `FitResult`, `FitResultSet`, `ShapeComparison` | модель | согласованность свободных и фиксированных параметров |
+| `Regime`, `Frame`, `Unit` | `Enum` | — |
+| `InterfaceShape` | абстрактный класс | это поведение (формулы), а не данные; атрибуты класса проверяются при регистрации в поре |
+| `ParameterSet`, `FreeSpec`, `InterfaceModel`, `Optimizer` | обычные классы | поведение; данные внутри них — модели pydantic |
+
+Следствия:
+
+- `extra="forbid"`: опечатка в имени поля (в коде, в `config.toml`, в JSON) — ошибка сразу, а не тихий пропуск;
+- `frozen=True`: объекты неизменяемы; изменённая копия — через `model_copy(update=...)`;
+- `to_dict()` / `to_json()` / чтение `FitSpec` из конфига CLI — это `model_dump()`, `model_dump_json()`,
+  `model_validate()`; отдельного кода сериализации нет;
+- ошибки проверки pydantic (`ValidationError`) оборачиваются в `PandaError` с понятным текстом;
+- mypy запускается с плагином `pydantic.mypy`.
+
 ### 3.1 Параметр
 
 ```python
-@dataclass(frozen=True)
-class Parameter:
+class Parameter(PandaModel):
     name: str
     default: float | None            # None: значение обязано прийти из fixed, из данных или быть свободным
     bounds: tuple[float, float]      # в пользовательских единицах
@@ -282,6 +318,8 @@ Trajectory → выборка → стенки/ось поры → центри�
 API:
 
 ```python
+import panda_md as panda
+
 traj = panda.load_trajectory("md.xtc", "md.gro")
 pore = panda.SlitPore.from_trajectory(traj, walls="resname GRA", L_axis="x")
 profiles = panda.density_profile(traj, pore, select="resname DECAN", centering="pore",
@@ -307,7 +345,7 @@ table = pore.fit_all(profiles.mean())
 
 **Новая пора** — папка `pores/<имя>/`: класс от `Pore` (геометрия, координата профиля, объёмы бинов,
 приведение к безразмерным, поиск стенок/оси, центрирование по умолчанию) и файлы форм.
-Экспорт класса поры в `panda/__init__.py` — единственная правка вне папки.
+Экспорт класса поры в `panda_md/__init__.py` — единственная правка вне папки.
 
 **Проверка фундамента до появления формул.** В тестах (не в релизе) — игрушечная пора с радиальной
 координатой профиля и одной формой: доказывает, что ядро не привязано к щели.
@@ -378,10 +416,10 @@ panda run CONFIG.toml
 ## 10. Упаковка
 
 - Python ≥ 3.10; src-layout; `pyproject.toml`.
-- Зависимости: `numpy`, `scipy`, `typer`. Дополнительные: `[md]` — MDAnalysis; `[plot]` — matplotlib;
-  `[dev]` — pytest, ruff; `[docs]` — mkdocs-material, mkdocstrings.
+- Зависимости: `numpy`, `scipy`, `pydantic` (v2), `typer`. Дополнительные: `[md]` — MDAnalysis; `[plot]` — matplotlib;
+  группы разработки (uv): `test` — pytest, `lint` — black, ruff, mypy; `[docs]` — mkdocs-material, mkdocstrings.
 - CI (GitHub Actions): ruff, pytest на нескольких версиях Python, сборка пакета.
-- Имя дистрибутива на PyPI: `panda` занято — имя выбирается отдельно (вопрос O4).
+- Имя на PyPI — `panda-md` (версия 0.0.1 опубликована 02.10.2026), импорт — `panda_md`; публикация через Trusted Publishing по тегу.
 
 ---
 
@@ -392,7 +430,7 @@ panda run CONFIG.toml
 | O1 | Формулы смачивающего режима (θ < 90°) для форм щели. Проверено: формулы старой PANDA при θ < 90° неверны (∫ρ ≠ φ, ρ > 1) — нужны отдельные | получить у руководителя или вывести; до этого формы объявляют только режим несмачивания |
 | O2 | Определяется ли φ вместе с θ, δ в нормировке `mean` | синтетический тест в прототипе |
 | O3 | Центрирование по умолчанию для droplet и worm | синтетический тест со смещённым интерфейсом |
-| O4 | Имя пакета на PyPI | решение пользователя и руководителя |
+| O4 | ~~Имя пакета на PyPI~~ | решено: `panda-md`, опубликована 0.0.1 |
 | O5 | Площади S для общего (θ, δ) | вывести или оставить `NotDerived`; влияет только на `stability` |
 | O6 | Формулы треугольной и цилиндрической пор | будут предоставлены; добавляются по §6 |
 | O7 | Обобщение k ≠ 1 на произвольные θ, δ (в RectCell только θ = 180°, δ = 0) | проверить контрактным тестом; иначе k ≠ 1 разрешён только в выведенной области |

@@ -1,6 +1,6 @@
 # PANDA
 
-**P**redicting **AN**gle from nanoscale **D**ensity **A**nalysis — a Python library that determines the
+**P**redicting **A**ngle from **N**anoscale **D**ensity **A**nalysis — a Python library that determines the
 contact angle and the interface shape of liquids confined in pores from one-dimensional density profiles
 of molecular simulations.
 
