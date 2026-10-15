@@ -193,21 +193,33 @@ class ParameterSet:
                 )
             fixed_values[name] = parameter.to_internal(user_value)
 
+        bounds_not_free = sorted(set(bounds) - set(free_names))
+        if bounds_not_free:
+            raise ParameterConflictError(f"границы заданы для несвободных параметров {bounds_not_free}")
         lower_bounds: list[float] = []
         upper_bounds: list[float] = []
+        user_bounds: dict[str, tuple[float, float]] = {}
         for name in free_names:
             parameter = self.parameters[name]
             lower, upper = parameter.bounds
             if name in bounds:
-                lower, upper = max(lower, bounds[name][0]), min(upper, bounds[name][1])
+                requested_lower, requested_upper = bounds[name]
+                if not (math.isfinite(requested_lower) and math.isfinite(requested_upper)):
+                    raise InvalidBoundsError(f"{name}: границы {bounds[name]} должны быть конечными числами")
+                lower, upper = max(lower, requested_lower), min(upper, requested_upper)
                 if not lower < upper:
                     raise InvalidBoundsError(f"{name}: границы {bounds[name]} не пересекаются с {parameter.bounds}")
+            user_bounds[name] = (lower, upper)
             lower_bounds.append(parameter.to_internal(lower))
             upper_bounds.append(parameter.to_internal(upper))
 
         not_free = sorted(set(initial) - set(free_names))
         if not_free:
             raise ParameterConflictError(f"стартовые значения заданы для несвободных параметров {not_free}")
+        for name, value in initial.items():
+            lower, upper = user_bounds[name]
+            if not lower <= value <= upper:
+                raise InvalidBoundsError(f"{name}: стартовое значение {value} вне границ фита [{lower}, {upper}]")
         initial_values = {name: self.parameters[name].to_internal(value) for name, value in initial.items()}
         return FreeSpec(
             self.parameters,

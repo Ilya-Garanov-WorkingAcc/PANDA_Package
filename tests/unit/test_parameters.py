@@ -109,3 +109,18 @@ def test_parameter_set_rejects_duplicates() -> None:
 def test_resolve_rejects_bounds_outside_parameter_range() -> None:
     with pytest.raises(InvalidBoundsError, match="не пересекаются"):
         make_set().resolve(["theta"], {"phi": 0.3}, {"theta": (190.0, 200.0)}, {}, {})
+
+
+def test_resolve_rejects_bounds_for_fixed_parameter() -> None:
+    with pytest.raises(ParameterConflictError, match="несвободных"):
+        make_set().resolve(["theta"], {"phi": 0.3}, {"phi": (0.5, 0.6)}, {}, {})
+
+
+def test_resolve_rejects_non_finite_bounds() -> None:
+    with pytest.raises(InvalidBoundsError, match="конечными"):
+        make_set().resolve(["theta"], {"phi": 0.3}, {"theta": (math.nan, 150.0)}, {}, {})
+
+
+def test_resolve_rejects_initial_value_outside_bounds() -> None:
+    with pytest.raises(InvalidBoundsError, match="стартовое значение"):
+        make_set().resolve(["theta"], {"phi": 0.3}, {"theta": (100.0, 150.0)}, {"theta": 170.0}, {})
