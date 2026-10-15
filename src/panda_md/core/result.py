@@ -2,7 +2,7 @@
 
 from panda_md.core.enums import Frame, Normalization, Regime
 from panda_md.core.spec import FitSpec
-from panda_md.core.types import Array1D, PandaModel
+from panda_md.core.types import Array1D, FrozenFloats, PandaModel
 
 
 class FitResult(PandaModel):
@@ -11,7 +11,7 @@ class FitResult(PandaModel):
     regime: Regime | None  # None — у формы нет параметра θ
     frame: Frame
     normalization: Normalization
-    values: dict[str, float]  # все параметры, единицы пользователя (θ в градусах, δ в долях размера поры)
+    values: FrozenFloats  # все параметры, единицы пользователя (θ в градусах, δ в долях размера поры)
     free_parameters: tuple[str, ...]
     fixed_parameters: tuple[str, ...]
     loss: float

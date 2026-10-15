@@ -1,13 +1,72 @@
-"""Общая базовая модель pydantic и тип одномерного массива numpy с проверкой."""
+"""Общая базовая модель pydantic, тип одномерного массива numpy и неизменяемый словарь."""
 
-from typing import Annotated
+from collections.abc import Iterator, Mapping
+from typing import Annotated, Generic, TypeVar
 
 import numpy as np
 from numpy.typing import NDArray
-from pydantic import BaseModel, ConfigDict, PlainSerializer, PlainValidator
+from pydantic import AfterValidator, BaseModel, ConfigDict, PlainSerializer, PlainValidator
 
 FloatArray = NDArray[np.float64]
 BoolArray = NDArray[np.bool_]
+
+ValueT = TypeVar("ValueT")
+
+
+class FrozenMapping(Mapping[str, ValueT], Generic[ValueT]):
+    """Неизменяемый словарь с хешем: поля-словари моделей pydantic с frozen=True иначе остаются изменяемыми."""
+
+    __slots__ = ("_items",)
+    _items: dict[str, ValueT]
+
+    def __init__(self, items: Mapping[str, ValueT]) -> None:
+        self._items = dict(items)
+
+    def __getitem__(self, key: str) -> ValueT:
+        return self._items[key]
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._items)
+
+    def __len__(self) -> int:
+        return len(self._items)
+
+    def __hash__(self) -> int:
+        return hash(frozenset(self._items.items()))
+
+    def __repr__(self) -> str:
+        return f"FrozenMapping({self._items!r})"
+
+
+def _freeze_floats(items: Mapping[str, float]) -> FrozenMapping[float]:
+    return FrozenMapping(items)
+
+
+def _freeze_bounds(items: Mapping[str, tuple[float, float]]) -> FrozenMapping[tuple[float, float]]:
+    return FrozenMapping(items)
+
+
+def _thaw_floats(items: Mapping[str, float]) -> dict[str, float]:
+    return dict(items)
+
+
+def _thaw_bounds(items: Mapping[str, tuple[float, float]]) -> dict[str, tuple[float, float]]:
+    return dict(items)
+
+
+FrozenFloats = Annotated[
+    Mapping[str, float],
+    AfterValidator(_freeze_floats),
+    PlainSerializer(_thaw_floats, return_type=dict[str, float]),
+]
+"""Поле «имя → число»: на входе любой словарь, внутри — FrozenMapping, в JSON — обычный объект."""
+
+FrozenBounds = Annotated[
+    Mapping[str, tuple[float, float]],
+    AfterValidator(_freeze_bounds),
+    PlainSerializer(_thaw_bounds, return_type=dict[str, tuple[float, float]]),
+]
+"""Поле «имя → (нижняя, верхняя граница)»."""
 
 
 def _validate_float_array(value: object) -> FloatArray:

@@ -3,14 +3,14 @@
 from pydantic import Field
 
 from panda_md.core.enums import LossFunction, Normalization, OptimizerMethod, Regime
-from panda_md.core.types import PandaModel
+from panda_md.core.types import FrozenBounds, FrozenFloats, PandaModel
 
 
 class FitSpec(PandaModel):
     optimize: tuple[str, ...] | None = None  # None — параметры модели по умолчанию (θ, δ)
-    fixed: dict[str, float] = Field(default_factory=dict)  # единицы пользователя
-    bounds: dict[str, tuple[float, float]] = Field(default_factory=dict)  # сузить границы на этот фит
-    initial: dict[str, float] = Field(default_factory=dict)  # дополнительная стартовая точка
+    fixed: FrozenFloats = Field(default_factory=dict)  # единицы пользователя
+    bounds: FrozenBounds = Field(default_factory=dict)  # сузить границы на этот фит
+    initial: FrozenFloats = Field(default_factory=dict)  # дополнительная стартовая точка
     normalization: Normalization = Normalization.AUTO
     density_bulk_per_nm3: float | None = Field(default=None, gt=0.0)
     loss: LossFunction = LossFunction.L1
