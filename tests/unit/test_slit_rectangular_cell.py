@@ -58,6 +58,43 @@ def test_doughnut_matches_rectcell(aspect_ratio: float, length_ratio: float) -> 
 
 @pytest.mark.parametrize("aspect_ratio", ASPECT_RATIOS)
 @pytest.mark.parametrize("length_ratio", LENGTH_RATIOS)
+def test_worm_matches_rectcell(aspect_ratio: float, length_ratio: float) -> None:
+    worm = pore(aspect_ratio, length_ratio).interface("worm")
+    upper = min(math.pi / (4 * length_ratio), math.pi * length_ratio / 4)  # (15)
+    assert worm.phi_limits(theta=FULL_NON_WETTING, phi=0.01) == pytest.approx((0.0, upper), abs=TOLERANCE)
+    phi = 0.5 * upper
+    radius = math.sqrt(phi * length_ratio / math.pi)  # (14)
+    center = -0.5 + radius
+    expected = np.where(
+        np.abs(COORDINATE - center) < radius,
+        2 / length_ratio * np.sqrt(np.maximum(radius**2 - (COORDINATE - center) ** 2, 0.0)),  # (16)
+        0.0,
+    )
+    np.testing.assert_allclose(worm.profile(COORDINATE, theta=FULL_NON_WETTING, phi=phi), expected, atol=TOLERANCE)
+    terms = worm.surface_terms(theta=FULL_NON_WETTING, phi=phi)
+    assert terms.liquid_liquid_area + terms.liquid_solid_area == pytest.approx(
+        2 * math.pi * aspect_ratio * length_ratio * radius  # (17)
+    )
+
+
+@pytest.mark.parametrize("aspect_ratio", ASPECT_RATIOS)
+@pytest.mark.parametrize("length_ratio", LENGTH_RATIOS)
+def test_roll_matches_rectcell(aspect_ratio: float, length_ratio: float) -> None:
+    roll = pore(aspect_ratio, length_ratio).interface("roll")
+    lower, upper = math.pi / (4 * length_ratio), 1 - (1 - math.pi / 4) / length_ratio  # (19)
+    assert roll.phi_limits(theta=FULL_NON_WETTING, phi=0.5) == pytest.approx((lower, upper), abs=TOLERANCE)
+    phi = 0.5 * (lower + upper)
+    spot = phi * length_ratio - math.pi / 4  # (18)
+    expected = (np.sqrt(1 - 4 * COORDINATE**2) + spot) / length_ratio  # (20)
+    np.testing.assert_allclose(roll.profile(COORDINATE, theta=FULL_NON_WETTING, phi=phi), expected, atol=TOLERANCE)
+    terms = roll.surface_terms(theta=FULL_NON_WETTING, phi=phi)
+    assert terms.liquid_liquid_area + terms.liquid_solid_area == pytest.approx(
+        aspect_ratio * length_ratio * (2 * spot + math.pi)  # (21)
+    )
+
+
+@pytest.mark.parametrize("aspect_ratio", ASPECT_RATIOS)
+@pytest.mark.parametrize("length_ratio", LENGTH_RATIOS)
 def test_perforation_matches_rectcell(aspect_ratio: float, length_ratio: float) -> None:
     perforation = pore(aspect_ratio, length_ratio).interface("perforation")
     side = aspect_ratio * length_ratio

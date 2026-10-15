@@ -9,12 +9,8 @@ from panda_md.core.enums import Frame, ParameterName, Regime
 from panda_md.core.parameters import CONTACT_ANGLE, VOLUME_FRACTION, WALL_LAYER_THICKNESS, Parameter, ParameterValues
 from panda_md.core.shape import InterfaceShape, SurfaceTerms
 from panda_md.core.types import FloatArray
+from panda_md.pores.common import circular_segment_centroid_offset, circular_segment_factor
 from panda_md.pores.square.pore import SquareGeometry, SquarePore, accessible_side
-
-
-def circular_segment_factor(contact_angle: float) -> float:
-    """θ − sin θ cos θ: площадь сегмента = R² · (этот множитель)."""
-    return contact_angle - math.sin(contact_angle) * math.cos(contact_angle)
 
 
 @SquarePore.register
@@ -50,11 +46,8 @@ class SquareFilamentOneWall(InterfaceShape[SquareGeometry]):
 
     def center_of_mass(self, geometry: SquareGeometry, values: ParameterValues) -> float:
         """Центр масс сегмента: 4 R sin³θ / (3 (2θ − sin 2θ)) от центра окружности."""
-        contact_angle = values[ParameterName.CONTACT_ANGLE]
         radius = self.arc_radius(geometry, values)
-        offset = (
-            4.0 * radius * math.sin(contact_angle) ** 3 / (3.0 * (2.0 * contact_angle - math.sin(2.0 * contact_angle)))
-        )
+        offset = circular_segment_centroid_offset(radius, values[ParameterName.CONTACT_ANGLE])
         return self.arc_center(geometry, values) + offset
 
     def surface_terms(self, geometry: SquareGeometry, values: ParameterValues) -> SurfaceTerms:

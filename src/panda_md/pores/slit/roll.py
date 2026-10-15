@@ -11,7 +11,7 @@ import numpy as np
 
 from panda_md.core.enums import Frame, ParameterName, Regime
 from panda_md.core.parameters import CONTACT_ANGLE, VOLUME_FRACTION, WALL_LAYER_THICKNESS, Parameter, ParameterValues
-from panda_md.core.shape import InterfaceShape
+from panda_md.core.shape import InterfaceShape, SurfaceTerms
 from panda_md.core.types import FloatArray
 from panda_md.pores.slit.pore import SLIT_HALF_WIDTH, SlitGeometry, SlitPore
 
@@ -60,6 +60,18 @@ class SlitRoll(InterfaceShape[SlitGeometry]):
 
     def center_of_mass(self, geometry: SlitGeometry, values: ParameterValues) -> float:
         return 0.0  # валик симметричен относительно середины щели
+
+    def surface_terms(self, geometry: SlitGeometry, values: ParameterValues) -> SurfaceTerms:
+        """Две дуги мениска R(2θ − π) · 2 = (1−2δ)(π − 2θ)/cos θ и два пятна контакта 2d — на длину валика k l.
+        При θ = 180°, δ = 0 сумма — kl (2d + π), уравнение (21) Shistko et al. (2025).
+        """
+        contact_angle = values[ParameterName.CONTACT_ANGLE]
+        accessible_width = 1.0 - 2.0 * values[ParameterName.WALL_LAYER_THICKNESS]
+        length = geometry.short_side_ratio()
+        return SurfaceTerms(
+            liquid_liquid_area=length * accessible_width * (math.pi - 2.0 * contact_angle) / math.cos(contact_angle),
+            liquid_solid_area=2.0 * self.contact_spot_width(geometry, values) * length,
+        )
 
     def profile(self, coordinate: FloatArray, geometry: SlitGeometry, values: ParameterValues) -> FloatArray:
         """ρ/ρ_bulk, уравнение (2): (d + √((1−2δ)²/cos²θ − 4z²) + (1−2δ) tan θ) / l при |z| < 1/2 − δ."""

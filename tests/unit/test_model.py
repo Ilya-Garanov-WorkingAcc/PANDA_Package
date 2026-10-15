@@ -58,14 +58,14 @@ def test_feasibility_follows_volume_fraction_limits() -> None:
     assert not roll.is_feasible(theta=120.0, delta=0.03, phi=upper + 0.01)
 
 
-def test_surface_terms_not_derived_for_slit_roll() -> None:
+def test_surface_terms_not_derived_for_slit_doughnut() -> None:
     with pytest.raises(NotDerivedError):
-        SLIT.interface("roll").surface_terms(theta=120.0, phi=0.4)
+        SLIT.interface("doughnut").surface_terms(theta=120.0, phi=0.1)
 
 
 def test_square_pore_exposes_its_shapes() -> None:
     assert set(SquarePore.shape_names()) == {"filament_w1c0", "droplet_w1c0"}
-    assert set(SlitPore.shape_names()) == {"droplet", "doughnut", "roll", "perforation"}
+    assert set(SlitPore.shape_names()) == {"droplet", "doughnut", "worm", "roll", "perforation"}
 
 
 def test_square_droplet_energy_is_capillary_functional() -> None:
