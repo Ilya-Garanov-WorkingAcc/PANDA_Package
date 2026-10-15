@@ -27,16 +27,16 @@ SQUARE = load("square_reference.json")
 
 
 def case_id(case: dict[str, Any]) -> str:
-    return f"l={case['length_ratio']}-θ={case['theta']}-δ={case['delta']}-φ={case['phi']:.4f}"
+    return f"l={case['length_ratio']}-θ={case.get('theta', '—')}-δ={case['delta']}-φ={case['phi']:.4f}"
 
 
-@pytest.mark.parametrize("shape_name", ["roll", "droplet"])
+@pytest.mark.parametrize("shape_name", ["droplet", "doughnut", "worm", "roll", "perforation", "layer"])
 def test_slit_matches_old_panda(shape_name: str) -> None:
     coordinate = np.array(SLIT["coordinate"])
     for case in SLIT[shape_name]:
         pore = SlitPore(width_nm=SLIT_WIDTH_NM, length_nm=case["length_ratio"] * SLIT_WIDTH_NM)
         model = pore.interface(shape_name)
-        values = {"theta": case["theta"], "delta": case["delta"], "phi": case["phi"]}
+        values = {name: case[name] for name in ("theta", "delta", "phi") if name in case}
         np.testing.assert_allclose(
             model.profile(coordinate, **values), case["profile"], rtol=0.0, atol=TOLERANCE, err_msg=case_id(case)
         )
