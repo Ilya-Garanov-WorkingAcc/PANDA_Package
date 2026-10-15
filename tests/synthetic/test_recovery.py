@@ -6,7 +6,7 @@
 import numpy as np
 import pytest
 
-from panda_md import Frame, SlitPore, SquarePore
+from panda_md import Frame, SlitPore, SquarePore, TrianglePore
 from panda_md.core.model import InterfaceModel
 from panda_md.synthetic.profiles import synthetic_profile
 
@@ -18,6 +18,7 @@ MEAN_ANGLE_ERROR_DEG = 1.0  # в среднем по прогонам (крит�
 
 SLIT = SlitPore(width_nm=8.0, length_nm=16.0)
 SQUARE = SquarePore(side_nm=6.0, length_nm=12.0, layer_width_nm=6.0)
+TRIANGLE = TrianglePore(side_nm=6.0, length_nm=12.0, layer_width_nm=6.0)
 RECTANGULAR_SLIT = SlitPore(width_nm=8.0, length_nm=32.0, base_aspect_ratio=0.4)
 CASES: list[tuple[InterfaceModel, dict[str, float]]] = [
     (SLIT.interface("roll"), {"theta": 120.0, "delta": 0.03, "phi": 0.4}),
@@ -30,6 +31,12 @@ CASES: list[tuple[InterfaceModel, dict[str, float]]] = [
     (SLIT.interface("perforation"), {"theta": 130.0, "delta": 0.03, "phi": 0.6493}),
     (RECTANGULAR_SLIT.interface("droplet"), {"theta": 130.0, "delta": 0.03, "phi": 0.0561}),
     (RECTANGULAR_SLIT.interface("roll"), {"theta": 130.0, "delta": 0.03, "phi": 0.4848}),
+    (TRIANGLE.interface("droplet_w1c0"), {"theta": 140.0, "delta": 0.02, "phi": 0.05}),
+    (TRIANGLE.interface("filament_w3c0"), {"theta": 150.0, "delta": 0.02, "phi": 0.5}),
+    (TRIANGLE.interface("capsule_w3c0"), {"theta": 150.0, "delta": 0.02, "phi": 0.4}),
+    (SQUARE.interface("droplet_w2c0"), {"theta": 150.0, "delta": 0.02, "phi": 0.05}),
+    (SQUARE.interface("droplet_w2c1"), {"theta": 115.0, "delta": 0.02, "phi": 0.1}),
+    (SQUARE.interface("capsule_w4c0"), {"theta": 160.0, "delta": 0.02, "phi": 0.4}),
 ]
 
 
