@@ -12,6 +12,7 @@ from panda_md.core.enums import Frame, LossFunction, Normalization, OptimizerMet
 from panda_md.core.errors import (
     EmptyWindowError,
     InfeasibleParametersError,
+    InvalidProfileError,
     PandaError,
     ProfileMismatchError,
     UnidentifiableParameterError,
@@ -143,12 +144,21 @@ class _RegimeOutcome:
     free_spec: FreeSpec
     optimum: _LocalOptimum
     start_count: int
+    evaluation_count: int  # вычислений целевой функции в этом режиме
 
-    def __init__(self, regime: Regime | None, free_spec: FreeSpec, optimum: _LocalOptimum, start_count: int) -> None:
+    def __init__(
+        self,
+        regime: Regime | None,
+        free_spec: FreeSpec,
+        optimum: _LocalOptimum,
+        start_count: int,
+        evaluation_count: int,
+    ) -> None:
         self.regime = regime
         self.free_spec = free_spec
         self.optimum = optimum
         self.start_count = start_count
+        self.evaluation_count = evaluation_count
 
 
 def _resolve_normalization(spec: FitSpec) -> Normalization:
@@ -208,6 +218,10 @@ def _regime_intervals(
 ) -> list[tuple[Regime | None, FreeSpec]]:
     shape = model.shape
     if CONTACT_ANGLE_NAME not in model.parameters.names:
+        if requested is not None:
+            raise UnsupportedRegimeError(
+                f"у формы {shape.name} нет контактного угла — режим смачивания {requested.value} не задаётся"
+            )
         return [(None, free_spec)]
     if CONTACT_ANGLE_NAME not in free_spec.free_names:
         contact_angle_deg = math.degrees(free_spec.fixed_values[CONTACT_ANGLE_NAME])
@@ -299,11 +313,11 @@ def _fit_in_regime(
     objective: _Objective, regime: Regime | None, free_spec: FreeSpec, spec: FitSpec, method: OptimizerMethod
 ) -> _RegimeOutcome:
     objective.free_spec = free_spec
+    evaluations_before = objective.evaluation_count
     if not free_spec.free_names:
         empty = np.zeros(0, dtype=np.float64)
-        return _RegimeOutcome(
-            regime, free_spec, _LocalOptimum(empty, objective(empty), True, "нет свободных параметров"), 1
-        )
+        optimum = _LocalOptimum(empty, objective(empty), True, "нет свободных параметров")
+        return _RegimeOutcome(regime, free_spec, optimum, 1, objective.evaluation_count - evaluations_before)
 
     starts = [
         point
@@ -313,19 +327,33 @@ def _fit_in_regime(
     if not starts:
         raise InfeasibleParametersError(
             f"форма {objective.model.shape.name}, режим {regime.value if regime else '—'}: ни одна стартовая точка "
-            f"не попадает в область существования; проверь фиксированные значения и границы"
+            f"не попадает в область существования при {_describe_ranges(free_spec)}; "
+            f"проверь фиксированные значения и границы"
         )
     _check_identifiable(objective, free_spec, starts[0])
     box: Bounds = Bounds(free_spec.lower_bounds, free_spec.upper_bounds)
     best: _LocalOptimum | None = None
     for start in starts:
-        optimum = minimize(objective, start, method=method.value, bounds=box)
-        if best is None or float(optimum.fun) < best.loss:
+        local = minimize(objective, start, method=method.value, bounds=box)
+        if best is None or float(local.fun) < best.loss:
             best = _LocalOptimum(
-                np.asarray(optimum.x, dtype=np.float64), float(optimum.fun), bool(optimum.success), str(optimum.message)
+                np.asarray(local.x, dtype=np.float64), float(local.fun), bool(local.success), str(local.message)
             )
     assert best is not None  # стартов не меньше одного
-    return _RegimeOutcome(regime, free_spec, best, len(starts))
+    return _RegimeOutcome(regime, free_spec, best, len(starts), objective.evaluation_count - evaluations_before)
+
+
+def _describe_ranges(free_spec: FreeSpec) -> str:
+    """Границы свободных и значения фиксированных параметров в единицах пользователя — для сообщений об ошибках."""
+    parts = []
+    for index, name in enumerate(free_spec.free_names):
+        parameter = free_spec.parameters[name]
+        lower = parameter.to_user(float(free_spec.lower_bounds[index]))
+        upper = parameter.to_user(float(free_spec.upper_bounds[index]))
+        parts.append(f"{name} ∈ [{lower:.4g}, {upper:.4g}]")
+    for name, value in free_spec.fixed_values.items():
+        parts.append(f"{name} = {free_spec.parameters[name].to_user(value):.4g}")
+    return ", ".join(parts)
 
 
 def _boundary_flags(outcome: _RegimeOutcome) -> tuple[tuple[str, ...], bool]:
@@ -388,7 +416,7 @@ def _build_result(
         success=outcome.optimum.success,
         message=outcome.optimum.message,
         start_count=outcome.start_count,
-        evaluation_count=objective.evaluation_count,
+        evaluation_count=outcome.evaluation_count,
         feasible=feasible,
         at_bounds=at_bounds,
         at_regime_boundary=at_regime_boundary,
@@ -403,6 +431,13 @@ def _build_result(
     )
 
 
+def _within_fit_bounds(model: "InterfaceModel", spec: FitSpec, name: str, user_value: float) -> bool:
+    lower, upper = model.parameters[name].bounds
+    if name in spec.bounds:
+        lower, upper = max(lower, spec.bounds[name][0]), min(upper, spec.bounds[name][1])
+    return lower <= user_value <= upper
+
+
 def fit(model: "InterfaceModel", profile: DensityProfile, spec: FitSpec) -> FitResult:
     """Подобрать свободные параметры модели под профиль. Алгоритм — спецификация §4."""
     geometry = model.pore.geometry()
@@ -411,15 +446,28 @@ def fit(model: "InterfaceModel", profile: DensityProfile, spec: FitSpec) -> FitR
     window_mask = _window_mask(reduced, geometry, spec.window)
     _check_profile_matches_pore(reduced, geometry)
     optimize = spec.optimize if spec.optimize is not None else model.default_optimize
+    has_volume_fraction = VOLUME_FRACTION_NAME in model.parameters.names
+    if normalization is Normalization.MEAN and not has_volume_fraction:
+        raise InvalidProfileError(
+            f"нормировка mean делит модель на φ, а у формы {model.shape.name} параметра φ нет; "
+            f"задай density_bulk_per_nm3"
+        )
 
     values_from_data: dict[str, float] = {}
+    initial = dict(spec.initial)
     volume_fraction_from_data: float | None = None
-    phi_is_open = VOLUME_FRACTION_NAME not in spec.fixed and VOLUME_FRACTION_NAME not in optimize
-    if normalization is Normalization.BULK and VOLUME_FRACTION_NAME in model.parameters.names and phi_is_open:
+    if normalization is Normalization.BULK and has_volume_fraction and VOLUME_FRACTION_NAME not in spec.fixed:
         volume_fraction_from_data = float(trapezoid(reduced.density, reduced.coordinate) / geometry.profile_integral())
-        values_from_data[VOLUME_FRACTION_NAME] = volume_fraction_from_data
+        if VOLUME_FRACTION_NAME not in optimize:
+            values_from_data[VOLUME_FRACTION_NAME] = volume_fraction_from_data
+        elif VOLUME_FRACTION_NAME not in initial and _within_fit_bounds(
+            model, spec, VOLUME_FRACTION_NAME, volume_fraction_from_data
+        ):
+            # ∫ρ/ρ_bulk — точная φ для любой формы; старт из неё не даёт сползти на край плато (ступенчатый
+            # профиль слоя делает ошибку кусочно-постоянной по φ)
+            initial[VOLUME_FRACTION_NAME] = volume_fraction_from_data
 
-    free_spec = model.parameters.resolve(optimize, spec.fixed, spec.bounds, spec.initial, values_from_data)
+    free_spec = model.parameters.resolve(optimize, spec.fixed, spec.bounds, initial, values_from_data)
     objective = _Objective(model, free_spec, reduced, window_mask, spec.loss)
     method = spec.optimizer
 
