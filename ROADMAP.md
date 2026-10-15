@@ -122,7 +122,7 @@ TrianglePore         Droplet / Thread / Capsule        ρ(r), площадь, г
 
 ### Фаза 2. Проектирование API → архитектурный документ
 
-**Статус (01.10.2026): архитектура согласована по блокам, спецификация на проверке —
+**Статус (15.10.2026): спецификация утверждена; добавлены соглашения по коду (Enum, типы, имена) —
 [`docs/superpowers/specs/2026-10-01-panda-architecture-design.md`](docs/superpowers/specs/2026-10-01-panda-architecture-design.md).**
 Обсуждение и варианты — `docs/architecture/01…05_*.md`. Обновлено 12.10 (pydantic вместо датаклассов,
 расшифровка PANDA) и 15.10 (треугольная и квадратная поры из PANDA_Polygon — `docs/architecture/05_polygon_pores.md`).
