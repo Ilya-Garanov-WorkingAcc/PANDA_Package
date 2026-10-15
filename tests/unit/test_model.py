@@ -65,7 +65,15 @@ def test_surface_terms_not_derived_for_slit_doughnut() -> None:
 
 
 def test_each_pore_exposes_its_shapes() -> None:
-    assert set(SquarePore.shape_names()) == {"filament_w1c0", "droplet_w1c0"}
+    assert set(SquarePore.shape_names()) == {
+        "filament_w0c0",
+        "filament_w0c0_straight",
+        "filament_w1c0",
+        "droplet_w1c0",
+        "droplet_w2c0",
+        "droplet_w2c1",
+        "capsule_w4c0",
+    }
     assert set(TrianglePore.shape_names()) == {
         "filament_w0c0",
         "filament_w0c0_straight",
