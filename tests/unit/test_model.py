@@ -65,7 +65,7 @@ def test_surface_terms_not_derived_for_slit_roll() -> None:
 
 def test_square_pore_exposes_its_shapes() -> None:
     assert set(SquarePore.shape_names()) == {"filament_w1c0", "droplet_w1c0"}
-    assert set(SlitPore.shape_names()) == {"roll", "droplet"}
+    assert set(SlitPore.shape_names()) == {"droplet", "doughnut", "roll", "perforation"}
 
 
 def test_square_droplet_energy_is_capillary_functional() -> None:

@@ -42,7 +42,38 @@ def test_droplet_matches_rectcell(aspect_ratio: float, length_ratio: float) -> N
     assert terms.liquid_liquid_area + terms.liquid_solid_area == pytest.approx(4 * math.pi * radius**2)  # (9)
 
 
-@pytest.mark.parametrize("shape_name", ["droplet"])
+@pytest.mark.parametrize("aspect_ratio", ASPECT_RATIOS)
+@pytest.mark.parametrize("length_ratio", LENGTH_RATIOS)
+def test_doughnut_matches_rectcell(aspect_ratio: float, length_ratio: float) -> None:
+    doughnut = pore(aspect_ratio, length_ratio).interface("doughnut")
+    side = aspect_ratio * length_ratio
+    lower = math.pi / (6 * aspect_ratio * length_ratio**2)  # (11)
+    upper = math.pi / (4 * aspect_ratio * length_ratio**2) * ((side - 1) ** 2 + math.pi * (side - 1) / 2 + 2 / 3)
+    assert doughnut.phi_limits(theta=FULL_NON_WETTING, phi=0.1) == pytest.approx((lower, upper), abs=TOLERANCE)
+    phi = 0.5 * (lower + upper)
+    spot = -math.pi / 4 + math.sqrt((math.pi / 4) ** 2 - 2 / 3 + 4 * phi * aspect_ratio * length_ratio**2 / math.pi)
+    expected = math.pi / (4 * aspect_ratio * length_ratio**2) * (np.sqrt(1 - 4 * COORDINATE**2) + spot) ** 2  # (12)
+    np.testing.assert_allclose(doughnut.profile(COORDINATE, theta=FULL_NON_WETTING, phi=phi), expected, atol=TOLERANCE)
+
+
+@pytest.mark.parametrize("aspect_ratio", ASPECT_RATIOS)
+@pytest.mark.parametrize("length_ratio", LENGTH_RATIOS)
+def test_perforation_matches_rectcell(aspect_ratio: float, length_ratio: float) -> None:
+    perforation = pore(aspect_ratio, length_ratio).interface("perforation")
+    side = aspect_ratio * length_ratio
+    base = aspect_ratio * length_ratio**2
+    lower = 1 - math.pi / (4 * base) * (side**2 - math.pi * side / 2 + 2 / 3)  # отверстие касается образа
+    upper = 1 - math.pi / (4 * base) * (5 / 3 - math.pi / 2)  # отверстие закрывается
+    assert perforation.phi_limits(theta=FULL_NON_WETTING, phi=0.9) == pytest.approx((lower, upper), abs=TOLERANCE)
+    phi = 0.5 * (lower + upper)
+    hole = math.pi / 4 + math.sqrt((math.pi / 4) ** 2 - 2 / 3 + 4 * (1 - phi) * base / math.pi)  # (22)
+    expected = 1 - math.pi / (4 * base) * (np.sqrt(1 - 4 * COORDINATE**2) - hole) ** 2  # (24)
+    np.testing.assert_allclose(
+        perforation.profile(COORDINATE, theta=FULL_NON_WETTING, phi=phi), expected, atol=TOLERANCE
+    )
+
+
+@pytest.mark.parametrize("shape_name", ["droplet", "doughnut"])
 def test_axisymmetric_shape_in_rectangle_equals_square_of_short_side(shape_name: str) -> None:
     """ρ(z; l, k, φ) = k · ρ(z; kl, 1, φ/k): ячейка L × kL эквивалентна квадратной kL × kL."""
     rectangle = SlitPore(width_nm=1.0, length_nm=5.0, base_aspect_ratio=0.4).interface(shape_name)
