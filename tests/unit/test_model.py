@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from panda_md.core.errors import MissingParameterValueError, NotDerivedError, UnknownParameterError
 from panda_md.pores.slit import SlitPore
 from panda_md.pores.square import SquarePore
+from panda_md.pores.triangle import TrianglePore
 
 SLIT = SlitPore(width_nm=8.0, length_nm=16.0)
 
@@ -63,8 +64,18 @@ def test_surface_terms_not_derived_for_slit_doughnut() -> None:
         SLIT.interface("doughnut").surface_terms(theta=120.0, phi=0.1)
 
 
-def test_square_pore_exposes_its_shapes() -> None:
+def test_each_pore_exposes_its_shapes() -> None:
     assert set(SquarePore.shape_names()) == {"filament_w1c0", "droplet_w1c0"}
+    assert set(TrianglePore.shape_names()) == {
+        "filament_w0c0",
+        "filament_w0c0_straight",
+        "filament_w1c0",
+        "filament_w2c0",
+        "filament_w2c1",
+        "filament_w3c0",
+        "filament_w3c1",
+        "filament_w3c2",
+    }
     assert set(SlitPore.shape_names()) == {"droplet", "doughnut", "worm", "roll", "perforation", "layer"}
 
 

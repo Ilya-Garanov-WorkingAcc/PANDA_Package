@@ -11,6 +11,7 @@ from panda_md.core.result import FitResult
 from panda_md.core.spec import FitSpec
 from panda_md.pores.slit import SlitPore
 from panda_md.pores.square import SquarePore
+from panda_md.pores.triangle import TrianglePore
 
 try:
     __version__ = version("panda-md")
@@ -33,6 +34,7 @@ __all__ = [
     "Regime",
     "SlitPore",
     "SquarePore",
+    "TrianglePore",
     "Unit",
     "__version__",
 ]
