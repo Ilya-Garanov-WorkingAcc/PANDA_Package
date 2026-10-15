@@ -10,7 +10,9 @@ from panda_md import DensityProfile, FitResult, Frame, Regime, SlitPore, SquareP
 from panda_md.core.errors import (
     EmptyWindowError,
     InfeasibleParametersError,
+    InvalidBoundsError,
     MissingParameterValueError,
+    ProfileMismatchError,
     UnidentifiableParameterError,
     UnsupportedRegimeError,
 )
@@ -168,4 +170,41 @@ def test_fixed_angle_inside_regime_gap_is_an_error(slit_pore: SlitPore) -> None:
     with pytest.raises(UnsupportedRegimeError, match="зазора"):
         slit_pore.interface("roll").fit(
             roll_profile(slit_pore), optimize=["delta"], fixed={"theta": 90.0}, density_bulk_per_nm3=DENSITY_BULK
+        )
+
+
+def test_fixed_value_outside_parameter_bounds_is_rejected(slit_pore: SlitPore) -> None:
+    with pytest.raises(InvalidBoundsError, match="delta"):
+        slit_pore.interface("roll").fit(
+            roll_profile(slit_pore), optimize=["theta"], fixed={"delta": -0.05}, density_bulk_per_nm3=DENSITY_BULK
+        )
+
+
+def test_volume_fraction_from_data_outside_bounds_names_likely_causes(slit_pore: SlitPore) -> None:
+    with pytest.raises(InvalidBoundsError, match="ρ_bulk"):
+        slit_pore.interface("roll").fit(roll_profile(slit_pore), density_bulk_per_nm3=DENSITY_BULK / 10.0)
+
+
+def test_pore_wider_than_data_is_rejected() -> None:
+    data_pore = SlitPore(width_nm=8.0, length_nm=16.0)
+    wrong_pore = SlitPore(width_nm=10.0, length_nm=20.0)  # l = L/H то же, H на 25 % больше
+    with pytest.raises(ProfileMismatchError, match="не покрывают"):
+        wrong_pore.interface("roll").fit(roll_profile(data_pore), density_bulk_per_nm3=DENSITY_BULK)
+
+
+def test_profile_in_other_units_is_rejected(slit_pore: SlitPore) -> None:
+    profile = roll_profile(slit_pore)
+    in_angstrom = profile.model_copy(update={"coordinate_nm": profile.coordinate_nm * 10.0})
+    with pytest.raises(ProfileMismatchError, match="за пределами поры"):
+        slit_pore.interface("roll").fit(in_angstrom, density_bulk_per_nm3=DENSITY_BULK)
+
+
+def test_liquid_frame_profile_wider_than_pore_is_rejected(square_pore: SquarePore) -> None:
+    droplet = square_pore.interface("droplet_w1c0")
+    values = {"theta": 140.0, "delta": 0.02, "phi": 0.05}
+    profile = synthetic_profile(droplet, values, density_bulk_per_nm3=DENSITY_BULK, frame=Frame.LIQUID)
+    stretched = profile.model_copy(update={"coordinate_nm": profile.coordinate_nm * 3.0})
+    with pytest.raises(ProfileMismatchError, match="шире поры"):
+        droplet.fit(
+            stretched, optimize=["theta"], fixed={"delta": 0.02, "phi": 0.05}, density_bulk_per_nm3=DENSITY_BULK
         )

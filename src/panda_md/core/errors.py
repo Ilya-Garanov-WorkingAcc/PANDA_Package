@@ -45,5 +45,9 @@ class InvalidProfileError(PandaError):
     """Профиль плотности не подходит для анализа."""
 
 
+class ProfileMismatchError(InvalidProfileError):
+    """Профиль не согласуется с порой: другой размер, другие единицы или другая система отсчёта."""
+
+
 class PandaWarning(UserWarning):
     """Предупреждение PANDA: расчёт выполнен, но результату стоит не доверять без проверки."""

@@ -177,12 +177,20 @@ class ParameterSet:
                 continue
             if name in fixed:
                 user_value = fixed[name]
+                source = "задано в fixed"
             elif name in values_from_data:
                 user_value = parameter.to_user(values_from_data[name])
+                source = "оценено из данных — проверь ρ_bulk, единицы профиля и размер поры"
             elif parameter.default is not None:
                 user_value = parameter.default
+                source = "значение по умолчанию"
             else:
                 raise MissingParameterValueError(f"задай значение {name} в fixed или освободи его в optimize")
+            lower, upper = parameter.bounds
+            if not lower <= user_value <= upper:
+                raise InvalidBoundsError(
+                    f"{name} = {user_value:.4g} вне допустимых границ [{lower}, {upper}] ({source})"
+                )
             fixed_values[name] = parameter.to_internal(user_value)
 
         lower_bounds: list[float] = []

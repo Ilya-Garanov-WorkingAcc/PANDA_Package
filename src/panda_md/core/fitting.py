@@ -13,6 +13,7 @@ from panda_md.core.errors import (
     EmptyWindowError,
     InfeasibleParametersError,
     PandaError,
+    ProfileMismatchError,
     UnidentifiableParameterError,
     UnsupportedRegimeError,
 )
@@ -33,6 +34,8 @@ IDENTIFIABILITY_TOLERANCE = 1e-9  # относительное изменени�
 BOUND_PROXIMITY_FRACTION = 1e-3  # ближе этой доли ширины границ — параметр «у границы»
 BARRIER_LEVEL_FACTOR = 10.0  # уровень барьера: во столько раз выше ошибки нулевой модели (+1)
 BARRIER_SLOPE = 100.0  # наклон барьера по величине выхода φ за границы существования
+COVERAGE_TOLERANCE = 0.05  # данные должны доходить до стенок с точностью 5 % размера поры
+OUTSIDE_MASS_TOLERANCE = 0.05  # допустимая доля ∫ρ за пределами поры (система поры)
 
 CONTACT_ANGLE_NAME = ParameterName.CONTACT_ANGLE.value
 WALL_LAYER_NAME = ParameterName.WALL_LAYER_THICKNESS.value
@@ -168,6 +171,34 @@ def _window_mask(reduced: ReducedProfile, geometry: PoreGeometry, window: tuple[
             f"{float(np.max(reduced.coordinate)):.3g}] — проверь размер поры и систему отсчёта профиля"
         )
     return mask
+
+
+def _check_profile_matches_pore(reduced: ReducedProfile, geometry: PoreGeometry) -> None:
+    """Профиль должен соответствовать поре по размеру: иначе фит молча вернёт неверный угол."""
+    coordinate, density = reduced.coordinate, reduced.density
+    pore_lower, pore_upper = geometry.coordinate_bounds()
+    data_range = f"[{float(np.min(coordinate)):.3g}, {float(np.max(coordinate)):.3g}]"
+    if reduced.frame is Frame.PORE:
+        if np.min(coordinate) > pore_lower + COVERAGE_TOLERANCE or np.max(coordinate) < pore_upper - COVERAGE_TOLERANCE:
+            raise ProfileMismatchError(
+                f"данные не покрывают пору: координата в долях размера поры {data_range}, стенки — "
+                f"[{pore_lower:.3g}, {pore_upper:.3g}]; проверь размер поры и единицы профиля"
+            )
+        outside = (coordinate < pore_lower) | (coordinate > pore_upper)
+        outside_fraction = float(np.sum(density[outside]) / np.sum(density))
+        if outside_fraction > OUTSIDE_MASS_TOLERANCE:
+            raise ProfileMismatchError(
+                f"{outside_fraction:.0%} плотности за пределами поры (координата {data_range}); проверь размер поры, "
+                f"единицы профиля и центрирование"
+            )
+        return
+    occupied = coordinate[density > 0.0]
+    occupied_width = float(np.max(occupied) - np.min(occupied))
+    if occupied_width > (pore_upper - pore_lower) * (1.0 + COVERAGE_TOLERANCE):
+        raise ProfileMismatchError(
+            f"профиль шире поры: жидкость занимает {occupied_width:.3g} в долях размера поры при ширине поры "
+            f"{pore_upper - pore_lower:.3g}; проверь размер поры и единицы профиля"
+        )
 
 
 def _regime_intervals(
@@ -374,6 +405,7 @@ def fit(model: "InterfaceModel", profile: DensityProfile, spec: FitSpec) -> FitR
     normalization = _resolve_normalization(spec)
     reduced = model.pore.reduce(profile, normalization, spec.density_bulk_per_nm3)
     window_mask = _window_mask(reduced, geometry, spec.window)
+    _check_profile_matches_pore(reduced, geometry)
     optimize = spec.optimize if spec.optimize is not None else model.default_optimize
 
     values_from_data: dict[str, float] = {}
