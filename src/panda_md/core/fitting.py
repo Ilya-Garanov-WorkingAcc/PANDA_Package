@@ -21,14 +21,14 @@ from panda_md.core.errors import (
 from panda_md.core.parameters import FreeSpec, ParameterValues
 from panda_md.core.profile import DensityProfile, ReducedProfile
 from panda_md.core.result import FitResult
-from panda_md.core.shape import REGIME_BOUNDARY_DEG, PoreGeometry, regime_of
+from panda_md.core.shape import REGIME_BOUNDARY_DEG, REGIME_GAP_DEG, PoreGeometry
 from panda_md.core.spec import FitSpec
 from panda_md.core.types import BoolArray, FloatArray
 
 if TYPE_CHECKING:
     from panda_md.core.model import InterfaceModel
 
-REGIME_GAP_DEG = 0.5  # θ ∈ (90° − зазор, 90° + зазор) не считается: в формулах tan θ и 1/cos θ
+
 MIN_WINDOW_POINTS = 10  # меньше точек в окне фита — ошибка EmptyWindowError
 # шаги проверки «параметр влияет», доли ширины его границ: крупные нужны параметрам, двигающим лишь край
 # профиля (φ у слоя), — малый сдвиг края не выходит за бин
@@ -224,15 +224,10 @@ def _regime_intervals(
             )
         return [(None, free_spec)]
     if CONTACT_ANGLE_NAME not in free_spec.free_names:
-        contact_angle_deg = math.degrees(free_spec.fixed_values[CONTACT_ANGLE_NAME])
-        if abs(contact_angle_deg - REGIME_BOUNDARY_DEG) < REGIME_GAP_DEG:
+        regime = shape.require_supported_contact_angle(math.degrees(free_spec.fixed_values[CONTACT_ANGLE_NAME]))
+        if requested is not None and requested is not regime:
             raise UnsupportedRegimeError(
-                f"θ = {contact_angle_deg:.2f}° внутри зазора ±{REGIME_GAP_DEG}° у 90°: формулы там не определены"
-            )
-        regime = regime_of(contact_angle_deg)
-        if regime not in shape.regimes or (requested is not None and requested is not regime):
-            raise UnsupportedRegimeError(
-                f"форма {shape.name}: режим {regime.value} не объявлен (формулы не выведены) или не запрошен"
+                f"форма {shape.name}: зафиксированный θ относится к режиму {regime.value}, а запрошен {requested.value}"
             )
         return [(regime, free_spec)]
 

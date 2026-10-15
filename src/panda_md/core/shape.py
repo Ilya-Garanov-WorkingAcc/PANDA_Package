@@ -9,11 +9,12 @@ from pydantic import Field
 from scipy.integrate import trapezoid
 
 from panda_md.core.enums import Frame, ParameterName, Regime
-from panda_md.core.errors import NotDerivedError
+from panda_md.core.errors import NotDerivedError, UnsupportedRegimeError
 from panda_md.core.parameters import Parameter, ParameterValues
 from panda_md.core.types import FloatArray, PandaModel
 
 REGIME_BOUNDARY_DEG = 90.0  # граница смачивания и несмачивания
+REGIME_GAP_DEG = 0.5  # θ ∈ (90° − зазор, 90° + зазор) не считается: в формулах tan θ и 1/cos θ
 CENTER_OF_MASS_GRID_POINTS = 20001  # сетка для численного центра масс, если форма не дала формулу
 
 
@@ -86,3 +87,23 @@ class InterfaceShape(ABC, Generic[GeometryT]):
 
     def has_profile(self) -> bool:
         return type(self).profile is not InterfaceShape.profile
+
+    def require_supported_contact_angle(self, contact_angle_deg: float) -> Regime:
+        """Режим угла, если для него у формы выведены формулы; иначе UnsupportedRegimeError."""
+        if abs(contact_angle_deg - REGIME_BOUNDARY_DEG) < REGIME_GAP_DEG:
+            raise UnsupportedRegimeError(
+                f"θ = {contact_angle_deg:.2f}° внутри зазора ±{REGIME_GAP_DEG}° у 90°: формулы там не определены"
+            )
+        regime = regime_of(contact_angle_deg)
+        if regime not in self.regimes:
+            raise UnsupportedRegimeError(
+                f"форма {self.name}: режим {regime.value} (θ = {contact_angle_deg:.4g}°) не объявлен — "
+                f"формулы не выведены"
+            )
+        lower, upper = self.regimes[regime]
+        if not lower <= contact_angle_deg <= upper:
+            raise UnsupportedRegimeError(
+                f"форма {self.name}: θ = {contact_angle_deg:.4g}° вне диапазона режима {regime.value} "
+                f"[{lower}, {upper}]"
+            )
+        return regime

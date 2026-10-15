@@ -1,5 +1,6 @@
 """Форма, подставленная в конкретную пору, — объект, который фитируют."""
 
+import math
 from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Any
 
@@ -7,7 +8,7 @@ import numpy as np
 from numpy.typing import ArrayLike
 
 from panda_md.core.enums import LossFunction, Normalization, OptimizerMethod, ParameterName, Regime
-from panda_md.core.errors import MissingParameterValueError
+from panda_md.core.errors import MissingParameterValueError, PandaError, UnsupportedRegimeError
 from panda_md.core.parameters import PROFILE_SHIFT, ParameterSet
 from panda_md.core.profile import DensityProfile
 from panda_md.core.shape import InterfaceShape, SurfaceTerms
@@ -52,26 +53,45 @@ class InterfaceModel:
                 raise MissingParameterValueError(f"задай значение параметра {name}")
         return resolved
 
+    def supported_values(self, user_values: Mapping[str, float]) -> dict[str, float]:
+        """Внутренние значения, если для угла θ у формы выведены формулы; иначе UnsupportedRegimeError.
+
+        Формулы вне объявленного режима не вызываются: они либо неверны (θ < 90° у форм щели, O1), либо делят на 0.
+        """
+        values = self.internal_values(user_values)
+        if ParameterName.CONTACT_ANGLE in values:
+            self.shape.require_supported_contact_angle(math.degrees(values[ParameterName.CONTACT_ANGLE]))
+        return values
+
     def profile(self, coordinate: ArrayLike, **user_values: float) -> FloatArray:
         """Модельный ρ/ρ_bulk в системе отсчёта формулы формы."""
-        values = self.internal_values(user_values)
+        values = self.supported_values(user_values)
         return self.shape.profile(np.asarray(coordinate, dtype=np.float64), self.pore.geometry(), values)
 
     def is_feasible(self, **user_values: float) -> bool:
-        return bool(self.shape.feasible(self.pore.geometry(), self.internal_values(user_values)))
+        """Существует ли форма; вне объявленных режимов смачивания — нет."""
+        try:
+            values = self.supported_values(user_values)
+        except UnsupportedRegimeError:
+            return False
+        return bool(self.shape.feasible(self.pore.geometry(), values))
 
     def phi_limits(self, **user_values: float) -> tuple[float, float]:
-        return self.shape.phi_limits(self.pore.geometry(), self.internal_values(user_values))
+        return self.shape.phi_limits(self.pore.geometry(), self.supported_values(user_values))
 
     def surface_terms(self, **user_values: float) -> SurfaceTerms:
-        return self.shape.surface_terms(self.pore.geometry(), self.internal_values(user_values))
+        return self.shape.surface_terms(self.pore.geometry(), self.supported_values(user_values))
 
     def capillary_energy(self, **user_values: float) -> float:
-        values = self.internal_values(user_values)
+        values = self.supported_values(user_values)
         terms = self.shape.surface_terms(self.pore.geometry(), values)
-        if ParameterName.CONTACT_ANGLE not in values:
-            return terms.liquid_liquid_area + terms.liquid_solid_area  # формы без θ не касаются стенок: S_SL = 0
-        return terms.capillary_energy(values[ParameterName.CONTACT_ANGLE])
+        if ParameterName.CONTACT_ANGLE in values:
+            return terms.capillary_energy(values[ParameterName.CONTACT_ANGLE])
+        if terms.liquid_solid_area > 0.0:
+            raise PandaError(
+                f"форма {self.shape.name} без параметра θ касается стенок (S_SL > 0): энергию без угла не посчитать"
+            )
+        return terms.liquid_liquid_area
 
     def fit(
         self,

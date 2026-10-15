@@ -31,7 +31,7 @@ def synthetic_profile(
     lower, upper = geometry.coordinate_bounds()
     edges = np.linspace(lower, upper, bin_count + 1)
     centers = 0.5 * (edges[:-1] + edges[1:])
-    internal = model.internal_values(values)
+    internal = model.supported_values(values)
     if not model.shape.feasible(geometry, internal):
         raise InfeasibleParametersError(f"{model}: форма не существует при {dict(values)}")
     density = density_bulk_per_nm3 * model.shape.profile(centers - offset, geometry, internal)

@@ -70,7 +70,7 @@ def test_result_flags_parameter_at_bound(slit_pore: SlitPore) -> None:
 def test_result_flags_regime_boundary(square_pore: SquarePore) -> None:
     filament = square_pore.interface("filament_w1c0")
     profile = synthetic_profile(
-        filament, {"theta": 90.2, "delta": 0.02, "phi": 0.05}, density_bulk_per_nm3=DENSITY_BULK
+        filament, {"theta": 89.0, "delta": 0.02, "phi": 0.05}, density_bulk_per_nm3=DENSITY_BULK
     )
     result = filament.fit(profile, fixed={"phi": 0.05}, regime=Regime.NON_WETTING, density_bulk_per_nm3=DENSITY_BULK)
     assert result.values["theta"] == pytest.approx(90.5, abs=0.01)  # θ ∈ (89.5°, 90.5°) не считается

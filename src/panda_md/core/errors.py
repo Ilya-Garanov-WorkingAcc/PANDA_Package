@@ -13,6 +13,13 @@ class UnknownParameterError(PandaError):
     """Имя параметра не принадлежит модели."""
 
 
+class UnknownShapeError(PandaError, KeyError):
+    """В поре нет формы с таким именем (наследует KeyError: поиск по реестру)."""
+
+    def __str__(self) -> str:
+        return str(self.args[0]) if self.args else ""
+
+
 class ParameterConflictError(PandaError):
     """Параметр одновременно свободный и фиксированный."""
 

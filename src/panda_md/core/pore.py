@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, ClassVar, TypeVar
 
 from panda_md.core.enums import Normalization
+from panda_md.core.errors import UnknownShapeError
 from panda_md.core.profile import DensityProfile, ReducedProfile, reduce_profile
 from panda_md.core.shape import InterfaceShape, PoreGeometry
 from panda_md.core.types import PandaModel
@@ -63,7 +64,7 @@ class Pore(PandaModel, ABC):
 
         registry = self.own_registry()
         if shape_name not in registry:
-            raise KeyError(f"в поре {self.name} нет формы {shape_name}; доступны: {list(registry)}")
+            raise UnknownShapeError(f"в поре {self.name} нет формы {shape_name}; доступны: {list(registry)}")
         return InterfaceModel(self, registry[shape_name]())
 
     def available_interfaces(self) -> list["InterfaceModel"]:
