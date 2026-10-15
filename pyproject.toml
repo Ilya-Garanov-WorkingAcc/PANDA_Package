@@ -28,6 +28,7 @@ classifiers = [
 dependencies = [
     "numpy>=1.26",
     "scipy>=1.11",
+    "pydantic>=2.6",
 ]
 
 [project.urls]
@@ -60,7 +61,7 @@ include = ["src", "tests", "README.md", "LICENSE", "pyproject.toml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-ra --strict-markers --strict-config"
+addopts = "-ra --strict-markers --strict-config --import-mode=importlib"
 markers = ["slow: долгие тесты (синтетическая валидация, МД)"]
 
 [tool.black]
@@ -83,3 +84,4 @@ python_version = "3.10"
 strict = true
 files = ["src", "tests"]
 warn_unreachable = true
+plugins = ["pydantic.mypy"]
