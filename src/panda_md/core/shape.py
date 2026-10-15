@@ -88,6 +88,9 @@ class InterfaceShape(ABC, Generic[GeometryT]):
     def has_profile(self) -> bool:
         return type(self).profile is not InterfaceShape.profile
 
+    def has_surface_terms(self) -> bool:
+        return type(self).surface_terms is not InterfaceShape.surface_terms
+
     def require_supported_contact_angle(self, contact_angle_deg: float) -> Regime:
         """Режим угла, если для него у формы выведены формулы; иначе UnsupportedRegimeError."""
         if abs(contact_angle_deg - REGIME_BOUNDARY_DEG) < REGIME_GAP_DEG:
