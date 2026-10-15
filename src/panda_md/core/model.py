@@ -1,19 +1,21 @@
 """Форма, подставленная в конкретную пору, — объект, который фитируют."""
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from numpy.typing import ArrayLike
 
-from panda_md.core.enums import ParameterName
+from panda_md.core.enums import LossFunction, Normalization, OptimizerMethod, ParameterName, Regime
 from panda_md.core.errors import MissingParameterValueError
 from panda_md.core.parameters import PROFILE_SHIFT, ParameterSet
+from panda_md.core.profile import DensityProfile
 from panda_md.core.shape import InterfaceShape, SurfaceTerms
 from panda_md.core.types import FloatArray
 
 if TYPE_CHECKING:
     from panda_md.core.pore import Pore
+    from panda_md.core.result import FitResult
 
 DEFAULT_FREE_PARAMETERS = (ParameterName.CONTACT_ANGLE.value, ParameterName.WALL_LAYER_THICKNESS.value)
 
@@ -70,3 +72,37 @@ class InterfaceModel:
         values = self.internal_values(user_values)
         terms = self.shape.surface_terms(self.pore.geometry(), values)
         return terms.capillary_energy(values[ParameterName.CONTACT_ANGLE])
+
+    def fit(
+        self,
+        profile: DensityProfile,
+        *,
+        optimize: Sequence[str] | None = None,
+        fixed: Mapping[str, float] | None = None,
+        bounds: Mapping[str, tuple[float, float]] | None = None,
+        initial: Mapping[str, float] | None = None,
+        normalization: Normalization = Normalization.AUTO,
+        density_bulk_per_nm3: float | None = None,
+        loss: LossFunction = LossFunction.L1,
+        window: tuple[float, float] | None = None,
+        starts_per_parameter: int = 5,
+        optimizer: OptimizerMethod = OptimizerMethod.NELDER_MEAD,
+        regime: Regime | None = None,
+    ) -> "FitResult":
+        from panda_md.core.fitting import fit
+        from panda_md.core.spec import FitSpec
+
+        spec = FitSpec(
+            optimize=None if optimize is None else tuple(optimize),
+            fixed=dict(fixed or {}),
+            bounds=dict(bounds or {}),
+            initial=dict(initial or {}),
+            normalization=normalization,
+            density_bulk_per_nm3=density_bulk_per_nm3,
+            loss=loss,
+            window=window,
+            starts_per_parameter=starts_per_parameter,
+            optimizer=optimizer,
+            regime=regime,
+        )
+        return fit(self, profile, spec)
