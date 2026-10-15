@@ -6,9 +6,14 @@ from typing import ClassVar
 import numpy as np
 import pytest
 
-from panda_md import DensityProfile, LossFunction, Normalization, Regime, SlitPore, SquarePore
+from panda_md import DensityProfile, LossFunction, Normalization, Regime, SlitPore, SquarePore, TrianglePore
 from panda_md.core.enums import Frame
-from panda_md.core.errors import InfeasibleParametersError, InvalidProfileError, UnsupportedRegimeError
+from panda_md.core.errors import (
+    InfeasibleParametersError,
+    InvalidProfileError,
+    NotDerivedError,
+    UnsupportedRegimeError,
+)
 from panda_md.core.fitting import _Objective
 from panda_md.core.parameters import CONTACT_ANGLE, Parameter, ParameterValues
 from panda_md.core.shape import InterfaceShape
@@ -110,3 +115,19 @@ def test_mean_normalization_needs_volume_fraction_parameter() -> None:
     )
     with pytest.raises(InvalidProfileError, match="φ"):
         SLIT.interface("test_contact_angle_only").fit(profile)
+
+
+def test_fit_of_shape_without_profile_fails_before_optimizing() -> None:
+    triangle = TrianglePore(side_nm=6.0, length_nm=12.0, layer_width_nm=6.0)
+    profile = synthetic_profile(
+        triangle.interface("droplet_w1c0"),
+        {"theta": 140.0, "delta": 0.02, "phi": 0.1},
+        density_bulk_per_nm3=DENSITY_BULK,
+    )
+    corner_droplet = triangle.interface("droplet_w2c0")
+    with pytest.raises(NotDerivedError, match=r"фит формы droplet_w2c0 невозможен.*droplet_w1c0"):
+        corner_droplet.fit(profile, density_bulk_per_nm3=DENSITY_BULK)
+    with pytest.raises(NotDerivedError, match=r"droplet_w2c0.*профиль"):
+        synthetic_profile(
+            corner_droplet, {"theta": 140.0, "delta": 0.02, "phi": 0.1}, density_bulk_per_nm3=DENSITY_BULK
+        )

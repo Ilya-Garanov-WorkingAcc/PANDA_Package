@@ -13,6 +13,7 @@ from panda_md.core.errors import (
     EmptyWindowError,
     InfeasibleParametersError,
     InvalidProfileError,
+    NotDerivedError,
     PandaError,
     ProfileMismatchError,
     UnidentifiableParameterError,
@@ -435,6 +436,12 @@ def _within_fit_bounds(model: "InterfaceModel", spec: FitSpec, name: str, user_v
 
 def fit(model: "InterfaceModel", profile: DensityProfile, spec: FitSpec) -> FitResult:
     """Подобрать свободные параметры модели под профиль. Алгоритм — спецификация §4."""
+    if not model.shape.has_profile():
+        fittable = [other.shape.name for other in model.pore.available_interfaces() if other.shape.has_profile()]
+        raise NotDerivedError(
+            f"фит формы {model.shape.name} невозможен: профиль плотности не выведен (форма участвует только "
+            f"в диаграмме устойчивости); формы поры {model.pore.name} с профилем: {', '.join(fittable)}"
+        )
     geometry = model.pore.geometry()
     normalization = _resolve_normalization(spec)
     reduced = model.pore.reduce(profile, normalization, spec.density_bulk_per_nm3)
