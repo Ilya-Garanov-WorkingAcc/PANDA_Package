@@ -10,27 +10,23 @@ from typing import ClassVar
 
 import numpy as np
 
-from panda_md.core.enums import Frame, ParameterName, Regime
+from panda_md.core.enums import ParameterName, Regime
 from panda_md.core.parameters import VOLUME_FRACTION, WALL_LAYER_THICKNESS, Parameter, ParameterValues
-from panda_md.core.shape import InterfaceShape, SurfaceTerms
+from panda_md.core.shape import SurfaceTerms
 from panda_md.core.types import FloatArray
 from panda_md.pores.slit.pore import SlitGeometry, SlitPore
+from panda_md.pores.slit.shape import SlitShape
 
 
 @SlitPore.register
-class SlitLayer(InterfaceShape[SlitGeometry]):
+class SlitLayer(SlitShape):
     name: ClassVar[str] = "layer"
     parameters: ClassVar[tuple[Parameter, ...]] = (WALL_LAYER_THICKNESS, VOLUME_FRACTION)
     regimes: ClassVar[dict[Regime, tuple[float, float]]] = {}  # контактного угла нет
-    frame: ClassVar[Frame] = Frame.PORE
     default_optimize: ClassVar[tuple[str, ...]] = (ParameterName.VOLUME_FRACTION.value,)
 
     def phi_limits(self, geometry: SlitGeometry, values: ParameterValues) -> tuple[float, float]:
-        return 0.0, 1.0 - 2.0 * values[ParameterName.WALL_LAYER_THICKNESS]
-
-    def feasible(self, geometry: SlitGeometry, values: ParameterValues) -> bool:
-        lower, upper = self.phi_limits(geometry, values)
-        return bool(lower < values[ParameterName.VOLUME_FRACTION] <= upper)
+        return 0.0, self.accessible_width(values)
 
     def center_of_mass(self, geometry: SlitGeometry, values: ParameterValues) -> float:
         return 0.0  # слой посередине щели

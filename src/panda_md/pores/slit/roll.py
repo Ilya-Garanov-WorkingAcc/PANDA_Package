@@ -9,24 +9,24 @@ from typing import ClassVar
 
 import numpy as np
 
-from panda_md.core.enums import Frame, ParameterName, Regime
+from panda_md.core.enums import ParameterName, Regime
 from panda_md.core.parameters import CONTACT_ANGLE, VOLUME_FRACTION, WALL_LAYER_THICKNESS, Parameter, ParameterValues
-from panda_md.core.shape import InterfaceShape, SurfaceTerms
+from panda_md.core.shape import SurfaceTerms
 from panda_md.core.types import FloatArray
 from panda_md.pores.slit.pore import SLIT_HALF_WIDTH, SlitGeometry, SlitPore
+from panda_md.pores.slit.shape import SlitShape
 
 
 @SlitPore.register
-class SlitRoll(InterfaceShape[SlitGeometry]):
+class SlitRoll(SlitShape):
     name: ClassVar[str] = "roll"
     parameters: ClassVar[tuple[Parameter, ...]] = (CONTACT_ANGLE, WALL_LAYER_THICKNESS, VOLUME_FRACTION)
     regimes: ClassVar[dict[Regime, tuple[float, float]]] = {Regime.NON_WETTING: (90.0, 180.0)}
-    frame: ClassVar[Frame] = Frame.PORE
 
     def contact_spot_width(self, geometry: SlitGeometry, values: ParameterValues) -> float:
         """d_roll — ширина пятна контакта, уравнение (1)."""
         contact_angle = values[ParameterName.CONTACT_ANGLE]
-        accessible_width = 1.0 - 2.0 * values[ParameterName.WALL_LAYER_THICKNESS]
+        accessible_width = self.accessible_width(values)
         length_ratio = geometry.pore_length_ratio
         return (
             values[ParameterName.VOLUME_FRACTION] * length_ratio / accessible_width
@@ -37,7 +37,7 @@ class SlitRoll(InterfaceShape[SlitGeometry]):
     def phi_limits(self, geometry: SlitGeometry, values: ParameterValues) -> tuple[float, float]:
         """φ_min и φ_max, уравнения (3) и (4)."""
         contact_angle = values[ParameterName.CONTACT_ANGLE]
-        accessible_width = 1.0 - 2.0 * values[ParameterName.WALL_LAYER_THICKNESS]
+        accessible_width = self.accessible_width(values)
         length_ratio = geometry.pore_length_ratio
         cos_sq = math.cos(contact_angle) ** 2
         lower = (
@@ -52,12 +52,6 @@ class SlitRoll(InterfaceShape[SlitGeometry]):
         )
         return lower, upper
 
-    def feasible(self, geometry: SlitGeometry, values: ParameterValues) -> bool:
-        if 1.0 - 2.0 * values[ParameterName.WALL_LAYER_THICKNESS] <= 0.0:
-            return False
-        lower, upper = self.phi_limits(geometry, values)
-        return lower < values[ParameterName.VOLUME_FRACTION] < upper
-
     def center_of_mass(self, geometry: SlitGeometry, values: ParameterValues) -> float:
         return 0.0  # валик симметричен относительно середины щели
 
@@ -66,7 +60,7 @@ class SlitRoll(InterfaceShape[SlitGeometry]):
         При θ = 180°, δ = 0 сумма — kl (2d + π), уравнение (21) Shistko et al. (2025).
         """
         contact_angle = values[ParameterName.CONTACT_ANGLE]
-        accessible_width = 1.0 - 2.0 * values[ParameterName.WALL_LAYER_THICKNESS]
+        accessible_width = self.accessible_width(values)
         length = geometry.short_side_ratio()
         return SurfaceTerms(
             liquid_liquid_area=length * accessible_width * (math.pi - 2.0 * contact_angle) / math.cos(contact_angle),
@@ -77,7 +71,7 @@ class SlitRoll(InterfaceShape[SlitGeometry]):
         """ρ/ρ_bulk, уравнение (2): (d + √((1−2δ)²/cos²θ − 4z²) + (1−2δ) tan θ) / l при |z| < 1/2 − δ."""
         contact_angle = values[ParameterName.CONTACT_ANGLE]
         wall_layer = values[ParameterName.WALL_LAYER_THICKNESS]
-        accessible_width = 1.0 - 2.0 * wall_layer
+        accessible_width = self.accessible_width(values)
         inside = np.abs(coordinate) < SLIT_HALF_WIDTH - wall_layer
         meniscus = np.sqrt(np.maximum(accessible_width**2 / math.cos(contact_angle) ** 2 - 4.0 * coordinate**2, 0.0))
         density = (

@@ -77,3 +77,10 @@ def test_energy_of_shape_without_angle_requires_no_wall_contact() -> None:
 def test_energy_of_layer_is_liquid_liquid_area() -> None:
     layer = SLIT.interface("layer")
     assert layer.capillary_energy(phi=0.3) == pytest.approx(layer.surface_terms(phi=0.3).liquid_liquid_area)
+
+
+def test_layer_filling_whole_accessible_width_does_not_exist() -> None:
+    """φ = 1 − 2δ — слой касается слоёв δ у обеих стенок; как у остальных форм, граница не включается."""
+    layer = SLIT.interface("layer")
+    assert layer.is_feasible(delta=0.05, phi=0.89)
+    assert not layer.is_feasible(delta=0.05, phi=0.9)

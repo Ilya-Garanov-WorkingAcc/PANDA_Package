@@ -103,11 +103,11 @@ def main() -> None:
         "source": "github.com/FlufffyMelon/PANDA@93c6dbb panda/interface/alpha.py",
         "coordinate": COORDINATE.tolist(),
     }
-    for shape in PROFILES:
-        reference[shape] = shape_cases(shape)
-    reference["layer"] = layer_cases()
+    cases: dict[str, list[dict[str, object]]] = {shape: shape_cases(shape) for shape in PROFILES}
+    cases["layer"] = layer_cases()
+    reference.update(cases)
     OUTPUT.write_text(json.dumps(reference))
-    counts = ", ".join(f"{shape}: {len(reference[shape])}" for shape in (*PROFILES, "layer"))  # type: ignore[arg-type]
+    counts = ", ".join(f"{shape}: {len(shape_list)}" for shape, shape_list in cases.items())
     print(f"записано в {OUTPUT}: {counts}")
 
 

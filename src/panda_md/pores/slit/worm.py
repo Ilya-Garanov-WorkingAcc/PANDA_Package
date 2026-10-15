@@ -11,20 +11,20 @@ from typing import ClassVar
 
 import numpy as np
 
-from panda_md.core.enums import Frame, ParameterName, Regime
+from panda_md.core.enums import ParameterName, Regime
 from panda_md.core.parameters import CONTACT_ANGLE, VOLUME_FRACTION, WALL_LAYER_THICKNESS, Parameter, ParameterValues
-from panda_md.core.shape import InterfaceShape, SurfaceTerms
+from panda_md.core.shape import SurfaceTerms
 from panda_md.core.types import FloatArray
 from panda_md.pores.common import circular_segment_centroid_offset, circular_segment_factor
 from panda_md.pores.slit.pore import SLIT_HALF_WIDTH, SlitGeometry, SlitPore
+from panda_md.pores.slit.shape import SlitShape
 
 
 @SlitPore.register
-class SlitWorm(InterfaceShape[SlitGeometry]):
+class SlitWorm(SlitShape):
     name: ClassVar[str] = "worm"
     parameters: ClassVar[tuple[Parameter, ...]] = (CONTACT_ANGLE, WALL_LAYER_THICKNESS, VOLUME_FRACTION)
     regimes: ClassVar[dict[Regime, tuple[float, float]]] = {Regime.NON_WETTING: (90.0, 180.0)}
-    frame: ClassVar[Frame] = Frame.PORE
 
     def cylinder_radius(self, geometry: SlitGeometry, values: ParameterValues) -> float:
         """R = √(φ l / (θ − sin θ cos θ)): площадь сечения сегмента равна φ l, уравнение (10)."""
@@ -38,18 +38,12 @@ class SlitWorm(InterfaceShape[SlitGeometry]):
     def phi_limits(self, geometry: SlitGeometry, values: ParameterValues) -> tuple[float, float]:
         """φ ≤ min(червь не выше доступной щели, цилиндр не шире ячейки) — уравнение (12) и alpha.py."""
         contact_angle = values[ParameterName.CONTACT_ANGLE]
-        accessible_width = 1.0 - 2.0 * values[ParameterName.WALL_LAYER_THICKNESS]
+        accessible_width = self.accessible_width(values)
         length_ratio = geometry.pore_length_ratio
         double_segment = 2.0 * contact_angle - math.sin(2.0 * contact_angle)
         by_height = accessible_width**2 * double_segment / (2.0 * length_ratio * (1.0 - math.cos(contact_angle)) ** 2)
         by_length = length_ratio * double_segment / 8.0
         return 0.0, min(by_height, by_length)
-
-    def feasible(self, geometry: SlitGeometry, values: ParameterValues) -> bool:
-        if 1.0 - 2.0 * values[ParameterName.WALL_LAYER_THICKNESS] <= 0.0:
-            return False
-        lower, upper = self.phi_limits(geometry, values)
-        return bool(lower < values[ParameterName.VOLUME_FRACTION] < upper)
 
     def center_of_mass(self, geometry: SlitGeometry, values: ParameterValues) -> float:
         radius = self.cylinder_radius(geometry, values)
