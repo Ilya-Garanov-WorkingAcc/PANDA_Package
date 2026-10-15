@@ -1,6 +1,10 @@
-"""Геометрия, общая для форм разных пор: сферический сегмент."""
+"""Геометрия, общая для форм разных пор: сферический и круговой сегменты."""
 
 import math
+
+import numpy as np
+
+from panda_md.core.types import FloatArray
 
 
 def spherical_cap_volume_factor(contact_angle: float) -> float:
@@ -22,3 +26,9 @@ def circular_segment_factor(contact_angle: float) -> float:
 def circular_segment_centroid_offset(radius: float, contact_angle: float) -> float:
     """Расстояние от центра окружности до центра масс сегмента: 4 R sin³θ / (3 (2θ − sin 2θ))."""
     return 4.0 * radius * math.sin(contact_angle) ** 3 / (3.0 * (2.0 * contact_angle - math.sin(2.0 * contact_angle)))
+
+
+def circular_segment_area(radius: FloatArray, distance: FloatArray | float) -> FloatArray:
+    """Площадь сегмента круга радиуса r, отсечённого хордой на расстоянии d от центра (при r ≤ d — ноль)."""
+    ratio = np.clip(np.divide(distance, radius, out=np.ones_like(radius), where=radius > 0), -1.0, 1.0)
+    return radius**2 * np.arccos(ratio) - distance * np.sqrt(np.maximum(0.0, radius**2 - distance**2))
