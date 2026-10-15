@@ -8,6 +8,7 @@ from panda_md.core.model import InterfaceModel
 from panda_md.core.parameters import Parameter
 from panda_md.core.profile import DensityProfile
 from panda_md.pores.slit import SlitPore
+from panda_md.pores.square import SquarePore
 
 try:
     __version__ = version("panda-md")
@@ -27,6 +28,7 @@ __all__ = [
     "ParameterName",
     "Regime",
     "SlitPore",
+    "SquarePore",
     "Unit",
     "__version__",
 ]

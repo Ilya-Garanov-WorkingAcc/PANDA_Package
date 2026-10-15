@@ -10,14 +10,17 @@ import numpy as np
 import pytest
 from scipy.integrate import trapezoid
 
-from panda_md import SlitPore
+from panda_md import SlitPore, SquarePore
 from panda_md.core.enums import ParameterName, Regime
 from panda_md.core.errors import NotDerivedError
 from panda_md.core.model import InterfaceModel
 from panda_md.core.pore import Pore
 from panda_md.core.shape import InterfaceShape, regime_of
 
-PORES: tuple[Pore, ...] = (SlitPore(width_nm=8.0, length_nm=16.0),)
+PORES: tuple[Pore, ...] = (
+    SlitPore(width_nm=8.0, length_nm=16.0),
+    SquarePore(side_nm=6.0, length_nm=12.0, layer_width_nm=6.0),
+)
 MODELS = [model for pore in PORES for model in pore.available_interfaces()]
 INTEGRATION_GRID = np.linspace(-0.5, 0.5, 200_001)
 INTEGRAL_TOLERANCE = 1e-4  # ступенька на краю профиля даёт ошибку трапеций ~ шаг сетки

@@ -4,9 +4,11 @@ import math
 
 import numpy as np
 import pytest
+from pydantic import ValidationError
 
 from panda_md.core.errors import MissingParameterValueError, NotDerivedError, UnknownParameterError
 from panda_md.pores.slit import SlitPore
+from panda_md.pores.square import SquarePore
 
 SLIT = SlitPore(width_nm=8.0, length_nm=16.0)
 
@@ -59,3 +61,22 @@ def test_feasibility_follows_volume_fraction_limits() -> None:
 def test_surface_terms_not_derived_for_slit_roll() -> None:
     with pytest.raises(NotDerivedError):
         SLIT.interface("roll").surface_terms(theta=120.0, phi=0.4)
+
+
+def test_square_pore_exposes_its_shapes() -> None:
+    assert set(SquarePore.shape_names()) == {"filament_w1c0", "droplet_w1c0"}
+    assert set(SlitPore.shape_names()) == {"roll", "droplet"}
+
+
+def test_square_droplet_energy_is_capillary_functional() -> None:
+    square = SquarePore(side_nm=6.0, length_nm=12.0, layer_width_nm=6.0)
+    droplet = square.interface("droplet_w1c0")
+    values = {"theta": 140.0, "delta": 0.02, "phi": 0.05}
+    terms = droplet.surface_terms(**values)
+    expected = terms.liquid_liquid_area - math.cos(math.radians(140.0)) * terms.liquid_solid_area
+    assert droplet.capillary_energy(**values) == pytest.approx(expected, rel=1e-12)
+
+
+def test_square_pore_rejects_layer_narrower_than_pore() -> None:
+    with pytest.raises(ValidationError, match="меньше стороны"):
+        SquarePore(side_nm=6.0, length_nm=12.0, layer_width_nm=5.0)
