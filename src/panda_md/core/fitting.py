@@ -29,7 +29,9 @@ if TYPE_CHECKING:
 
 REGIME_GAP_DEG = 0.5  # θ ∈ (90° − зазор, 90° + зазор) не считается: в формулах tan θ и 1/cos θ
 MIN_WINDOW_POINTS = 10  # меньше точек в окне фита — ошибка EmptyWindowError
-IDENTIFIABILITY_STEP_FRACTION = 1e-3  # шаг проверки «параметр влияет», доля ширины его границ
+# шаги проверки «параметр влияет», доли ширины его границ: крупные нужны параметрам, двигающим лишь край
+# профиля (φ у слоя), — малый сдвиг края не выходит за бин
+IDENTIFIABILITY_STEP_FRACTIONS = (1e-3, 1e-2, 5e-2)
 IDENTIFIABILITY_TOLERANCE = 1e-9  # относительное изменение профиля, ниже которого параметр «не влияет»
 BOUND_PROXIMITY_FRACTION = 1e-3  # ближе этой доли ширины границ — параметр «у границы»
 BARRIER_LEVEL_FACTOR = 10.0  # уровень барьера: во столько раз выше ошибки нулевой модели (+1)
@@ -270,9 +272,11 @@ def _check_identifiable(objective: _Objective, free_spec: FreeSpec, start: Float
     reference = objective.prediction(free_spec.unpack(start))
     scale = max(1.0, float(np.max(np.abs(reference))))
     for index, name in enumerate(free_spec.free_names):
-        step = IDENTIFIABILITY_STEP_FRACTION * (free_spec.upper_bounds[index] - free_spec.lower_bounds[index])
+        width = free_spec.upper_bounds[index] - free_spec.lower_bounds[index]
         changes_profile = False
-        for direction in (1.0, -1.0):
+        for step, direction in itertools.product(
+            (fraction * width for fraction in IDENTIFIABILITY_STEP_FRACTIONS), (1.0, -1.0)
+        ):
             trial = start.copy()
             trial[index] = np.clip(
                 start[index] + direction * step, free_spec.lower_bounds[index], free_spec.upper_bounds[index]

@@ -8,7 +8,7 @@ import numpy as np
 from pydantic import Field
 from scipy.integrate import trapezoid
 
-from panda_md.core.enums import Frame, Regime
+from panda_md.core.enums import Frame, ParameterName, Regime
 from panda_md.core.errors import NotDerivedError
 from panda_md.core.parameters import Parameter, ParameterValues
 from panda_md.core.types import FloatArray, PandaModel
@@ -54,6 +54,10 @@ class InterfaceShape(ABC, Generic[GeometryT]):
     parameters: ClassVar[tuple[Parameter, ...]]
     regimes: ClassVar[dict[Regime, tuple[float, float]]]  # диапазон θ в градусах для каждого выведенного режима
     frame: ClassVar[Frame]  # система отсчёта, в которой записаны формулы
+    default_optimize: ClassVar[tuple[str, ...]] = (
+        ParameterName.CONTACT_ANGLE.value,
+        ParameterName.WALL_LAYER_THICKNESS.value,
+    )
 
     @abstractmethod
     def feasible(self, geometry: GeometryT, values: ParameterValues) -> bool:

@@ -208,3 +208,12 @@ def test_liquid_frame_profile_wider_than_pore_is_rejected(square_pore: SquarePor
         droplet.fit(
             stretched, optimize=["theta"], fixed={"delta": 0.02, "phi": 0.05}, density_bulk_per_nm3=DENSITY_BULK
         )
+
+
+def test_shape_without_contact_angle_fits_volume_fraction(slit_pore: SlitPore) -> None:
+    layer = slit_pore.interface("layer")
+    profile = synthetic_profile(layer, {"delta": 0.03, "phi": 0.4}, density_bulk_per_nm3=DENSITY_BULK)
+    result = layer.fit(profile, optimize=["phi"], density_bulk_per_nm3=DENSITY_BULK)
+    assert layer.default_optimize == ("phi",)
+    assert result.regime is None
+    assert result.values["phi"] == pytest.approx(0.4, abs=0.006)  # край ступеньки — с точностью до бина

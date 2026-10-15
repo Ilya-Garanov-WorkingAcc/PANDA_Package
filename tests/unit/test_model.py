@@ -65,7 +65,7 @@ def test_surface_terms_not_derived_for_slit_doughnut() -> None:
 
 def test_square_pore_exposes_its_shapes() -> None:
     assert set(SquarePore.shape_names()) == {"filament_w1c0", "droplet_w1c0"}
-    assert set(SlitPore.shape_names()) == {"droplet", "doughnut", "worm", "roll", "perforation"}
+    assert set(SlitPore.shape_names()) == {"droplet", "doughnut", "worm", "roll", "perforation", "layer"}
 
 
 def test_square_droplet_energy_is_capillary_functional() -> None:
@@ -80,3 +80,8 @@ def test_square_droplet_energy_is_capillary_functional() -> None:
 def test_square_pore_rejects_layer_narrower_than_pore() -> None:
     with pytest.raises(ValidationError, match="меньше стороны"):
         SquarePore(side_nm=6.0, length_nm=12.0, layer_width_nm=5.0)
+
+
+def test_layer_energy_is_two_flat_interfaces() -> None:
+    rectangle = SlitPore(width_nm=1.0, length_nm=3.0, base_aspect_ratio=0.5)
+    assert rectangle.interface("layer").capillary_energy(phi=0.5) == pytest.approx(2 * 0.5 * 9.0)

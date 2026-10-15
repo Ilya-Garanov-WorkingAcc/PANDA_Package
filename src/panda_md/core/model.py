@@ -17,8 +17,6 @@ if TYPE_CHECKING:
     from panda_md.core.pore import Pore
     from panda_md.core.result import FitResult
 
-DEFAULT_FREE_PARAMETERS = (ParameterName.CONTACT_ANGLE.value, ParameterName.WALL_LAYER_THICKNESS.value)
-
 
 class InterfaceModel:
     """Связка «пора + форма». Значения параметров на входе методов — в единицах пользователя."""
@@ -38,7 +36,7 @@ class InterfaceModel:
 
     @property
     def default_optimize(self) -> tuple[str, ...]:
-        return tuple(name for name in DEFAULT_FREE_PARAMETERS if name in self.parameters.names)
+        return tuple(name for name in self.shape.default_optimize if name in self.parameters.names)
 
     def internal_values(self, user_values: Mapping[str, float]) -> dict[str, float]:
         """Значения всех параметров во внутренних единицах; пропущенные — по умолчанию."""
@@ -71,6 +69,8 @@ class InterfaceModel:
     def capillary_energy(self, **user_values: float) -> float:
         values = self.internal_values(user_values)
         terms = self.shape.surface_terms(self.pore.geometry(), values)
+        if ParameterName.CONTACT_ANGLE not in values:
+            return terms.liquid_liquid_area + terms.liquid_solid_area  # формы без θ не касаются стенок: S_SL = 0
         return terms.capillary_energy(values[ParameterName.CONTACT_ANGLE])
 
     def fit(

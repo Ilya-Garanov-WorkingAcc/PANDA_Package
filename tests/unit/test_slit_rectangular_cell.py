@@ -110,6 +110,14 @@ def test_perforation_matches_rectcell(aspect_ratio: float, length_ratio: float) 
     )
 
 
+@pytest.mark.parametrize("aspect_ratio", ASPECT_RATIOS)
+def test_layer_matches_rectcell(aspect_ratio: float) -> None:
+    layer = pore(aspect_ratio, 3.0).interface("layer")
+    expected = np.where(np.abs(COORDINATE) < 0.3, 1.0, 0.0)  # (26)
+    np.testing.assert_array_equal(layer.profile(COORDINATE, phi=0.6), expected)
+    assert layer.surface_terms(phi=0.6).liquid_liquid_area == pytest.approx(2 * aspect_ratio * 9.0)  # (27)
+
+
 @pytest.mark.parametrize("shape_name", ["droplet", "doughnut"])
 def test_axisymmetric_shape_in_rectangle_equals_square_of_short_side(shape_name: str) -> None:
     """ρ(z; l, k, φ) = k · ρ(z; kl, 1, φ/k): ячейка L × kL эквивалентна квадратной kL × kL."""
