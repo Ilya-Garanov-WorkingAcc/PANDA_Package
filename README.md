@@ -4,8 +4,18 @@
 contact angle and the interface shape of liquids confined in pores from one-dimensional density profiles
 of molecular simulations.
 
-> **Status: pre-alpha.** Version 0.0.1 only reserves the package name and fixes the project layout.
-> The library is being rewritten for release; the API described in `docs/` is not implemented yet.
+> **Status: pre-alpha.** The core (parameters, pore/shape contract, generic fit) works for the slit pore
+> (`roll`, `droplet`) and the square pore (`filament_w1c0`, `droplet_w1c0`). Trajectory processing and CLI are
+> not implemented yet; the published 0.0.1 contains no code.
+```python
+import panda_md as panda
+from panda_md.synthetic.profiles import synthetic_profile
+pore = panda.SlitPore(width_nm=8.0, length_nm=16.0)
+roll = pore.interface("roll")
+profile = synthetic_profile(roll, {"theta": 120.0, "delta": 0.03, "phi": 0.4}, density_bulk_per_nm3=30.0)
+result = roll.fit(profile, optimize=["theta", "delta"], density_bulk_per_nm3=30.0)
+print(result)
+```
 
 ## Method
 

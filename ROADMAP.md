@@ -135,6 +135,7 @@ TrianglePore         Droplet / Thread / Capsule        ρ(r), площадь, г
 
 ### Фаза 3. Прототип ядра (2–3 нед.)
 
+- **Статус: выполнено (15.10.2026)** — план `docs/superpowers/plans/2026-10-15-stage1-core-prototype.md`; 107 тестов; выводы по O2, O3, оптимизатору — `tests/README.md`.
 - `core/`: `parameters`, `shape`, `pore`, `fitting`, `result`, `checks`, `errors`.
 - `SlitPore` с двумя формами: `roll` (симметричная) и `droplet` (несимметричная).
 - `SquarePore` с двумя формами: `filament_w1c0` и `droplet_w1c0` — вторая настоящая пора, подключается без правок `core/`.
