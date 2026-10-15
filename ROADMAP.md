@@ -144,6 +144,7 @@ TrianglePore         Droplet / Thread / Capsule        ρ(r), площадь, г
 
 ### Фаза 4. Щель полностью (2 нед.)
 
+- **Статус: выполнено (16.10.2026)** — план `docs/superpowers/plans/2026-10-16-stage2-slit-complete.md`; 217 тестов; выводы — `tests/README.md` (стадия 2).
 - Остальные формы щели: doughnut, worm, perforation, layer; параметр k (RectCell).
 - Регрессия на старую PANDA (сетка l, θ, δ, φ; допуск 1e-12).
 - Площади там, где выведены; режим смачивания — по мере получения формул (O1).

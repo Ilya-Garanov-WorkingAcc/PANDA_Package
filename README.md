@@ -5,7 +5,7 @@ contact angle and the interface shape of liquids confined in pores from one-dime
 of molecular simulations.
 
 > **Status: pre-alpha.** The core (parameters, pore/shape contract, generic fit) works for the slit pore
-> (`roll`, `droplet`) and the square pore (`filament_w1c0`, `droplet_w1c0`). Trajectory processing and CLI are
+> (all six shapes: droplet, doughnut, worm, roll, perforation, layer; rectangular base L × kL) and the square pore (`filament_w1c0`, `droplet_w1c0`). Trajectory processing and CLI are
 > not implemented yet; the published 0.0.1 contains no code.
 ```python
 import panda_md as panda

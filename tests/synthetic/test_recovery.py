@@ -18,18 +18,26 @@ MEAN_ANGLE_ERROR_DEG = 1.0  # в среднем по прогонам (крит�
 
 SLIT = SlitPore(width_nm=8.0, length_nm=16.0)
 SQUARE = SquarePore(side_nm=6.0, length_nm=12.0, layer_width_nm=6.0)
+RECTANGULAR_SLIT = SlitPore(width_nm=8.0, length_nm=32.0, base_aspect_ratio=0.4)
 CASES: list[tuple[InterfaceModel, dict[str, float]]] = [
     (SLIT.interface("roll"), {"theta": 120.0, "delta": 0.03, "phi": 0.4}),
     (SLIT.interface("droplet"), {"theta": 130.0, "delta": 0.03, "phi": 0.05}),
     (SQUARE.interface("droplet_w1c0"), {"theta": 140.0, "delta": 0.02, "phi": 0.05}),
     (SQUARE.interface("filament_w1c0"), {"theta": 130.0, "delta": 0.02, "phi": 0.1}),
     (SQUARE.interface("filament_w1c0"), {"theta": 60.0, "delta": 0.02, "phi": 0.05}),
+    (SLIT.interface("doughnut"), {"theta": 130.0, "delta": 0.03, "phi": 0.3372}),
+    (SLIT.interface("worm"), {"theta": 130.0, "delta": 0.03, "phi": 0.226}),
+    (SLIT.interface("perforation"), {"theta": 130.0, "delta": 0.03, "phi": 0.6493}),
+    (RECTANGULAR_SLIT.interface("droplet"), {"theta": 130.0, "delta": 0.03, "phi": 0.0561}),
+    (RECTANGULAR_SLIT.interface("roll"), {"theta": 130.0, "delta": 0.03, "phi": 0.4848}),
 ]
 
 
 def case_id(case: tuple[InterfaceModel, dict[str, float]]) -> str:
     model, truth = case
-    return f"{model.pore.name}/{model.shape.name}/θ={truth['theta']:.0f}"
+    aspect_ratio = getattr(model.pore, "base_aspect_ratio", 1.0)
+    suffix = "" if aspect_ratio == 1.0 else f"(k={aspect_ratio})"
+    return f"{model.pore.name}{suffix}/{model.shape.name}/θ={truth['theta']:.0f}"
 
 
 def angle_errors(model: InterfaceModel, truth: dict[str, float], density_bulk_per_nm3: float) -> list[float]:
