@@ -85,10 +85,8 @@ def test_each_pore_exposes_its_shapes() -> None:
         "filament_w3c2",
         "droplet_w1c0",
         "droplet_w2c0",
-        "droplet_w2c1",
         "droplet_w3c0",
         "capsule_w3c0",
-        "capsule_w3c3",
     }
     assert set(SlitPore.shape_names()) == {"droplet", "doughnut", "worm", "roll", "perforation", "layer"}
 

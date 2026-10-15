@@ -5,8 +5,9 @@
 Результат: tests/regression/data/{triangle,square}_reference.json — коммитятся, тесты читают только их.
 
 Для каждой формы записываются условие существования, энергия S_LV − cos θ · S_SL и сумма площадей S_LV + S_SL;
-профиль — только у форм, для которых он выведен в источнике. Девять форм квадрата с дефектами источника
-(docs/architecture/05_polygon_pores.md §4) не переносятся и в эталон не входят.
+профиль — только у форм, для которых он выведен в источнике. Формы с дефектами источника — девять
+форм квадрата, droplet_w2c1 и capsule_w3c3 треугольника (docs/architecture/05_polygon_pores.md §4) — не переносятся
+и в эталон не входят; диаграммы источника строятся по тому же набору форм.
 """
 
 import importlib.util
@@ -53,8 +54,7 @@ SETUPS = (
         pore_name="triangle",
         coordinate_bounds=(-TRIANGLE_HEIGHT / 3.0, 2.0 * TRIANGLE_HEIGHT / 3.0),
         angles_deg=(60.0, 100.0, 110.0, 125.0, 150.0, 175.0),
-        # 112.6° < θ < 120° не берём: там у droplet_w2c1 источник даёт S_LV < 0 (05_polygon_pores.md §4)
-        stability_angles_deg=(100.0, 110.0, 125.0, 150.0, 180.0),
+        stability_angles_deg=(100.0, 115.0, 125.0, 150.0, 180.0),
         shapes=(
             "filament_w0c0",
             "filament_w0c0_straight",
@@ -66,17 +66,15 @@ SETUPS = (
             "filament_w3c2",
             "droplet_w1c0",
             "droplet_w2c0",
-            "droplet_w2c1",
             "droplet_w3c0",
             "capsule_w3c0",
-            "capsule_w3c3",
         ),
         shapes_without_angle=("filament_w0c0", "filament_w0c0_straight"),
     ),
     PolygonReferenceSetup(
         pore_name="square",
         coordinate_bounds=(-0.5, 0.5),
-        # 135° не берём: у droplet_w2c1 источник допускает θ = 3π/4, но площадь там бесконечна (05_polygon_pores.md)
+        # 135° не берём: у droplet_w2c1 условие источника допускает θ = 3π/4, а функция площади — нет
         angles_deg=(60.0, 100.0, 120.0, 140.0, 150.0, 175.0),
         stability_angles_deg=(100.0, 120.0, 140.0, 160.0, 180.0),
         shapes=(

@@ -1,6 +1,9 @@
 """Капсулы (capsule) в треугольной поре: перемычка через сечение с двумя менисками на торцах.
 
-Формулы — PANDA_Polygon `docs/model/triangle.py` (коммит 38ff491). Профиль выведен только у capsule_w3c0.
+Формулы — PANDA_Polygon `docs/model/triangle.py` (коммит 38ff491).
+
+capsule_w3c3 не переносится: площадь свободных торцов в источнике расходится с геометрией уже при δ = 0
+(docs/architecture/05_polygon_pores.md §4).
 """
 
 import math
@@ -23,7 +26,6 @@ from panda_md.pores.triangle.pore import (
 )
 from panda_md.pores.triangle.shape import (
     NON_WETTING_ABOVE_TWO_THIRDS_PI,
-    NON_WETTING_BELOW_TWO_THIRDS_PI,
     THIRD_PI,
     TriangleShape,
 )
@@ -104,61 +106,3 @@ class TriangleCapsuleThreeWalls(TriangleShape):
         clipped = 2.0 * insertion * half_width + np.pi * section_radius**2 - 2.0 * segment
         section = np.where(section_radius <= half_width, unclipped, clipped)
         return np.where(inside, section / geometry.layer_area(), 0.0)
-
-
-@TrianglePore.register
-class TriangleCapsuleThreeWallsThreeCorners(TriangleShape):
-    """capsule_w3c3: вставка заполняет всё сечение, мениски на торцах (π/2 < θ < 2π/3).
-
-    Перенесено как в источнике. При δ > 0 источник неточен: длина вставки и площадь контакта 3 L_ins записаны
-    для a′ = 1 (сечение вставки √3/4 вместо √3 a′²/4) — вопрос автору (05_polygon_pores.md §4).
-    """
-
-    name: ClassVar[str] = "capsule_w3c3"
-    parameters: ClassVar[tuple[Parameter, ...]] = CAPSULE_PARAMETERS
-    regimes: ClassVar[dict[Regime, tuple[float, float]]] = {Regime.NON_WETTING: NON_WETTING_BELOW_TWO_THIRDS_PI}
-
-    @staticmethod
-    def _ends(contact_angle: float) -> tuple[float, float]:
-        """(1 − 4 cos² θ, аргумент arccos) — общие для объёма и площадей торцов."""
-        cosine = math.cos(contact_angle)
-        argument = (1.0 - 6.0 * cosine**2) / (2.0 - 6.0 * cosine**2)
-        return 1.0 - 4.0 * cosine**2, min(1.0, max(-1.0, argument))
-
-    def insertion_length(self, geometry: TriangleGeometry, values: ParameterValues) -> float:
-        """L_ins = φ l − 4 V_торцов / √3 (как в источнике)."""
-        contact_angle = values[ParameterName.CONTACT_ANGLE]
-        cosine = math.cos(contact_angle)
-        root_argument, arccos_argument = self._ends(contact_angle)
-        ends_volume = -(3.0 * math.acos(arccos_argument) - math.pi) / (36.0 * SQRT3 * cosine**3)
-        ends_volume += cosine / (3.0 * math.sqrt(root_argument))
-        ends_volume *= self.side(values) ** 3
-        return values[ParameterName.VOLUME_FRACTION] * geometry.pore_length_ratio - 4.0 * ends_volume / SQRT3
-
-    def feasible(self, geometry: TriangleGeometry, values: ParameterValues) -> bool:
-        contact_angle = values[ParameterName.CONTACT_ANGLE]
-        side = self.side(values)
-        if side <= 0.0 or not math.pi / 2.0 < contact_angle < 2.0 * THIRD_PI:
-            return False
-        if self._ends(contact_angle)[0] <= 0.0 or values[ParameterName.VOLUME_FRACTION] <= 0.0:
-            return False
-        insertion = self.insertion_length(geometry, values)
-        radius = meniscus_radius(side, contact_angle)
-        return radius > 0.0 and insertion >= 0.0 and insertion + 2.0 * radius <= geometry.pore_length_ratio
-
-    def surface_terms(self, geometry: TriangleGeometry, values: ParameterValues) -> SurfaceTerms:
-        """S_LV — свободные поверхности торцов; S_SL — контакт на торцах + 3 L_ins по стенкам вставки."""
-        contact_angle = values[ParameterName.CONTACT_ANGLE]
-        cosine = math.cos(contact_angle)
-        tangent = math.tan(contact_angle)
-        root_argument, arccos_argument = self._ends(contact_angle)
-        side_squared = self.side(values) ** 2
-        arcsin_argument = min(1.0, max(-1.0, SQRT3 / tangent))
-        contact_ends = (
-            -math.sqrt(3.0 * root_argument) / cosine - tangent**2 * math.asin(arcsin_argument)
-        ) * side_squared
-        free_ends = (3.0 * math.acos(arccos_argument) - math.pi) / (6.0 * cosine**2) * side_squared
-        return SurfaceTerms(
-            liquid_liquid_area=free_ends,
-            liquid_solid_area=contact_ends + 3.0 * self.insertion_length(geometry, values),
-        )

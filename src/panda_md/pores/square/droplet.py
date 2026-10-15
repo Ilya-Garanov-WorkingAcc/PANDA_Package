@@ -152,7 +152,7 @@ class SquareDropletTwoWalls(SquareCornerDroplet):
 class SquareDropletTwoWallsOneCorner(SquareCornerDroplet):
     """droplet_w2c1: капля заполняет угол между двумя соседними стенками (π/2 < θ < 3π/4).
 
-    В источнике условие допускает θ = 3π/4, но площадь там не определена (бесконечна); здесь граница строгая.
+    В источнике условие допускает θ = 3π/4, а функция площади при θ ≥ 3π/4 форму уже не считает; здесь граница строгая.
     """
 
     name: ClassVar[str] = "droplet_w2c1"

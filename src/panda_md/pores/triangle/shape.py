@@ -11,7 +11,6 @@ from panda_md.pores.triangle.pore import TriangleGeometry, accessible_side
 THIRD_PI = math.pi / 3.0
 NON_WETTING_ABOVE_TWO_THIRDS_PI = (120.0, 180.0)  # формулы выведены при θ > 2π/3
 NON_WETTING_FULL = (90.0, 180.0)
-NON_WETTING_BELOW_TWO_THIRDS_PI = (90.0, 120.0)  # формулы выведены при π/2 < θ < 2π/3
 
 
 class TriangleShape(InterfaceShape[TriangleGeometry]):

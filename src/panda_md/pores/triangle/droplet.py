@@ -1,6 +1,8 @@
 """Капли (droplet) в треугольной поре. Формулы — PANDA_Polygon `docs/model/triangle.py` (коммит 38ff491).
 
 Профиль плотности в источнике выведен только у droplet_w1c0; остальные капли — для диаграммы устойчивости.
+droplet_w2c1 не переносится: площадь S_LV в источнике расходится с геометрией на всём диапазоне θ
+(docs/architecture/05_polygon_pores.md §4).
 """
 
 import math
@@ -16,7 +18,6 @@ from panda_md.pores.common import spherical_cap_centroid_offset
 from panda_md.pores.triangle.pore import SQRT3, TRIANGLE_SECTION_AREA, TriangleGeometry, TrianglePore, accessible_bottom
 from panda_md.pores.triangle.shape import (
     NON_WETTING_ABOVE_TWO_THIRDS_PI,
-    NON_WETTING_BELOW_TWO_THIRDS_PI,
     NON_WETTING_FULL,
     THIRD_PI,
     TriangleShape,
@@ -140,56 +141,6 @@ class TriangleDropletTwoWalls(TriangleShape):
         return SurfaceTerms(
             liquid_liquid_area=-4.0 * math.pi * radius**2 * math.cos(contact_angle),
             liquid_solid_area=2.0 * math.pi * radius**2 * math.sin(contact_angle) ** 2,
-        )
-
-
-@TrianglePore.register
-class TriangleDropletTwoWallsOneCorner(TriangleShape):
-    """droplet_w2c1: капля заполняет угол между двумя стенками (π/2 < θ < 2π/3).
-
-    Отступление от источника: при θ > 2 arctg(3/2) ≈ 112.6° формула S_LV = 2π R² (1 + cos θ − ⅔ sin θ)
-    отрицательна, а cond_droplet_w2c1_triangle форму допускает; здесь форма там не существует
-    (05_polygon_pores.md §4, вопрос автору).
-    """
-
-    name: ClassVar[str] = "droplet_w2c1"
-    parameters: ClassVar[tuple[Parameter, ...]] = DROPLET_PARAMETERS
-    regimes: ClassVar[dict[Regime, tuple[float, float]]] = {Regime.NON_WETTING: NON_WETTING_BELOW_TWO_THIRDS_PI}
-
-    @staticmethod
-    def area_factors(contact_angle: float) -> tuple[float, float]:
-        """(S_LV, S_SL) / R²: 2π (1 + cos θ − 2 sin θ / 3) и 2π sin² θ."""
-        liquid_liquid = 2.0 * math.pi * (1.0 + math.cos(contact_angle) - 2.0 * math.sin(contact_angle) / 3.0)
-        return liquid_liquid, 2.0 * math.pi * math.sin(contact_angle) ** 2
-
-    def volume_factor(self, contact_angle: float) -> float:
-        """(S_LV − cos θ · S_SL) / (3 R²)."""
-        liquid_liquid, liquid_solid = self.area_factors(contact_angle)
-        return (liquid_liquid - liquid_solid * math.cos(contact_angle)) / 3.0
-
-    def sphere_radius(self, geometry: TriangleGeometry, values: ParameterValues) -> float:
-        return float(np.cbrt(liquid_volume(geometry, values) / self.volume_factor(values[ParameterName.CONTACT_ANGLE])))
-
-    def feasible(self, geometry: TriangleGeometry, values: ParameterValues) -> bool:
-        contact_angle = values[ParameterName.CONTACT_ANGLE]
-        side = self.side(values)
-        if side <= 0.0 or not math.pi / 2.0 < contact_angle < 2.0 * THIRD_PI:
-            return False
-        if self.volume_factor(contact_angle) <= 0.0 or self.area_factors(contact_angle)[0] <= 0.0:
-            return False
-        if not 0.0 < values[ParameterName.VOLUME_FRACTION] < side**2:
-            return False
-        radius = self.sphere_radius(geometry, values)
-        fits_length = 2.0 * radius <= geometry.pore_length_ratio
-        misses_third_wall = radius * (1.0 - 2.0 * math.cos(contact_angle)) <= accessible_height_of(side)
-        fits_width = radius * (math.sin(contact_angle) - SQRT3 * math.cos(contact_angle)) <= side
-        return fits_length and misses_third_wall and fits_width
-
-    def surface_terms(self, geometry: TriangleGeometry, values: ParameterValues) -> SurfaceTerms:
-        liquid_liquid, liquid_solid = self.area_factors(values[ParameterName.CONTACT_ANGLE])
-        radius_squared = self.sphere_radius(geometry, values) ** 2
-        return SurfaceTerms(
-            liquid_liquid_area=liquid_liquid * radius_squared, liquid_solid_area=liquid_solid * radius_squared
         )
 
 
