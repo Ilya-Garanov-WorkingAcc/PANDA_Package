@@ -9,13 +9,14 @@
   жидкость в поре.
 """
 
+import warnings
 from pathlib import Path
 
 import numpy as np
 import pytest
 from scipy.integrate import trapezoid
 
-from panda_md import Frame, ProfileSet, SlitPore
+from panda_md import ArrayTrajectory, Frame, ProfileSet, SlitPore, density_profile
 
 DATA = Path(__file__).parent / "data"
 WATER_DENSITY_BULK = 33.13  # ρ_bulk кислородов воды в графитовой системе: медиана 2D-карты в сердцевине фазы (задача 1)
@@ -23,6 +24,46 @@ WATER_DENSITY_BULK = 33.13  # ρ_bulk кислородов воды в граф�
 
 def load_pore(name: str) -> SlitPore:
     return SlitPore.model_validate_json((DATA / f"{name}_pore.json").read_text())
+
+
+HAND_WIDTHS_NM = {  # H по крайним атомам подложки и длине ящика из .gro (задача 1 и ручной расчёт)
+    "graphite": 11.0 + 0.195 - 2.926,  # образ дна графита − его верх
+    "benzene": 13.4607 - 3.147,  # задача 1: H = Lz − верх SOLD = 10.31
+    "calcite": 12.684 + 0.009 - 3.554,
+}
+
+
+def frame_trajectory(name: str) -> ArrayTrajectory:
+    """Один реальный кадр: подложка и жидкость с настоящими высотами (x, y не нужны оси z — нули)."""
+    with np.load(DATA / f"{name}_frame.npz") as frame:
+        walls, liquid, box = (
+            frame["wall_z_nm"].astype(np.float64),
+            frame["liquid_z_nm"].astype(np.float64),
+            frame["box_nm"],
+        )
+    heights = np.concatenate([walls, liquid])
+    positions = np.column_stack([np.zeros((heights.size, 2)), heights])
+    return ArrayTrajectory(
+        positions_nm=positions[np.newaxis],
+        boxes_nm=box[np.newaxis],
+        times_ps=[0.0],
+        groups={"walls": np.arange(walls.size), "liquid": walls.size + np.arange(liquid.size)},
+    )
+
+
+@pytest.mark.parametrize("name", list(HAND_WIDTHS_NM))
+def test_walls_and_profile_recomputed_from_a_real_frame(name: str) -> None:
+    """Код поиска стенок и профиля на реальной геометрии подложки — а не только сохранённые результаты."""
+    trajectory = frame_trajectory(name)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")  # ни вакуума, ни частиц вне поры
+        pore = SlitPore.from_trajectory(trajectory, walls="walls")
+        stored = load_pore(name)
+        assert pore.width_nm == pytest.approx(HAND_WIDTHS_NM[name], abs=1e-3)
+        assert pore.width_nm == pytest.approx(stored.width_nm, abs=1e-3)
+        sized = stored.model_copy(update={"wall_selection": "walls"})
+        profiles = density_profile(trajectory, sized, "liquid", bins=100)
+    assert profiles.block_particle_counts[0] == trajectory.select("liquid").size
 
 
 def test_walls_are_found_as_computed_by_hand() -> None:

@@ -1,7 +1,7 @@
 """Сквозной путь: частицы из модели → траектория → центрирование и бины → профиль по блокам → фит.
 
 Координата z частиц разыгрывается по профилю модели (одномерное распределение — всё, что видит профиль плотности),
-x и y — равномерно. Стенки — две плоскости атомов, пора пересекает границу ящика и дрейфует между кадрами.
+x и y — равномерно. Подложка — три слоя атомов (1 нм), пора пересекает границу ящика и дрейфует между кадрами.
 Проверяется путь данных, а не трёхмерная геометрия формы (облака точек по `contains` — фаза 6).
 """
 
@@ -48,12 +48,13 @@ def particle_trajectory(model: InterfaceModel, values: dict[str, float]) -> Arra
             [
                 np.column_stack([grid, np.full(len(grid), lower)]),
                 np.column_stack([grid, np.full(len(grid), lower + WIDTH_NM)]),
+                np.column_stack([grid, np.full(len(grid), lower - 0.5)]),  # середина подложки толщиной 1 нм
             ]
         )
         lateral = generator.uniform(0.0, 1.0, size=(count, 2)) * BOX_NM[:2]
         heights = sample_heights(model, values, count, generator) + lower + WIDTH_NM / 2.0
         frames.append(np.mod(np.vstack([walls, np.column_stack([lateral, heights])]), BOX_NM))
-    wall_count = 2 * len(grid)
+    wall_count = 3 * len(grid)
     return ArrayTrajectory(
         positions_nm=np.array(frames),
         boxes_nm=np.tile(BOX_NM, (FRAME_COUNT, 1)),

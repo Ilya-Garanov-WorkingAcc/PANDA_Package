@@ -33,10 +33,14 @@ def largest_gap(values: FloatArray, period: float) -> tuple[float, float]:
     Стенки щели — атомы подложки: пора — самый широкий пустой промежуток между ними, в том числе через границу
     ящика (одна подложка и её образ).
     """
+    return empty_gaps(values, period)[0]
+
+
+def empty_gaps(values: FloatArray, period: float) -> list[tuple[float, float]]:
+    """Все промежутки между соседними точками на окружности длины L, от широкого к узкому: (начало, конец)."""
     if values.size == 0:
         raise InvalidTrajectoryError("в выборке стенок нет атомов")
     ordered = np.sort(np.mod(values, period))
-    gaps = np.diff(np.append(ordered, ordered[0] + period))
-    widest = int(np.argmax(gaps))
-    start = float(ordered[widest])
-    return start, start + float(gaps[widest])
+    widths = np.diff(np.append(ordered, ordered[0] + period))
+    order = np.argsort(-widths, kind="stable")
+    return [(float(ordered[index]), float(ordered[index] + widths[index])) for index in order]

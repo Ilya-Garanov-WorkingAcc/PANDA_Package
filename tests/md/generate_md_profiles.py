@@ -8,19 +8,34 @@
 
 Запуск (нужен panda-md[md] и доступ к данным; корни — переменные PANDA_REBORN_DIR и PANDA_ROUGHNESS_DIR):
     uv run python tests/md/generate_md_profiles.py
-Результат: tests/md/data/*.npz (ProfileSet) и *_pore.json — коммитятся, тесты читают только их.
+Результат: tests/md/data/*_profiles.npz (ProfileSet), *_pore.json и *_frame.npz (один кадр: ящик и высоты атомов
+подложки и жидкости — по нему тесты заново прогоняют поиск стенок и профиль) — коммитятся, тесты читают только их.
 """
 
 import os
 import time
 from pathlib import Path
 
+import numpy as np
+
 from panda_md import SlitPore, density_profile, load_trajectory
+from panda_md.core.trajectory import Trajectory
 
 REBORN = Path(os.environ.get("PANDA_REBORN_DIR", "/mnt/c/Phystech/Computing_Physics_Center/Projects/PANDA_Reborn"))
 ROUGHNESS = Path(os.environ.get("PANDA_ROUGHNESS_DIR", "/mnt/c/Phystech/Computing_Physics_Center/Projects/roughness_2"))
 OUTPUT = Path(__file__).parent / "data"
 BIN_COUNT = 200
+
+
+def save_frame(name: str, trajectory: Trajectory, walls: str, liquid: str, time: str) -> None:
+    """Высоты атомов подложки и жидкости и ящик одного кадра (float32, сжато: точность xtc — 0.001 нм)."""
+    frame = trajectory.frame_at(time, [trajectory.select(walls), trajectory.select(liquid)])
+    np.savez_compressed(
+        OUTPUT / f"{name}_frame.npz",
+        box_nm=frame.box_nm,
+        wall_z_nm=frame.positions_nm[0][:, 2].astype(np.float32),
+        liquid_z_nm=frame.positions_nm[1][:, 2].astype(np.float32),
+    )
 
 
 def save_pore(name: str, pore: SlitPore) -> None:
@@ -32,6 +47,7 @@ def graphite() -> None:
     trajectory = load_trajectory(system / "graphite_decane_tip4p.tpr", system / "graphite_decane_tip4p.xtc")
     pore = SlitPore.from_trajectory(trajectory, walls="resname GRAPHITE")
     save_pore("graphite", pore)
+    save_frame("graphite", trajectory, "resname GRAPHITE", "resname WATER and name OW", "2 ns")
     water = density_profile(trajectory, pore, "resname WATER and name OW", bins=BIN_COUNT, start="2 ns", block="1 ns")
     water.save(OUTPUT / "graphite_water_profiles.npz")
 
@@ -41,6 +57,7 @@ def benzene() -> None:
     trajectory = load_trajectory(system / "nvt_prod.gro", system / "nvt_prod.xtc")
     pore = SlitPore.from_trajectory(trajectory, walls="resname SOLD")
     save_pore("benzene", pore)
+    save_frame("benzene", trajectory, "resname SOLD", "resname BENZ", "4 ns")
     benzene_profiles = density_profile(trajectory, pore, "resname BENZ", bins=BIN_COUNT, start="4 ns", block="1.2 ns")
     benzene_profiles.save(OUTPUT / "benzene_profiles.npz")
 
@@ -50,6 +67,7 @@ def calcite() -> None:
     trajectory = load_trajectory(system / "cal_dec_tip4p.gro", system / "cal_dec_tip4p.xtc")
     pore = SlitPore.from_trajectory(trajectory, walls="resname CAL")
     save_pore("calcite", pore)
+    save_frame("calcite", trajectory, "resname CAL", "resname DECAN", "0 ps")
     density_profile(trajectory, pore, "resname DECAN", bins=BIN_COUNT).save(OUTPUT / "calcite_decane_profiles.npz")
     density_profile(trajectory, pore, "resname WATER and name OW", bins=BIN_COUNT).save(
         OUTPUT / "calcite_water_profiles.npz"

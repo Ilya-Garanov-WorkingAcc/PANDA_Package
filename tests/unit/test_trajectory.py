@@ -8,7 +8,7 @@ from pydantic import ValidationError
 
 from panda_md import SlitPore
 from panda_md.core.enums import Axis
-from panda_md.core.errors import InvalidTrajectoryError, MissingDependencyError
+from panda_md.core.errors import InvalidTrajectoryError, MissingDependencyError, PandaWarning
 from panda_md.trajectory.arrays import ArrayTrajectory
 from panda_md.trajectory.reader import MDATrajectory, load_trajectory
 
@@ -123,3 +123,26 @@ def test_load_trajectory_reports_missing_files_and_package(monkeypatch: pytest.M
     monkeypatch.setitem(__import__("sys").modules, "MDAnalysis", None)
     with pytest.raises(MissingDependencyError, match=r"panda-md\[md\]"):
         load_trajectory("нет.gro")
+
+
+def vacuum_trajectory() -> ArrayTrajectory:
+    """Две подложки (z ≈ 1–1.6 и 6–6.6 нм), жидкость между ними, над второй — вакуум до Lz = 20 нм."""
+    grid = np.array([[x, y] for x in np.arange(0.0, 6.0, 1.0) for y in np.arange(0.0, 4.0, 1.0)])
+    walls = np.vstack([np.column_stack([grid, np.full(len(grid), z)]) for z in (1.0, 1.3, 1.6, 6.0, 6.3, 6.6)])
+    liquid = np.column_stack([np.full(50, 2.0), np.full(50, 2.0), np.linspace(2.0, 5.5, 50)])
+    return ArrayTrajectory(
+        positions_nm=np.vstack([walls, liquid])[np.newaxis],
+        boxes_nm=[[6.0, 4.0, 20.0]],
+        times_ps=[0.0],
+        groups={"walls": np.arange(len(walls)), "liquid": len(walls) + np.arange(50)},
+    )
+
+
+def test_vacuum_gap_is_reported_and_liquid_selects_the_pore() -> None:
+    with pytest.warns(PandaWarning, match="liquid="):
+        vacuum = SlitPore.from_trajectory(vacuum_trajectory(), walls="walls")
+    assert vacuum.width_nm == pytest.approx(14.4)
+    pore = SlitPore.from_trajectory(vacuum_trajectory(), walls="walls", liquid="liquid")
+    assert pore.width_nm == pytest.approx(4.4)
+    walls_z = vacuum_trajectory().positions_nm[0, : 6 * 24, 2]
+    assert pore.locate_center_nm(walls_z, 20.0) == pytest.approx(3.8)  # промежуток ширины H, а не вакуум

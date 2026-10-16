@@ -22,6 +22,7 @@ DEFAULT_BIN_COUNT = 200
 WALL_GAP_TOLERANCE = 0.02  # промежуток между стенками в кадре отличается от H поры больше чем на 2 % — предупреждение
 BOX_AREA_TOLERANCE = 0.01  # площадь основания ящика отличается от основания поры больше чем на 1 % — предупреждение
 OUTSIDE_FRACTION_WARNING = 0.01  # больше 1 % выбранных частиц вне поры — предупреждение
+BOX_CHANGE_TOLERANCE = 0.01  # в системе жидкости бины — по ящику первого кадра; изменение больше 1 % — предупреждение
 
 
 class _BlockAccumulator:
@@ -61,8 +62,9 @@ def density_profile(
     """Профили плотности выбранных частиц вдоль оси поры, усреднённые по блокам времени длины `block`.
 
     centering=PORE: 0 — центр поры; он берётся из `pore_center_nm` или в каждом кадре из атомов стенок
-    (`pore.wall_selection`); бины выровнены по стенкам поры. centering=LIQUID: 0 — центр масс выборки с учётом PBC;
-    бины покрывают весь ящик вдоль оси профиля. Неполный последний блок отбрасывается.
+    (`pore.wall_selection`); бины выровнены по стенкам поры. centering=LIQUID: 0 — центр выборки (среднее
+    по атомам без весов) с учётом PBC; бины покрывают весь ящик вдоль оси профиля. Неполный последний блок
+    отбрасывается.
     """
     centering = ProfileCentering(centering)
     orientation = Orientation(orientation)
@@ -82,6 +84,7 @@ def density_profile(
 
     axis = pore.normal_axis.column
     edges: FloatArray | None = None
+    first_period = 0.0
     blocks: list[_BlockAccumulator] = []
     warned: set[str] = set()
     for frame, block_index in zip(
@@ -94,9 +97,12 @@ def density_profile(
         center = _frame_center(frame, pore, centering, pore_center_nm, period, warned)
         coordinate = wrap_centered(frame.positions_nm[0][:, axis] - center, period)
         if edges is None:
+            first_period = period
             edges = _bin_edges(pore, centering, period, bins, bin_width_nm)
             blocks = [_BlockAccumulator(edges.size - 1) for _ in range(block_count)]
         counts, _ = np.histogram(coordinate, bins=edges)
+        if centering is ProfileCentering.LIQUID:
+            _check_box_change(frame.index, period, first_period, int(counts.sum()) < coordinate.size, warned)
         area = pore.bin_cross_section_nm2(frame.box_nm)
         _check_area(pore, area, warned)
         density = counts / (area * np.diff(edges))
@@ -151,7 +157,7 @@ def _assign_blocks(times: FloatArray, block_ps: float | None) -> tuple[list[int]
         )
     assignment = [math.floor(value / block_ps + 1e-9) for value in elapsed]
     dropped = sum(1 for index in assignment if index >= block_count)
-    if dropped:
+    if dropped > 1:  # один кадр ровно на границе — начало следующего блока, а не неполный блок
         warnings.warn(f"{dropped} последних кадров не составляют полного блока и не учтены", PandaWarning, stacklevel=3)
     return [index if index < block_count else -1 for index in assignment], block_count
 
@@ -187,7 +193,10 @@ def _frame_center(
 def _wall_gap(walls: FloatArray, period: float, center: float) -> float:
     """Ширина пустого промежутка вокруг center: ближайшие атомы стенок снизу и сверху."""
     offsets = wrap_centered(walls - center, period)
-    return float(np.min(offsets[offsets > 0]) - np.max(offsets[offsets <= 0]))
+    above, below = offsets[offsets > 0], offsets[offsets <= 0]
+    if above.size == 0 or below.size == 0:
+        return period  # стенки в одной плоскости: пора — весь ящик
+    return float(np.min(above) - np.max(below))
 
 
 def _bin_edges(
@@ -206,6 +215,20 @@ def _bin_edges(
         raise ValueError(f"бинов {count}: нужно хотя бы 2")
     edges: FloatArray = np.linspace(lower, upper, count + 1)
     return edges
+
+
+def _check_box_change(frame_index: int, period: float, first_period: float, lost: bool, warned: set[str]) -> None:
+    """В системе жидкости бины построены по ящику первого кадра: ящик заметно изменился — предупредить один раз."""
+    if "box" in warned:
+        return
+    if abs(period - first_period) > BOX_CHANGE_TOLERANCE * first_period or lost:
+        warned.add("box")
+        warnings.warn(
+            f"кадр {frame_index}: ящик вдоль оси профиля {period:.3f} нм, а бины построены по первому кадру "
+            f"({first_period:.3f} нм) — часть частиц вне бинов или крайние бины недозаполнены",
+            PandaWarning,
+            stacklevel=3,
+        )
 
 
 def _check_area(pore: Pore, area: float, warned: set[str]) -> None:

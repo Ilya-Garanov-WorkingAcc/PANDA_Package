@@ -1,5 +1,6 @@
 """Профиль плотности по траектории: центрирование, бины, блоки, ориентация, проверки, сохранение."""
 
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -97,7 +98,8 @@ def test_liquid_centering_puts_center_of_mass_at_zero_across_boundary() -> None:
 
 def test_blocks_by_time_and_partial_block_is_dropped() -> None:
     trajectory = trajectory_from(uniform_slab(-1.0, 1.0, 500, 7))
-    with pytest.warns(PandaWarning, match="1 последних кадров"):
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")  # один кадр на границе последнего блока — не неполный блок
         profiles = density_profile(trajectory, pore(), "liquid", bins=20, block="20 ps")
     assert profiles.block_count == 3
     assert profiles.block_frame_counts == (2, 2, 2)
@@ -179,3 +181,41 @@ def test_centering_and_orientation_accept_strings() -> None:
     np.testing.assert_allclose(by_name.block_densities_per_nm3, by_enum.block_densities_per_nm3)
     with pytest.raises(ValueError, match="none"):
         density_profile(trajectory, pore(), "liquid", centering="none")
+
+
+def test_partial_block_of_several_frames_is_reported() -> None:
+    trajectory = trajectory_from(uniform_slab(-1.0, 1.0, 200, 8))  # 0…70 пс, блоки по 30 пс: 60 и 70 пс — лишние
+    with pytest.warns(PandaWarning, match="2 последних кадров"):
+        profiles = density_profile(trajectory, pore(), "liquid", bins=20, block="30 ps")
+    assert profiles.block_frame_counts == (3, 3)
+
+
+def test_box_changing_along_profile_axis_is_reported_in_liquid_frame() -> None:
+    generator = np.random.default_rng(SEED)
+    lengths = [5.0, 5.5]
+    frames = [
+        np.column_stack([generator.uniform(0.0, 3.0, (400, 2)), generator.uniform(0.0, length, 400)])
+        for length in lengths
+    ]
+    trajectory = ArrayTrajectory(
+        positions_nm=np.array(frames),
+        boxes_nm=np.array([[6.0, 3.0, length] for length in lengths]),
+        times_ps=[0.0, 1.0],
+    )
+    with pytest.warns(PandaWarning, match="ящик вдоль оси профиля"):
+        density_profile(trajectory, pore(), list(range(400)), centering=ProfileCentering.LIQUID, bins=20)
+
+
+def test_walls_in_a_single_plane_give_the_whole_box_as_pore() -> None:
+    grid = np.array([[x, y, 0.5] for x in np.arange(0.0, 6.0, 0.5) for y in np.arange(0.0, 3.0, 0.5)])
+    liquid = np.column_stack([np.full(100, 1.0), np.full(100, 1.0), np.linspace(1.0, 4.0, 100)])
+    trajectory = ArrayTrajectory(
+        positions_nm=np.vstack([grid, liquid])[np.newaxis],
+        boxes_nm=[[6.0, 3.0, 5.0]],
+        times_ps=[0.0],
+        groups={"walls": np.arange(len(grid)), "liquid": len(grid) + np.arange(100)},
+    )
+    plane = SlitPore.from_trajectory(trajectory, walls="walls")
+    assert plane.width_nm == pytest.approx(5.0)
+    profiles = density_profile(trajectory, plane, "liquid", bins=20)
+    assert profiles.block_particle_counts[0] == 100

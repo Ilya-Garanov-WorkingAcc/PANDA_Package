@@ -4,19 +4,22 @@
 """
 
 import math
+import warnings
 from typing import ClassVar
 
+import numpy as np
 from pydantic import Field
 
 from panda_md.core.enums import AXIS_ORDER, Axis
-from panda_md.core.errors import InvalidTrajectoryError
-from panda_md.core.pbc import largest_gap
+from panda_md.core.errors import InvalidTrajectoryError, PandaWarning
+from panda_md.core.pbc import empty_gaps, wrap_centered
 from panda_md.core.pore import Pore
 from panda_md.core.shape import PoreGeometry
 from panda_md.core.timing import TimeValue
 from panda_md.core.trajectory import Trajectory
 from panda_md.core.types import FloatArray
 
+SECOND_GAP_WARNING_NM = 1.0  # внутри подложек промежутки < 0.5 нм (графит, SOLD, кальцит); второй шире 1 нм — вакуум?
 SLIT_HALF_WIDTH = 0.5  # стенки щели в безразмерной координате: z = ±0.5
 
 
@@ -74,8 +77,13 @@ class SlitPore(Pore):
         return self.base_aspect_ratio * self.length_nm**2
 
     def locate_center_nm(self, wall_coordinates_nm: FloatArray, period_nm: float) -> float:
-        """Середина наибольшего пустого промежутка между атомами стенок, в [0, L) — в том числе через границу ящика."""
-        start, end = largest_gap(wall_coordinates_nm, period_nm)
+        """Середина пустого промежутка между атомами стенок, ширина которого ближе всего к H, в [0, L).
+
+        Промежуток может проходить через границу ящика; вакуумный слой другой ширины не выбирается.
+        """
+        start, end = min(
+            empty_gaps(wall_coordinates_nm, period_nm), key=lambda gap: abs(gap[1] - gap[0] - self.width_nm)
+        )
         return (0.5 * (start + end)) % period_nm
 
     @classmethod
@@ -87,16 +95,39 @@ class SlitPore(Pore):
         length_axis: Axis = Axis.X,
         normal_axis: Axis = Axis.Z,
         time: TimeValue = 0.0,
+        liquid: str | None = None,
     ) -> "SlitPore":
-        """Щель по кадру траектории: H — наибольший промежуток между атомами стенок (поверхности — по центрам
-        крайних атомов), L — ребро ящика вдоль length_axis, k — второе ребро основания / L.
+        """Щель по кадру траектории: H — промежуток между атомами стенок (поверхности — по центрам крайних атомов),
+        L — ребро ящика вдоль length_axis, k — второе ребро основания / L.
+
+        Промежуток — наибольший, а если задана выборка жидкости `liquid` — тот, в котором её больше всего (нужно,
+        когда в ящике есть вакуумный слой).
         """
         if length_axis is normal_axis:
             raise InvalidTrajectoryError(f"ось длины {length_axis.value} совпадает с осью профиля")
-        indices = trajectory.select(walls)
-        frame = trajectory.frame_at(time, [indices])
+        groups = [trajectory.select(walls)] + ([] if liquid is None else [trajectory.select(liquid)])
+        frame = trajectory.frame_at(time, groups)
         box = frame.box_nm
-        start, end = largest_gap(frame.positions_nm[0][:, normal_axis.column], float(box[normal_axis.column]))
+        period = float(box[normal_axis.column])
+        gaps = empty_gaps(frame.positions_nm[0][:, normal_axis.column], period)
+        if liquid is None:
+            start, end = gaps[0]
+            if len(gaps) > 1 and gaps[1][1] - gaps[1][0] >= SECOND_GAP_WARNING_NM:
+                warnings.warn(
+                    f"между стенками два широких промежутка ({end - start:.3f} и {gaps[1][1] - gaps[1][0]:.3f} нм) — "
+                    f"возможно, в ящике вакуум; выбран наибольший, задай liquid=<выборка>, чтобы выбрать промежуток "
+                    f"с жидкостью",
+                    PandaWarning,
+                    stacklevel=2,
+                )
+        else:
+            heights = frame.positions_nm[1][:, normal_axis.column]
+
+            def liquid_inside(gap: tuple[float, float]) -> int:
+                offsets = wrap_centered(heights - 0.5 * (gap[0] + gap[1]), period)
+                return int(np.count_nonzero(np.abs(offsets) < 0.5 * (gap[1] - gap[0])))
+
+            start, end = max(gaps, key=liquid_inside)
         (other_axis,) = (axis for axis in AXIS_ORDER if axis not in (length_axis, normal_axis))
         length = float(box[length_axis.column])
         aspect_ratio = float(box[other_axis.column]) / length
