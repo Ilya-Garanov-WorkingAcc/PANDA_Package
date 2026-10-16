@@ -79,6 +79,13 @@ class ProfileCentering(str, Enum):
     LIQUID = "liquid"  # центр выбранных атомов (без весов) с учётом PBC — система LIQUID
 
 
+class ParticleGrouping(str, Enum):
+    """Что считается частицей профиля."""
+
+    ATOM = "atom"  # каждый выбранный атом
+    MOLECULE = "molecule"  # центр масс молекулы (меньше молекулярной «ряби» у стенок)
+
+
 class Orientation(str, Enum):
     """Отражать ли профиль z → −z в системе поры."""
 

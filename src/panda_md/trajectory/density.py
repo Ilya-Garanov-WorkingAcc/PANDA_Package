@@ -9,9 +9,9 @@ from collections.abc import Sequence
 
 import numpy as np
 
-from panda_md.core.enums import Frame, Orientation, ProfileCentering
+from panda_md.core.enums import Frame, Orientation, ParticleGrouping, ProfileCentering
 from panda_md.core.errors import InvalidTrajectoryError, PandaWarning
-from panda_md.core.pbc import circular_mean, wrap_centered
+from panda_md.core.pbc import circular_mean, molecule_centers, wrap_centered
 from panda_md.core.pore import Pore
 from panda_md.core.profile import ProfileSet
 from panda_md.core.timing import TimeValue, to_picoseconds
@@ -58,17 +58,20 @@ def density_profile(
     stride: int = 1,
     pore_center_nm: float | None = None,
     orientation: Orientation | str = Orientation.AUTO,
+    per: ParticleGrouping | str = ParticleGrouping.ATOM,
 ) -> ProfileSet:
     """Профили плотности выбранных частиц вдоль оси поры, усреднённые по блокам времени длины `block`.
 
     centering=PORE: 0 — центр поры; он берётся из `pore_center_nm` или в каждом кадре из атомов стенок
     (`pore.wall_selection`); бины выровнены по стенкам поры. centering=LIQUID: 0 — центр выборки (среднее
     по атомам без весов) с учётом PBC; бины покрывают весь ящик вдоль оси профиля. Неполный последний блок
-    отбрасывается.
+    отбрасывается. per=MOLECULE: частица — центр масс молекулы (с учётом PBC), N — число молекул.
     """
     centering = ProfileCentering(centering)
     orientation = Orientation(orientation)
+    grouping = ParticleGrouping(per)
     liquid = trajectory.select(select)
+    molecules = trajectory.molecules(liquid) if grouping is ParticleGrouping.MOLECULE else None
     groups: list[IndexArray] = [liquid]
     use_walls = centering is ProfileCentering.PORE and pore_center_nm is None
     if use_walls:
@@ -94,8 +97,9 @@ def density_profile(
             continue
         check_box(frame.box_nm)
         period = float(frame.box_nm[axis])
-        center = _frame_center(frame, pore, centering, pore_center_nm, period, warned)
-        coordinate = wrap_centered(frame.positions_nm[0][:, axis] - center, period)
+        heights = _particle_heights(frame.positions_nm[0], frame.box_nm, axis, molecules)
+        center = _frame_center(frame, heights, pore, centering, pore_center_nm, period, warned)
+        coordinate = wrap_centered(heights - center, period)
         if edges is None:
             first_period = period
             edges = _bin_edges(pore, centering, period, bins, bin_width_nm)
@@ -169,8 +173,21 @@ def _assign_blocks(times: FloatArray, block_ps: float | None) -> tuple[list[int]
     return [index if index < block_count else -1 for index in assignment], block_count
 
 
+def _particle_heights(
+    positions: FloatArray, box: FloatArray, axis: int, molecules: tuple[IndexArray, FloatArray] | None
+) -> FloatArray:
+    """Координата частиц вдоль оси профиля: атомов или центров масс молекул."""
+    if molecules is None:
+        heights: FloatArray = positions[:, axis]
+        return heights
+    molecule_indices, masses = molecules
+    centers: FloatArray = molecule_centers(positions, box, molecule_indices, masses)[:, axis]
+    return centers
+
+
 def _frame_center(
     frame: TrajectoryFrame,
+    heights: FloatArray,
     pore: Pore,
     centering: ProfileCentering,
     pore_center_nm: float | None,
@@ -179,13 +196,13 @@ def _frame_center(
 ) -> float:
     axis = pore.normal_axis.column
     if centering is ProfileCentering.LIQUID:
-        return circular_mean(frame.positions_nm[0][:, axis], period)
+        return circular_mean(heights, period)
     if pore_center_nm is not None:
         return pore_center_nm
     walls = frame.positions_nm[1][:, axis]
     center = pore.locate_center_nm(walls, period)
     gap = _wall_gap(walls, period, center)
-    expected = pore.coordinate_bounds_nm()[1] - pore.coordinate_bounds_nm()[0]
+    expected = pore.expected_wall_gap_nm()
     if abs(gap - expected) > WALL_GAP_TOLERANCE * expected and "gap" not in warned:
         warned.add("gap")
         warnings.warn(

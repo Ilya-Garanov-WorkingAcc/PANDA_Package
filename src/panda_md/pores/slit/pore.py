@@ -58,6 +58,7 @@ class SlitPore(Pore):
     width_nm: float = Field(gt=0.0)  # H — расстояние между стенками
     length_nm: float = Field(gt=0.0)  # L — длинная сторона основания ячейки
     base_aspect_ratio: float = Field(default=1.0, gt=0.0, le=1.0)  # k — короткая сторона / длинная
+    wall_offset_nm: float = Field(default=0.0, ge=0.0)  # поверхность стенки — дальше центров крайних атомов
 
     def geometry(self) -> SlitGeometry:
         return SlitGeometry(pore_length_ratio=self.length_nm / self.width_nm, base_aspect_ratio=self.base_aspect_ratio)
@@ -76,13 +77,18 @@ class SlitPore(Pore):
         """k L² — основание ячейки; должно совпадать с основанием ящика."""
         return self.base_aspect_ratio * self.length_nm**2
 
+    def expected_wall_gap_nm(self) -> float:
+        """H + 2 · wall_offset: поверхности стенок сдвинуты внутрь от центров крайних атомов."""
+        return self.width_nm + 2.0 * self.wall_offset_nm
+
     def locate_center_nm(self, wall_coordinates_nm: FloatArray, period_nm: float) -> float:
         """Середина пустого промежутка между атомами стенок, ширина которого ближе всего к H, в [0, L).
 
         Промежуток может проходить через границу ящика; вакуумный слой другой ширины не выбирается.
         """
         start, end = min(
-            empty_gaps(wall_coordinates_nm, period_nm), key=lambda gap: abs(gap[1] - gap[0] - self.width_nm)
+            empty_gaps(wall_coordinates_nm, period_nm),
+            key=lambda gap: abs(gap[1] - gap[0] - self.expected_wall_gap_nm()),
         )
         return (0.5 * (start + end)) % period_nm
 
@@ -96,12 +102,14 @@ class SlitPore(Pore):
         normal_axis: Axis = Axis.Z,
         time: TimeValue = 0.0,
         liquid: str | None = None,
+        wall_offset_nm: float = 0.0,
     ) -> "SlitPore":
         """Щель по кадру траектории: H — промежуток между атомами стенок (поверхности — по центрам крайних атомов),
         L — ребро ящика вдоль length_axis, k — второе ребро основания / L.
 
         Промежуток — наибольший, а если задана выборка жидкости `liquid` — тот, в котором её больше всего (нужно,
-        когда в ящике есть вакуумный слой).
+        когда в ящике есть вакуумный слой). wall_offset_nm — на сколько поверхность каждой стенки отстоит от центров
+        её крайних атомов (например, ван-дер-ваальсов радиус): H = промежуток − 2 · wall_offset_nm.
         """
         if length_axis is normal_axis:
             raise InvalidTrajectoryError(f"ось длины {length_axis.value} совпадает с осью профиля")
@@ -136,8 +144,14 @@ class SlitPore(Pore):
                 f"ребро {other_axis.value} ({box[other_axis.column]:.3f} нм) длиннее {length_axis.value} "
                 f"({length:.3f} нм): L — длинная сторона основания, задай length_axis={other_axis.value!r}"
             )
+        width = end - start - 2.0 * wall_offset_nm
+        if width <= 0.0:
+            raise InvalidTrajectoryError(
+                f"wall_offset_nm = {wall_offset_nm} нм не меньше половины промежутка {end - start:.3f} нм"
+            )
         return cls(
-            width_nm=end - start,
+            width_nm=width,
+            wall_offset_nm=wall_offset_nm,
             length_nm=length,
             base_aspect_ratio=aspect_ratio,
             normal_axis=normal_axis,

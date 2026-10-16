@@ -70,6 +70,11 @@ class Pore(PandaModel, ABC):
         size = self.characteristic_size_nm()
         return lower * size, upper * size
 
+    def expected_wall_gap_nm(self) -> float:
+        """Пустой промежуток между центрами крайних атомов стенок, который ожидает пора."""
+        lower, upper = self.coordinate_bounds_nm()
+        return upper - lower
+
     def locate_center_nm(self, wall_coordinates_nm: FloatArray, period_nm: float) -> float:
         """Положение центра поры вдоль оси профиля по координатам атомов стенок (с учётом PBC)."""
         raise NotDerivedError(

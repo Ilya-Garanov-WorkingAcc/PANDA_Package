@@ -35,6 +35,10 @@ class Trajectory(ABC):
         """Индексы атомов выборки. Пустая выборка — InvalidTrajectoryError."""
 
     @abstractmethod
+    def molecules(self, indices: IndexArray) -> tuple[IndexArray, FloatArray]:
+        """Для атомов выборки: номер молекулы (0 … n − 1 в порядке первого появления) и масса атома."""
+
+    @abstractmethod
     def times_ps(self) -> FloatArray:
         """Время каждого кадра, пс."""
 
@@ -75,3 +79,11 @@ class Trajectory(ABC):
 def check_box(box_nm: FloatArray) -> None:
     if box_nm.shape != (BOX_DIMENSIONS,) or np.any(box_nm <= 0.0):
         raise InvalidTrajectoryError(f"ящик {box_nm.tolist()}: нужны три положительные длины прямоугольного ящика")
+
+
+def renumber(labels: IndexArray) -> IndexArray:
+    """Метки молекул → 0 … n − 1 в порядке первого появления."""
+    _, first, inverse = np.unique(labels, return_index=True, return_inverse=True)
+    order = np.argsort(np.argsort(first))
+    renumbered: IndexArray = order[inverse].astype(np.int64)
+    return renumbered

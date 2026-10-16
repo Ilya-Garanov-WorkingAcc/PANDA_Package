@@ -6,7 +6,7 @@ import numpy as np
 from pydantic import Field, model_validator
 
 from panda_md.core.errors import InvalidTrajectoryError
-from panda_md.core.trajectory import BOX_DIMENSIONS, Trajectory, TrajectoryFrame
+from panda_md.core.trajectory import BOX_DIMENSIONS, Trajectory, TrajectoryFrame, renumber
 from panda_md.core.types import Array1D, Array2D, Array3D, FloatArray, IndexArray, IndexArray1D, PandaModel
 
 
@@ -20,6 +20,8 @@ class ArrayTrajectory(PandaModel, Trajectory):
     boxes_nm: Array2D
     times_ps_values: Array1D = Field(alias="times_ps")
     groups: Mapping[str, IndexArray1D] = Field(default_factory=dict)
+    molecule_ids: IndexArray1D | None = None  # номер молекулы каждого атома — для per="molecule"
+    masses: Array1D | None = None  # масса каждого атома (а. е. м.)
 
     @model_validator(mode="after")
     def _check_shapes(self) -> "ArrayTrajectory":
@@ -30,6 +32,9 @@ class ArrayTrajectory(PandaModel, Trajectory):
             raise ValueError(f"ящики формы {self.boxes_nm.shape}: нужно ({frame_count}, 3) с положительными длинами")
         if self.times_ps_values.shape != (frame_count,) or np.any(np.diff(self.times_ps_values) <= 0.0):
             raise ValueError("времена: по одному на кадр, строго по возрастанию")
+        for name, values in (("molecule_ids", self.molecule_ids), ("masses", self.masses)):
+            if values is not None and values.shape != (atom_count,):
+                raise ValueError(f"{name}: по одному значению на атом ({atom_count})")
         for name, indices in self.groups.items():
             if indices.size and int(np.max(indices)) >= atom_count:
                 raise ValueError(f"группа {name}: индекс {int(np.max(indices))} при {atom_count} атомах")
@@ -47,6 +52,11 @@ class ArrayTrajectory(PandaModel, Trajectory):
         if indices.size == 0:
             raise InvalidTrajectoryError(f"выборка {selection!r} пуста")
         return indices
+
+    def molecules(self, indices: IndexArray) -> tuple[IndexArray, FloatArray]:
+        if self.molecule_ids is None or self.masses is None:
+            raise InvalidTrajectoryError('для per="molecule" задай molecule_ids и masses траектории')
+        return renumber(self.molecule_ids[indices]), self.masses[indices]
 
     def times_ps(self) -> FloatArray:
         return self.times_ps_values

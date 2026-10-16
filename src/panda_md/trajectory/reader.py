@@ -11,7 +11,7 @@ from typing import Any
 import numpy as np
 
 from panda_md.core.errors import InvalidTrajectoryError, MissingDependencyError, PandaWarning
-from panda_md.core.trajectory import Trajectory, TrajectoryFrame, check_box
+from panda_md.core.trajectory import Trajectory, TrajectoryFrame, check_box, renumber
 from panda_md.core.types import FloatArray, IndexArray
 
 ANGSTROM_PER_NM = 10.0
@@ -54,6 +54,11 @@ class MDATrajectory(Trajectory):
         if indices.size == 0:
             raise InvalidTrajectoryError(f"выборка {selection!r} пуста — проверь имена остатков и атомов")
         return indices
+
+    def molecules(self, indices: IndexArray) -> tuple[IndexArray, FloatArray]:
+        atoms = self.universe.atoms[indices]
+        masses = np.asarray(atoms.masses, dtype=np.float64)
+        return renumber(np.asarray(atoms.resindices, dtype=np.int64)), masses
 
     def times_ps(self) -> FloatArray:
         """Время кадров: t0 + dt·i, если с ним согласуется время последнего кадра; иначе (склеенные траектории
