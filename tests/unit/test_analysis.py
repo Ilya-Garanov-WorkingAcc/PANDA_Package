@@ -1,10 +1,11 @@
-"""Анализ: фит по блокам и статистическая неэффективность."""
+"""Анализ: фит по блокам, статистическая неэффективность, перебор форм."""
 
 import numpy as np
 import pytest
 
-from panda_md import FitSpec, SlitPore
+from panda_md import FitSpec, SlitPore, TrianglePore
 from panda_md.analysis.blocks import fit_blocks, statistical_inefficiency
+from panda_md.analysis.compare import compare_shapes
 from panda_md.core.enums import Frame, ProfileCentering
 from panda_md.core.errors import PandaError
 from panda_md.core.profile import ProfileSet
@@ -79,3 +80,31 @@ def test_statistical_inefficiency_rejects_useless_series() -> None:
         statistical_inefficiency([1.0, 2.0])
     with pytest.raises(PandaError, match="постоянен"):
         statistical_inefficiency([1.0] * 10)
+
+
+def test_shape_comparison_ranks_the_true_shape_first() -> None:
+    profile = noisy_blocks().mean()
+    comparison = compare_shapes(SLIT, profile, FitSpec(density_bulk_per_nm3=DENSITY_BULK))
+    assert comparison.best.shape_name == "roll"
+    assert comparison.rows[0].shape_name == "roll"
+    losses = [result.loss for result in comparison.fitted if result.feasible]
+    assert losses == sorted(losses)
+    assert {row.shape_name for row in comparison.rows} == set(SLIT.shape_names())
+    assert "roll" in comparison.summary()
+
+
+def test_shapes_that_cannot_be_fitted_are_listed_with_a_reason() -> None:
+    triangle = TrianglePore(side_nm=6.0, length_nm=12.0, layer_width_nm=6.0)
+    profile = synthetic_profile(
+        triangle.interface("droplet_w1c0"), {"theta": 140.0, "delta": 0.02, "phi": 0.05}, density_bulk_per_nm3=30.0
+    )
+    comparison = compare_shapes(
+        triangle, profile, FitSpec(density_bulk_per_nm3=30.0), shape_names=["droplet_w1c0", "droplet_w2c0"]
+    )
+    assert [row.shape_name for row in comparison.rows] == ["droplet_w1c0", "droplet_w2c0"]
+    skipped = comparison.rows[1]
+    assert skipped.result is None and skipped.skipped_reason is not None and "профиль" in skipped.skipped_reason
+    assert "пропущена" in comparison.summary()
+    only_skipped = compare_shapes(triangle, profile, FitSpec(density_bulk_per_nm3=30.0), shape_names=["droplet_w2c0"])
+    with pytest.raises(PandaError, match="ни одна форма"):
+        _ = only_skipped.best
