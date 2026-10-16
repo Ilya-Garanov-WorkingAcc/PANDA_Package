@@ -1,11 +1,14 @@
 """Периодические граничные условия вдоль одной оси ящика: заворот, круговое среднее, наибольший пустой промежуток."""
 
 import math
+import warnings
 
 import numpy as np
 
-from panda_md.core.errors import InvalidTrajectoryError
+from panda_md.core.errors import InvalidTrajectoryError, PandaWarning
 from panda_md.core.types import FloatArray, IndexArray
+
+LONG_MOLECULE_FRACTION = 0.45  # атом дальше 0.45 L от опорного — молекула, вероятно, длиннее L/2
 
 
 def wrap_centered(values: FloatArray, period: float | FloatArray) -> FloatArray:
@@ -49,16 +52,26 @@ def empty_gaps(values: FloatArray, period: float) -> list[tuple[float, float]]:
 def molecule_centers(
     positions: FloatArray, box: FloatArray, molecule_indices: IndexArray, masses: FloatArray
 ) -> FloatArray:
-    """Центры масс молекул (n_молекул × 3), в ящике. Атомы каждой молекулы сначала собираются к её первому атому
-    по ближайшему образу — молекула, разрезанная границей ящика, не «размазывается» на весь ящик.
+    """Центры масс молекул (n_молекул × 3), в ящике. Атомы каждой молекулы сначала собираются к одному из её
+    атомов по ближайшему образу — молекула, разрезанная границей ящика, не «размазывается» на весь ящик.
+    Молекула длиннее половины ящика так не собирается — предупреждение.
 
     molecule_indices — номер молекулы каждого атома (0 … n_молекул − 1, атомы одной молекулы — где угодно).
     """
     count = int(np.max(molecule_indices)) + 1
+    if np.any(np.bincount(molecule_indices, minlength=count) == 0):
+        raise InvalidTrajectoryError("номера молекул должны идти 0 … n − 1 без пропусков (см. renumber)")
     first_atom = np.full(count, -1, dtype=np.int64)
     first_atom[molecule_indices[::-1]] = np.arange(molecule_indices.size)[::-1]
     reference = positions[first_atom[molecule_indices]]
-    unwrapped = reference + wrap_centered(positions - reference, box)
+    offsets = wrap_centered(positions - reference, box)
+    if np.any(np.abs(offsets) > LONG_MOLECULE_FRACTION * box):
+        warnings.warn(
+            "молекула длиннее половины ящика: центр масс по ближайшему образу может быть неверным",
+            PandaWarning,
+            stacklevel=2,
+        )
+    unwrapped = reference + offsets
     total_mass = np.bincount(molecule_indices, weights=masses, minlength=count)
     if np.any(total_mass <= 0.0):
         raise InvalidTrajectoryError("у молекулы нулевая масса — проверь массы атомов")

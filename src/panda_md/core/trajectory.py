@@ -62,6 +62,11 @@ class Trajectory(ABC):
         if stride < 1:
             raise ValueError(f"stride = {stride}: шаг по кадрам должен быть ≥ 1")
         times = self.times_ps()
+        if np.any(np.diff(times) <= 0.0):
+            raise InvalidTrajectoryError(
+                "время кадров не возрастает — склеенные траектории перекрываются; удали перекрытие "
+                "(например, gmx trjcat -settime)"
+            )
         lower = to_picoseconds(start)
         upper = float(times[-1]) if stop is None else to_picoseconds(stop)
         inside = np.flatnonzero((times >= lower - TIME_TOLERANCE_PS) & (times <= upper + TIME_TOLERANCE_PS))

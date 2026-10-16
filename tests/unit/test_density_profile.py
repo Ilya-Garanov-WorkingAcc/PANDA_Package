@@ -242,3 +242,35 @@ def test_profile_set_requires_npz(tmp_path: Path) -> None:
         profiles.save(tmp_path / "set")
     with pytest.raises(ValueError, match=r"\.npz"):
         ProfileSet.load(tmp_path / "set.csv")
+
+
+def test_time_gap_longer_than_a_block_drops_empty_blocks() -> None:
+    generator = np.random.default_rng(SEED)
+    times = np.concatenate([np.arange(0.0, 10.0), np.arange(30.0, 40.0)])
+    slabs = [generator.uniform(-1.0, 1.0, 100) for _ in times]
+    base = trajectory_from(slabs)
+    trajectory = ArrayTrajectory(
+        positions_nm=base.positions_nm, boxes_nm=base.boxes_nm, times_ps=times, groups=base.groups
+    )
+    with pytest.warns(PandaWarning, match="без кадров"):
+        profiles = density_profile(trajectory, pore(), "liquid", bins=20, block="10 ps")
+    assert profiles.block_frame_counts == (10, 10)
+    np.testing.assert_allclose(profiles.block_start_ps, [0.0, 30.0])
+
+
+def test_molecules_with_liquid_centering() -> None:
+    generator = np.random.default_rng(SEED)
+    centers = np.column_stack([generator.uniform(0.0, 3.0, (200, 2)), generator.uniform(4.0, 5.5, 200)])
+    atoms = np.repeat(centers, 2, axis=0) + np.tile([[0.0, 0.0, 0.05], [0.0, 0.0, -0.05]], (200, 1))
+    trajectory = ArrayTrajectory(
+        positions_nm=np.mod(atoms, BOX_NM)[np.newaxis],
+        boxes_nm=BOX_NM[np.newaxis],
+        times_ps=[0.0],
+        molecule_ids=np.repeat(np.arange(200), 2),
+        masses=np.ones(400),
+    )
+    profiles = density_profile(trajectory, pore(), list(range(400)), centering="liquid", per="molecule", bins=50)
+    mean = profiles.mean()
+    assert mean.particle_count == 200
+    center = np.sum(mean.coordinate_nm * mean.density_per_nm3) / np.sum(mean.density_per_nm3)
+    assert center == pytest.approx(0.0, abs=0.05)

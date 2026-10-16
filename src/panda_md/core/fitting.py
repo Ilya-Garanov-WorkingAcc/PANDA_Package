@@ -14,9 +14,9 @@ from panda_md.core.errors import (
     InfeasibleParametersError,
     InvalidProfileError,
     NotDerivedError,
-    PandaError,
     ProfileMismatchError,
     UnidentifiableParameterError,
+    UnsupportedFrameError,
     UnsupportedRegimeError,
 )
 from panda_md.core.parameters import FreeSpec, ParameterValues
@@ -94,7 +94,7 @@ class _Objective:
             if self.frame is Frame.LIQUID and shape.frame is Frame.PORE:
                 position = position + shape.center_of_mass(self.geometry, values)
             else:
-                raise PandaError(
+                raise UnsupportedFrameError(
                     f"данные в системе {self.frame.value}, формулы формы {shape.name} — в системе "
                     f"{shape.frame.value}: такой пересчёт не поддержан"
                 )

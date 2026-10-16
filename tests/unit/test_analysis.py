@@ -7,7 +7,7 @@ from panda_md import FitSpec, SlitPore, TrianglePore
 from panda_md.analysis.blocks import fit_blocks, statistical_inefficiency
 from panda_md.analysis.compare import compare_shapes
 from panda_md.core.enums import Frame, ProfileCentering
-from panda_md.core.errors import PandaError
+from panda_md.core.errors import PandaError, ProfileMismatchError
 from panda_md.core.profile import ProfileSet
 from panda_md.synthetic.profiles import synthetic_profile
 
@@ -57,7 +57,7 @@ def test_blocks_are_fitted_with_one_spec_and_summarised() -> None:
 
 def test_statistical_inefficiency_matches_block_variance_formula() -> None:
     """s(2) для ряда 1…6: средние блоков 1.5, 3.5, 5.5 → var = 4; var ряда = 3.5; s = 2 · 4 / 3.5."""
-    result = statistical_inefficiency([1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
+    result = statistical_inefficiency([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], max_block_length=3)
     assert result.block_lengths == (1, 2, 3)
     assert result.inefficiency[0] == pytest.approx(1.0)
     assert result.inefficiency[1] == pytest.approx(2.0 * 4.0 / 3.5)
@@ -108,3 +108,57 @@ def test_shapes_that_cannot_be_fitted_are_listed_with_a_reason() -> None:
     only_skipped = compare_shapes(triangle, profile, FitSpec(density_bulk_per_nm3=30.0), shape_names=["droplet_w2c0"])
     with pytest.raises(PandaError, match="ни одна форма"):
         _ = only_skipped.best
+
+
+def ar1_series(correlation: float, size: int, seed: int) -> np.ndarray:
+    generator = np.random.default_rng(seed)
+    series = np.empty(size)
+    series[0] = 0.0
+    for index in range(1, size):
+        series[index] = correlation * series[index - 1] + generator.normal()
+    return series
+
+
+def test_default_plateau_is_reliable() -> None:
+    """Без max_block_length плато считается только по длинам, при которых блоков достаточно для дисперсии."""
+    plateaus = [statistical_inefficiency(ar1_series(0.8, 5000, seed)).plateau() for seed in range(10)]
+    assert float(np.mean(plateaus)) == pytest.approx(9.0, rel=0.2)
+    assert float(np.std(plateaus)) < 3.0
+    result = statistical_inefficiency(ar1_series(0.8, 5000, 0))
+    assert max(result.block_lengths) <= 5000 // 20
+
+
+def test_single_block_has_no_spread_estimate() -> None:
+    blocks = noisy_blocks()
+    single = ProfileSet(
+        **{
+            **blocks.model_dump(),
+            "block_densities_per_nm3": blocks.block_densities_per_nm3[:1],
+            "block_start_ps": blocks.block_start_ps[:1],
+            "block_stop_ps": blocks.block_stop_ps[:1],
+            "block_frame_counts": blocks.block_frame_counts[:1],
+            "block_particle_counts": blocks.block_particle_counts[:1],
+        }
+    )
+    result = fit_blocks(SLIT.interface("roll"), single, FitSpec(density_bulk_per_nm3=DENSITY_BULK))
+    assert np.isnan(result.std("theta")) and np.isnan(result.sem("theta"))
+    assert "один блок" in result.summary()
+
+
+def test_comparison_does_not_hide_profile_level_errors() -> None:
+    profile = noisy_blocks().mean()
+    wrong_pore = SlitPore(width_nm=2.0, length_nm=16.0)  # профиль шире поры
+    with pytest.raises(ProfileMismatchError):
+        compare_shapes(wrong_pore, profile, FitSpec(density_bulk_per_nm3=DENSITY_BULK))
+    with pytest.raises(PandaError, match="повтор"):
+        compare_shapes(SLIT, profile, FitSpec(density_bulk_per_nm3=DENSITY_BULK), shape_names=["roll", "roll"])
+
+
+def test_best_names_the_reasons_when_nothing_fits() -> None:
+    triangle = TrianglePore(side_nm=6.0, length_nm=12.0, layer_width_nm=6.0)
+    profile = synthetic_profile(
+        triangle.interface("droplet_w1c0"), {"theta": 140.0, "delta": 0.02, "phi": 0.05}, density_bulk_per_nm3=30.0
+    )
+    comparison = compare_shapes(triangle, profile, FitSpec(density_bulk_per_nm3=30.0), shape_names=["droplet_w2c0"])
+    with pytest.raises(PandaError, match=r"droplet_w2c0.*профиль"):
+        _ = comparison.best

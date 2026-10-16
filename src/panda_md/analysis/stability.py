@@ -51,7 +51,7 @@ def stability_diagram(
         raise PandaError(f"длина поры l должна быть положительной: {list(length_ratios)}")
     if not 0.0 <= contact_angle_deg <= MAX_CONTACT_ANGLE_DEG:
         raise PandaError(f"угол θ = {contact_angle_deg}° вне [0°, 180°]")
-    if contact_angle_deg <= RADIAN_SUSPICION_DEG:
+    if 0.0 < contact_angle_deg <= RADIAN_SUSPICION_DEG:
         warnings.warn(
             f"θ = {contact_angle_deg}° — проверь, что угол задан в градусах, а не в радианах",
             PandaWarning,

@@ -125,3 +125,17 @@ def test_equal_energies_go_to_the_first_candidate() -> None:
             shape_names=order,
         )
         assert diagram.stable_shapes == ((order[0],),)
+
+
+def test_zero_angle_is_not_mistaken_for_radians() -> None:
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        stability_diagram(
+            SlitPore(width_nm=8.0, length_nm=16.0),
+            contact_angle_deg=0.0,
+            wall_layer=0.0,
+            volume_fractions=(0.2,),
+            length_ratios=(2.0,),
+        )

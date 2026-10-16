@@ -65,7 +65,8 @@ def density_profile(
     centering=PORE: 0 — центр поры; он берётся из `pore_center_nm` или в каждом кадре из атомов стенок
     (`pore.wall_selection`); бины выровнены по стенкам поры. centering=LIQUID: 0 — центр выборки (среднее
     по атомам без весов) с учётом PBC; бины покрывают весь ящик вдоль оси профиля. Неполный последний блок
-    отбрасывается. per=MOLECULE: частица — центр масс молекулы (с учётом PBC), N — число молекул.
+    отбрасывается. per=MOLECULE: частица — центр масс выбранных атомов молекулы (с учётом PBC; «name OW» даст
+    кислород, а не центр масс воды), N — число молекул.
     """
     centering = ProfileCentering(centering)
     orientation = Orientation(orientation)
@@ -123,6 +124,12 @@ def density_profile(
         blocks[block_index].add(density, inside, frame.time_ps)
 
     assert edges is not None  # frame_indices не пуст
+    empty = sum(1 for accumulator in blocks if accumulator.frame_count == 0)
+    if empty:
+        warnings.warn(
+            f"{empty} блоков без кадров (разрыв во времени траектории) — пропущены", PandaWarning, stacklevel=2
+        )
+        blocks = [accumulator for accumulator in blocks if accumulator.frame_count > 0]
     densities = np.array([accumulator.density_sum / accumulator.frame_count for accumulator in blocks])
     frame_reference = Frame.PORE if centering is ProfileCentering.PORE else Frame.LIQUID
     flipped = False

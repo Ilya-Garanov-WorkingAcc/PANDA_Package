@@ -48,6 +48,10 @@ class UnsupportedRegimeError(PandaError):
     """Режим смачивания не объявлен формой (формулы не выведены)."""
 
 
+class UnsupportedFrameError(PandaError):
+    """Данные в системе отсчёта, в которую формулы формы не пересчитываются."""
+
+
 class InvalidProfileError(PandaError):
     """Профиль плотности не подходит для анализа."""
 

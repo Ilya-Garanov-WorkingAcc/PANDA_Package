@@ -17,7 +17,7 @@ from panda_md.core.types import FloatArray, IndexArray
 ANGSTROM_PER_NM = 10.0
 RECTANGULAR_ANGLE_DEG = 90.0
 ANGLE_TOLERANCE_DEG = 1e-3
-TIME_MISMATCH_PS = 1e-3  # время последнего кадра расходится с t0 + dt·(n − 1)
+TIME_MISMATCH_FRACTION = 0.01  # время последнего кадра расходится с t0 + dt·(n − 1) больше чем на 1 % шага
 
 
 def _import_mdanalysis() -> Any:  # noqa: ANN401 — у MDAnalysis нет аннотаций типов
@@ -56,9 +56,12 @@ class MDATrajectory(Trajectory):
         return indices
 
     def molecules(self, indices: IndexArray) -> tuple[IndexArray, FloatArray]:
+        """Молекула — номер молекулы GROMACS (есть в .tpr), иначе остаток. Связные фрагменты не подходят:
+        у воды TIP4P виртуальный сайт без связей стал бы отдельной «молекулой»."""
         atoms = self.universe.atoms[indices]
         masses = np.asarray(atoms.masses, dtype=np.float64)
-        return renumber(np.asarray(atoms.resindices, dtype=np.int64)), masses
+        labels = atoms.molnums if hasattr(self.universe.atoms, "molnums") else atoms.resindices
+        return renumber(np.asarray(labels, dtype=np.int64)), masses
 
     def times_ps(self) -> FloatArray:
         """Время кадров: t0 + dt·i, если с ним согласуется время последнего кадра; иначе (склеенные траектории
@@ -67,10 +70,10 @@ class MDATrajectory(Trajectory):
             return self._times
         reader = self.universe.trajectory
         times: FloatArray = reader[0].time + reader.dt * np.arange(len(reader), dtype=np.float64)
-        if abs(float(reader[len(reader) - 1].time) - float(times[-1])) > TIME_MISMATCH_PS:
+        if abs(float(reader[len(reader) - 1].time) - float(times[-1])) > TIME_MISMATCH_FRACTION * reader.dt:
             times = np.array([float(timestep.time) for timestep in reader], dtype=np.float64)
             warnings.warn(
-                f"шаг по времени непостоянен (ожидалось {reader.dt:g} пс): время кадров прочитано из траектории",
+                f"время кадров не совпадает с t0 + шаг · i (шаг {reader.dt:g} пс) — прочитано из траектории",
                 PandaWarning,
                 stacklevel=2,
             )

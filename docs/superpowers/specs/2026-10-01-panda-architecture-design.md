@@ -57,7 +57,7 @@
 | D22 | Пора в ящике: `normal_axis`, `wall_selection`, `locate_center_nm`; щель — середина наибольшего пустого промежутка между атомами стенок через PBC, `SlitPore.from_trajectory`; у многоугольных пор центр пока задаётся явно (`pore_center_nm`) — данных МД для них нет (стадия 4) |
 | D23 | Центрирование профиля — `pore` / `liquid`; «без сдвига» = `pore` с заданным центром. Осевое центрирование (`+axis`), `per="molecule"`, `wall_offset`, статистическая неэффективность — фаза 6: на 1D-профиль не влияют (стадия 4) |
 | D24 | Анализ — функции слоя `analysis`, а не методы поры: `fit_blocks(model, profiles, spec) -> FitResultSet`, `compare_shapes(pore, profile, spec) -> ShapeComparison` (вместо `pore.fit_all` — ядро не импортирует `analysis`), `statistical_inefficiency(series)`. Настройки фита передаются одним `FitSpec` (стадия 5) |
-| D25 | `per="molecule"`: частица — центр масс молекулы (остаток MDAnalysis или `molecule_ids` и `masses` у `ArrayTrajectory`), атомы молекулы собираются по ближайшему образу; `SlitPore.wall_offset_nm`: поверхность стенки отстоит от центров крайних атомов, H = промежуток − 2 · offset (стадия 5) |
+| D25 | `per="molecule"`: частица — центр масс выбранных атомов молекулы (молекула — номер молекулы GROMACS из .tpr, иначе остаток; связные фрагменты не годятся — у TIP4P виртуальный сайт без связей; у `ArrayTrajectory` — `molecule_ids` и `masses`), атомы молекулы собираются по ближайшему образу; `SlitPore.wall_offset_nm`: поверхность стенки отстоит от центров крайних атомов, H = промежуток − 2 · offset (стадия 5) |
 
 ---
 

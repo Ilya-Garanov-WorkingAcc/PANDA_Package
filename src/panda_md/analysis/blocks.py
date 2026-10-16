@@ -15,6 +15,7 @@ from panda_md.core.spec import FitSpec
 from panda_md.core.types import Array1D, FloatArray, PandaModel
 
 MIN_SERIES_LENGTH = 4  # статистическую неэффективность по меньшему ряду не оценить
+MIN_BLOCKS = 20  # меньше блоков — дисперсия средних по блокам слишком шумная для плато
 
 
 class FitResultSet(PandaModel):
@@ -41,8 +42,8 @@ class FitResultSet(PandaModel):
         return float(np.mean(self.values(name)))
 
     def std(self, name: str) -> float:
-        """Разброс по блокам (0 при одном блоке)."""
-        return float(np.std(self.values(name), ddof=1)) if len(self.results) > 1 else 0.0
+        """Разброс по блокам; при одном блоке не определён (nan)."""
+        return float(np.std(self.values(name), ddof=1)) if len(self.results) > 1 else math.nan
 
     def sem(self, name: str) -> float:
         """Ошибка среднего: std / √(число блоков) — верна, если блоки длиннее времени корреляции."""
@@ -57,10 +58,13 @@ class FitResultSet(PandaModel):
             span = f"{self.block_start_ps[index]:g}–{self.block_stop_ps[index]:g}"
             row = "".join(f"{result.values[name]:>11.5g}" for name in names)
             lines.append(f"{index:>4}  {span:<16}{row}  {result.loss:>9.4g}  {flags}")
-        lines.append(
-            "среднее ± ошибка среднего: "
-            + ", ".join(f"{name} = {self.mean(name):.5g} ± {self.sem(name):.2g}" for name in names)
-        )
+        if len(self.results) == 1:
+            lines.append("один блок — разброс и ошибку среднего не оценить")
+        else:
+            lines.append(
+                "среднее ± ошибка среднего: "
+                + ", ".join(f"{name} = {self.mean(name):.5g} ± {self.sem(name):.2g}" for name in names)
+            )
         return "\n".join(lines)
 
     def __str__(self) -> str:
@@ -79,8 +83,16 @@ def _flags(result: FitResult) -> list[str]:
 def fit_blocks(model: InterfaceModel, profiles: ProfileSet, spec: FitSpec | None = None) -> FitResultSet:
     """Фит профиля каждого блока с одними настройками; разброс по блокам — оценка ошибки параметров."""
     settings = spec if spec is not None else FitSpec()
-    results = tuple(fit(model, profiles.block(index), settings) for index in range(profiles.block_count))
-    return FitResultSet(results=results, block_start_ps=profiles.block_start_ps, block_stop_ps=profiles.block_stop_ps)
+    results: list[FitResult] = []
+    for index in range(profiles.block_count):
+        try:
+            results.append(fit(model, profiles.block(index), settings))
+        except PandaError as error:
+            span = f"{profiles.block_start_ps[index]:g}–{profiles.block_stop_ps[index]:g} пс"
+            raise type(error)(f"блок {index} ({span}): {error}") from error
+    return FitResultSet(
+        results=tuple(results), block_start_ps=profiles.block_start_ps, block_stop_ps=profiles.block_stop_ps
+    )
 
 
 class StatisticalInefficiency(PandaModel):
@@ -89,11 +101,15 @@ class StatisticalInefficiency(PandaModel):
 
     block_lengths: tuple[int, ...]
     inefficiency: Array1D
+    series_length: int = Field(ge=MIN_SERIES_LENGTH)
 
     def plateau(self) -> float:
-        """Среднее s по последней трети длин блоков — оценка числа шагов на одно независимое значение."""
-        tail = self.inefficiency[2 * len(self.inefficiency) // 3 :]
-        return float(np.mean(tail))
+        """Среднее s по последней трети длин, при которых блоков не меньше MIN_BLOCKS (иначе — по последней трети
+        всех длин) — оценка числа шагов ряда на одно независимое значение."""
+        lengths = np.array(self.block_lengths)
+        reliable = self.inefficiency[self.series_length // lengths >= MIN_BLOCKS]
+        values = reliable if reliable.size else self.inefficiency
+        return float(np.mean(values[2 * len(values) // 3 :]))
 
 
 def statistical_inefficiency(
@@ -106,14 +122,16 @@ def statistical_inefficiency(
     variance = float(np.var(series, ddof=1))
     if variance == 0.0:
         raise PandaError("ряд постоянен: неэффективность не определена")
-    longest = series.size // 2 if max_block_length is None else min(max_block_length, series.size // 2)
-    mean = float(np.mean(series))
+    longest = max(1, series.size // MIN_BLOCKS) if max_block_length is None else max_block_length
+    longest = min(longest, series.size // 2)
     lengths: list[int] = []
     inefficiency: list[float] = []
     for length in range(1, longest + 1):
         block_count = series.size // length
         block_means = series[: block_count * length].reshape(block_count, length).mean(axis=1)
-        block_variance = float(np.sum((block_means - mean) ** 2)) / (block_count - 1)
+        block_variance = float(np.var(block_means, ddof=1))
         lengths.append(length)
         inefficiency.append(length * block_variance / variance)
-    return StatisticalInefficiency(block_lengths=tuple(lengths), inefficiency=np.array(inefficiency))
+    return StatisticalInefficiency(
+        block_lengths=tuple(lengths), inefficiency=np.array(inefficiency), series_length=series.size
+    )

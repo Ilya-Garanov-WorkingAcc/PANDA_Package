@@ -8,7 +8,7 @@ import pytest
 
 from panda_md import ArrayTrajectory, SlitPore, density_profile
 from panda_md.core.enums import ParticleGrouping
-from panda_md.core.errors import InvalidTrajectoryError
+from panda_md.core.errors import InvalidTrajectoryError, PandaWarning
 from panda_md.core.pbc import molecule_centers
 from panda_md.core.trajectory import renumber
 from panda_md.trajectory.reader import MDATrajectory
@@ -96,3 +96,25 @@ def test_mdanalysis_molecules_are_residues() -> None:
     molecule_indices, masses = trajectory.molecules(np.array([1, 2, 3]))
     assert molecule_indices.tolist() == [0, 1, 1]
     np.testing.assert_allclose(masses, [1.0, 12.0, 12.0])
+
+
+def test_molecule_numbering_must_have_no_gaps_and_long_molecules_are_reported() -> None:
+    positions = np.array([[1.0, 1.0, 1.0], [1.0, 1.0, 1.2]])
+    with pytest.raises(InvalidTrajectoryError, match="номера молекул"):
+        molecule_centers(positions, BOX_NM, np.array([0, 2]), np.ones(2))
+    stretched = np.array([[1.0, 1.0, 0.5], [1.0, 1.0, 3.0], [1.0, 1.0, 5.5]])  # цепочка длиннее L/2 по z
+    with pytest.warns(PandaWarning, match="половины ящика"):
+        molecule_centers(stretched, BOX_NM, np.array([0, 0, 0]), np.ones(3))
+
+
+def test_mdanalysis_molecules_follow_gromacs_molecule_numbers() -> None:
+    """В .tpr есть номера молекул GROMACS: они точнее остатков и не ломаются на виртуальных сайтах TIP4P."""
+    mdanalysis = pytest.importorskip("MDAnalysis")
+    universe: Any = mdanalysis.Universe.empty(4, n_residues=3, atom_resindex=[0, 0, 1, 2], trajectory=True)
+    universe.add_TopologyAttr("masses", [16.0, 1.0, 12.0, 12.0])
+    try:  # MDAnalysis ≥ 2.10 — номер на атом
+        universe.add_TopologyAttr("molnums", [0, 0, 0, 1])
+    except ValueError:  # MDAnalysis 2.9 — номер на остаток
+        universe.add_TopologyAttr("molnums", [0, 0, 1])
+    molecule_indices, _ = MDATrajectory(universe).molecules(np.arange(4))
+    assert molecule_indices.tolist() == [0, 0, 0, 1]

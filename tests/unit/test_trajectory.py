@@ -196,3 +196,14 @@ def test_mdanalysis_times_follow_real_frame_times_of_joined_trajectories() -> No
     assert trajectory.frame_indices(start=50.0) == [3, 4]
     regular = MDATrajectory(_Universe([0.0, 2.0, 4.0]))
     np.testing.assert_allclose(regular.times_ps(), [0.0, 2.0, 4.0])
+
+
+def test_overlapping_times_are_an_error() -> None:
+    base = slit_trajectory()
+    with pytest.warns(PandaWarning, match="время"):
+        trajectory = MDATrajectory(_Universe([0.0, 2.0, 4.0, 2.0, 4.0]))
+        times = trajectory.times_ps()
+    assert times.tolist() == [0.0, 2.0, 4.0, 2.0, 4.0]
+    with pytest.raises(InvalidTrajectoryError, match="trjcat"):
+        trajectory.frame_indices()
+    assert base.frame_indices() == [0, 1, 2, 3, 4]
