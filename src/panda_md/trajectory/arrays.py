@@ -22,6 +22,7 @@ class ArrayTrajectory(PandaModel, Trajectory):
     groups: Mapping[str, IndexArray1D] = Field(default_factory=dict)
     molecule_ids: IndexArray1D | None = None  # номер молекулы каждого атома — для per="molecule"
     masses: Array1D | None = None  # масса каждого атома (а. е. м.)
+    axis_positions_nm: Array2D | None = None  # синтетика: истинная ось формы в каждом кадре (кадры × 2)
 
     @model_validator(mode="after")
     def _check_shapes(self) -> "ArrayTrajectory":
@@ -32,6 +33,8 @@ class ArrayTrajectory(PandaModel, Trajectory):
             raise ValueError(f"ящики формы {self.boxes_nm.shape}: нужно ({frame_count}, 3) с положительными длинами")
         if self.times_ps_values.shape != (frame_count,) or np.any(np.diff(self.times_ps_values) <= 0.0):
             raise ValueError("времена: по одному на кадр, строго по возрастанию")
+        if self.axis_positions_nm is not None and self.axis_positions_nm.shape != (frame_count, 2):
+            raise ValueError(f"axis_positions_nm: по паре координат на кадр ({frame_count} × 2)")
         for name, values in (("molecule_ids", self.molecule_ids), ("masses", self.masses)):
             if values is not None and values.shape != (atom_count,):
                 raise ValueError(f"{name}: по одному значению на атом ({atom_count})")

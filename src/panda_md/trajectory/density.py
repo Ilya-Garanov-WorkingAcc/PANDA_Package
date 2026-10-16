@@ -107,9 +107,9 @@ def density_profile(
             blocks = [_BlockAccumulator(edges.size - 1) for _ in range(block_count)]
         counts, _ = np.histogram(coordinate, bins=edges)
         if centering is ProfileCentering.LIQUID:
-            _check_box_change(frame.index, period, first_period, int(counts.sum()) < coordinate.size, warned)
+            check_box_change(frame.index, period, first_period, int(counts.sum()) < coordinate.size, warned)
         area = pore.bin_cross_section_nm2(frame.box_nm)
-        _check_area(pore, area, warned)
+        check_area(pore, area, warned)
         density = counts / (area * np.diff(edges))
         inside = int(counts.sum()) if centering is ProfileCentering.PORE else coordinate.size
         if centering is ProfileCentering.PORE and "outside" not in warned:
@@ -247,21 +247,24 @@ def profile_bin_edges(
     return edges
 
 
-def _check_box_change(frame_index: int, period: float, first_period: float, lost: bool, warned: set[str]) -> None:
-    """В системе жидкости бины построены по ящику первого кадра: ящик заметно изменился — предупредить один раз."""
-    if "box" in warned:
+def check_box_change(
+    frame_index: int, period: float, first_period: float, lost: bool, warned: set[str], what: str = "вдоль оси профиля"
+) -> None:
+    """Бины построены по ящику первого кадра: ящик заметно изменился — предупредить один раз."""
+    key = f"box {what}"
+    if key in warned:
         return
     if abs(period - first_period) > BOX_CHANGE_TOLERANCE * first_period or lost:
-        warned.add("box")
+        warned.add(key)
         warnings.warn(
-            f"кадр {frame_index}: ящик вдоль оси профиля {period:.3f} нм, а бины построены по первому кадру "
+            f"кадр {frame_index}: ящик {what} {period:.3f} нм, а бины построены по первому кадру "
             f"({first_period:.3f} нм) — часть частиц вне бинов или крайние бины недозаполнены",
             PandaWarning,
             stacklevel=3,
         )
 
 
-def _check_area(pore: Pore, area: float, warned: set[str]) -> None:
+def check_area(pore: Pore, area: float, warned: set[str]) -> None:
     base = pore.base_area_nm2()
     if base is None:
         return
