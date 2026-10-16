@@ -65,6 +65,7 @@ lint = [
 dev = [
     { include-group = "test" },
     { include-group = "lint" },
+    "ipykernel>=6.29",  # ядро .venv для examples/test_panda.ipynb в VS Code (WSL) и Jupyter
 ]
 docs = [
     "mkdocs>=1.6,<2",  # mkdocs-material несовместим с MkDocs 2.0
