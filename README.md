@@ -28,6 +28,7 @@ result = pore.interface("roll").fit(profiles.mean(), density_bulk_per_nm3=33.1)
 spec = panda.FitSpec(density_bulk_per_nm3=33.1)
 print(panda.fit_blocks(pore.interface("roll"), profiles, spec))  # θ по блокам, среднее ± ошибка
 print(panda.compare_shapes(pore, profiles.mean(), spec))  # все формы поры по ошибке фита
+water_map = panda.density_map(traj, pore, "resname WATER and name OW", shape="roll")  # ось валика в x = 0
 ```
 
 ## Method

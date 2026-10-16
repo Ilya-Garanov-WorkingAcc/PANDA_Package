@@ -4,8 +4,11 @@ from importlib.metadata import PackageNotFoundError, version
 
 from panda_md.analysis.blocks import FitResultSet, StatisticalInefficiency, fit_blocks, statistical_inefficiency
 from panda_md.analysis.compare import ShapeComparison, ShapeFit, compare_shapes
+from panda_md.core.centering import SymmetryAxis
 from panda_md.core.enums import (
     Axis,
+    AxisLocator,
+    AxisOrientation,
     Frame,
     LossFunction,
     Normalization,
@@ -26,8 +29,10 @@ from panda_md.core.spec import FitSpec
 from panda_md.pores.slit import SlitPore
 from panda_md.pores.square import SquarePore
 from panda_md.pores.triangle import TrianglePore
+from panda_md.synthetic.points import synthetic_trajectory
 from panda_md.trajectory.arrays import ArrayTrajectory
 from panda_md.trajectory.density import density_profile
+from panda_md.trajectory.maps import DensityMap, density_map
 from panda_md.trajectory.reader import load_trajectory
 
 try:
@@ -38,6 +43,9 @@ except PackageNotFoundError:  # пакет не установлен (запус
 __all__ = [
     "ArrayTrajectory",
     "Axis",
+    "AxisLocator",
+    "AxisOrientation",
+    "DensityMap",
     "DensityProfile",
     "FitResult",
     "FitResultSet",
@@ -61,12 +69,15 @@ __all__ = [
     "SlitPore",
     "SquarePore",
     "StatisticalInefficiency",
+    "SymmetryAxis",
     "TrianglePore",
     "Unit",
     "__version__",
     "compare_shapes",
+    "density_map",
     "density_profile",
     "fit_blocks",
     "load_trajectory",
     "statistical_inefficiency",
+    "synthetic_trajectory",
 ]

@@ -31,3 +31,8 @@ def test_data_path_is_public() -> None:
 def test_analysis_is_public() -> None:
     expected = {"FitResultSet", "ParticleGrouping", "ShapeComparison", "ShapeFit", "StatisticalInefficiency"}
     assert expected | {"compare_shapes", "fit_blocks", "statistical_inefficiency"} <= set(panda_md.__all__)
+
+
+def test_three_dimensional_shapes_are_public() -> None:
+    expected = {"AxisLocator", "AxisOrientation", "DensityMap", "SymmetryAxis", "density_map", "synthetic_trajectory"}
+    assert expected <= set(panda_md.__all__)
