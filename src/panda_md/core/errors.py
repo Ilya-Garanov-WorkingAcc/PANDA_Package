@@ -56,5 +56,13 @@ class ProfileMismatchError(InvalidProfileError):
     """Профиль не согласуется с порой: другой размер, другие единицы или другая система отсчёта."""
 
 
+class InvalidTrajectoryError(PandaError):
+    """Траектория или выборка не подходят: пустая выборка, нет стенок, неверный ящик, пустой интервал времени."""
+
+
+class MissingDependencyError(PandaError, ImportError):
+    """Нужен необязательный пакет (например, MDAnalysis из panda-md[md])."""
+
+
 class PandaWarning(UserWarning):
     """Предупреждение PANDA: расчёт выполнен, но результату стоит не доверять без проверки."""

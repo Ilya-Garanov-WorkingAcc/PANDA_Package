@@ -54,3 +54,54 @@ class OptimizerMethod(str, Enum):
     NELDER_MEAD = "Nelder-Mead"
     POWELL = "Powell"
     LBFGSB = "L-BFGS-B"
+
+
+class Axis(str, Enum):
+    """Ось прямоугольного ящика моделирования."""
+
+    X = "x"
+    Y = "y"
+    Z = "z"
+
+    @property
+    def column(self) -> int:
+        """Номер столбца координаты в массиве позиций (x — 0, y — 1, z — 2)."""
+        return AXIS_ORDER.index(self)
+
+
+AXIS_ORDER = (Axis.X, Axis.Y, Axis.Z)
+
+
+class ProfileCentering(str, Enum):
+    """Что ставится в 0 координаты профиля в каждом кадре."""
+
+    PORE = "pore"  # середина между стенками (или заданный центр поры) — система PORE
+    LIQUID = "liquid"  # центр масс выбранной жидкости с учётом PBC — система LIQUID
+
+
+class Orientation(str, Enum):
+    """Отражать ли профиль z → −z в системе поры."""
+
+    AUTO = "auto"  # отразить, если жидкость у верхней стенки (первый момент среднего профиля > 0)
+    KEEP = "keep"  # как в траектории
+
+
+class TimeUnit(str, Enum):
+    """Единицы времени в строках вида «2 ns»; внутри всё в пикосекундах."""
+
+    FEMTOSECOND = "fs"
+    PICOSECOND = "ps"
+    NANOSECOND = "ns"
+    MICROSECOND = "us"
+
+    @property
+    def picoseconds(self) -> float:
+        return TIME_UNIT_PICOSECONDS[self]
+
+
+TIME_UNIT_PICOSECONDS = {
+    TimeUnit.FEMTOSECOND: 1e-3,
+    TimeUnit.PICOSECOND: 1.0,
+    TimeUnit.NANOSECOND: 1e3,
+    TimeUnit.MICROSECOND: 1e6,
+}

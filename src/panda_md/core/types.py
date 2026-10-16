@@ -1,6 +1,6 @@
-"""Общая базовая модель pydantic, тип одномерного массива numpy и неизменяемый словарь."""
+"""Общая базовая модель pydantic, типы массивов numpy с проверкой и неизменяемый словарь."""
 
-from collections.abc import Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from typing import Annotated, Generic, TypeVar
 
 import numpy as np
@@ -9,6 +9,7 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, PlainSerializer, Pla
 
 FloatArray = NDArray[np.float64]
 BoolArray = NDArray[np.bool_]
+IndexArray = NDArray[np.int64]
 
 ValueT = TypeVar("ValueT")
 
@@ -69,13 +70,31 @@ FrozenBounds = Annotated[
 """Поле «имя → (нижняя, верхняя граница)»."""
 
 
-def _validate_float_array(value: object) -> FloatArray:
-    """Приводит вход к неизменяемому одномерному массиву float64 без NaN и бесконечностей."""
-    array = np.array(value, dtype=np.float64)
+def _float_array_validator(dimensions: int) -> Callable[[object], FloatArray]:
+    """Проверка: неизменяемый массив float64 заданной размерности без NaN и бесконечностей."""
+
+    def validate(value: object) -> FloatArray:
+        array = np.array(value, dtype=np.float64)
+        if array.ndim != dimensions:
+            raise ValueError(f"ожидается массив размерности {dimensions}, получена размерность {array.ndim}")
+        if not np.all(np.isfinite(array)):
+            raise ValueError("массив содержит NaN или бесконечность")
+        array.flags.writeable = False
+        return array
+
+    return validate
+
+
+def _validate_index_array(value: object) -> IndexArray:
+    """Проверка: неизменяемый одномерный массив неотрицательных целых индексов."""
+    array = np.array(value)
     if array.ndim != 1:
-        raise ValueError(f"ожидается одномерный массив, получена размерность {array.ndim}")
-    if not np.all(np.isfinite(array)):
-        raise ValueError("массив содержит NaN или бесконечность")
+        raise ValueError(f"ожидается одномерный массив индексов, получена размерность {array.ndim}")
+    if array.size and not np.issubdtype(array.dtype, np.integer):
+        raise ValueError("индексы должны быть целыми")
+    array = array.astype(np.int64)
+    if np.any(array < 0):
+        raise ValueError("индексы не могут быть отрицательными")
     array.flags.writeable = False
     return array
 
@@ -84,10 +103,34 @@ def _serialize_float_array(array: FloatArray) -> list[float]:
     return [float(item) for item in array]
 
 
+def _serialize_nested_array(array: FloatArray) -> list[object]:
+    serialized: list[object] = array.tolist()
+    return serialized
+
+
+def _serialize_index_array(array: IndexArray) -> list[int]:
+    return [int(item) for item in array]
+
+
 Array1D = Annotated[
     FloatArray,
-    PlainValidator(_validate_float_array),
+    PlainValidator(_float_array_validator(1)),
     PlainSerializer(_serialize_float_array, return_type=list[float]),
+]
+Array2D = Annotated[
+    FloatArray,
+    PlainValidator(_float_array_validator(2)),
+    PlainSerializer(_serialize_nested_array, return_type=list[object]),
+]
+Array3D = Annotated[
+    FloatArray,
+    PlainValidator(_float_array_validator(3)),
+    PlainSerializer(_serialize_nested_array, return_type=list[object]),
+]
+IndexArray1D = Annotated[
+    IndexArray,
+    PlainValidator(_validate_index_array),
+    PlainSerializer(_serialize_index_array, return_type=list[int]),
 ]
 
 
