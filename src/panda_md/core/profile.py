@@ -90,6 +90,12 @@ def _save_npz(path: Path, arrays: Mapping[str, FloatArray], metadata: Mapping[st
     np.savez(path, **payload)
 
 
+def _require_npz(path: Path) -> None:
+    """ProfileSet хранится только в .npz: иначе numpy молча дописывает суффикс, и load по тому же имени падает."""
+    if path.suffix != ".npz":
+        raise ValueError(f"набор профилей хранится в .npz, а не в {path.name!r}")
+
+
 def _profile_arrays(profile: DensityProfile) -> dict[str, FloatArray]:
     arrays = {"coordinate_nm": profile.coordinate_nm, "density_per_nm3": profile.density_per_nm3}
     if profile.density_sem_per_nm3 is not None:
@@ -195,6 +201,7 @@ class ProfileSet(PandaModel):
 
     def save(self, path: str | Path) -> None:
         """Сохранить в .npz (массивы и метаданные)."""
+        _require_npz(Path(path))
         arrays = {
             name: getattr(self, name)
             for name in (
@@ -210,6 +217,7 @@ class ProfileSet(PandaModel):
 
     @classmethod
     def load(cls, path: str | Path) -> "ProfileSet":
+        _require_npz(Path(path))
         with np.load(Path(path)) as archive:
             metadata = json.loads(str(archive["metadata"]))
             arrays = {name: archive[name] for name in archive.files if name != "metadata"}

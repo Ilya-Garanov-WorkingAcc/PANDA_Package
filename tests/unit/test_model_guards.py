@@ -84,3 +84,16 @@ def test_layer_filling_whole_accessible_width_does_not_exist() -> None:
     layer = SLIT.interface("layer")
     assert layer.is_feasible(delta=0.05, phi=0.89)
     assert not layer.is_feasible(delta=0.05, phi=0.9)
+
+
+def test_surface_terms_outside_existence_region_are_a_clear_error() -> None:
+    from panda_md import TrianglePore
+    from panda_md.core.errors import InfeasibleParametersError
+
+    droplet = TrianglePore(side_nm=1.0, length_nm=2.0, layer_width_nm=1.0).interface("droplet_w1c0")
+    values = {"theta": 150.0, "delta": 0.0, "phi": 0.95}  # капля не помещается
+    assert not droplet.is_feasible(**values)
+    with pytest.raises(InfeasibleParametersError, match="не существует"):
+        droplet.surface_terms(**values)
+    with pytest.raises(InfeasibleParametersError, match="не существует"):
+        droplet.capillary_energy(**values)

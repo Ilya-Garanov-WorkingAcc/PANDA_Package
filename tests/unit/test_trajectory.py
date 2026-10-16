@@ -146,3 +146,53 @@ def test_vacuum_gap_is_reported_and_liquid_selects_the_pore() -> None:
     assert pore.width_nm == pytest.approx(4.4)
     walls_z = vacuum_trajectory().positions_nm[0, : 6 * 24, 2]
     assert pore.locate_center_nm(walls_z, 20.0) == pytest.approx(3.8)  # промежуток ширины H, а не вакуум
+
+
+def test_mdanalysis_selection_by_indices_is_range_checked() -> None:
+    trajectory = MDATrajectory(memory_universe([50.0, 40.0, 100.0, 90.0, 90.0, 90.0]))
+    assert trajectory.select([0, 3]).tolist() == [0, 3]
+    with pytest.raises(InvalidTrajectoryError, match="вне"):
+        trajectory.select([4])
+
+
+class _Timestep:
+    def __init__(self, frame: int, time: float) -> None:
+        self.frame = frame
+        self.time = time
+        self.dimensions = np.array([10.0, 10.0, 10.0, 90.0, 90.0, 90.0])
+        self.positions = np.full((2, 3), float(frame))
+
+
+class _Reader:
+    """Склеенная траектория с разрывом: шаг 2 пс, затем скачок времени."""
+
+    dt = 2.0
+
+    def __init__(self, times: list[float]) -> None:
+        self.steps = [_Timestep(index, time) for index, time in enumerate(times)]
+
+    def __len__(self) -> int:
+        return len(self.steps)
+
+    def __getitem__(self, key: int | list[int]) -> Any:  # noqa: ANN401 — как у MDAnalysis: кадр или итератор
+        if isinstance(key, list):
+            return iter([self.steps[index] for index in key])
+        return self.steps[key]
+
+    def __iter__(self) -> Any:  # noqa: ANN401
+        return iter(self.steps)
+
+
+class _Universe:
+    def __init__(self, times: list[float]) -> None:
+        self.trajectory = _Reader(times)
+
+
+def test_mdanalysis_times_follow_real_frame_times_of_joined_trajectories() -> None:
+    trajectory = MDATrajectory(_Universe([0.0, 2.0, 4.0, 100.0, 102.0]))
+    with pytest.warns(PandaWarning, match="шаг"):
+        times = trajectory.times_ps()
+    np.testing.assert_allclose(times, [0.0, 2.0, 4.0, 100.0, 102.0])
+    assert trajectory.frame_indices(start=50.0) == [3, 4]
+    regular = MDATrajectory(_Universe([0.0, 2.0, 4.0]))
+    np.testing.assert_allclose(regular.times_ps(), [0.0, 2.0, 4.0])

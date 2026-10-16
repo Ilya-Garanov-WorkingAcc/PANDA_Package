@@ -53,7 +53,12 @@ def test_time_values_are_converted_to_picoseconds(value: float | str, picosecond
     assert to_picoseconds(value) == pytest.approx(picoseconds)
 
 
-@pytest.mark.parametrize("value", ["2", "two ns", "2 hours"])
+@pytest.mark.parametrize("value", ["two ns", "2 hours", ""])
 def test_unparsable_time_is_an_error(value: str) -> None:
     with pytest.raises(ValueError, match=r"время|единица"):
         to_picoseconds(value)
+
+
+def test_number_in_a_string_is_picoseconds() -> None:
+    assert to_picoseconds("2000") == pytest.approx(2000.0)
+    assert to_picoseconds(" 1.5e3 ") == pytest.approx(1500.0)

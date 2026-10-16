@@ -8,7 +8,12 @@ import numpy as np
 from numpy.typing import ArrayLike
 
 from panda_md.core.enums import LossFunction, Normalization, OptimizerMethod, ParameterName, Regime
-from panda_md.core.errors import MissingParameterValueError, PandaError, UnsupportedRegimeError
+from panda_md.core.errors import (
+    InfeasibleParametersError,
+    MissingParameterValueError,
+    PandaError,
+    UnsupportedRegimeError,
+)
 from panda_md.core.parameters import PROFILE_SHIFT, ParameterSet
 from panda_md.core.profile import DensityProfile
 from panda_md.core.shape import InterfaceShape, SurfaceTerms
@@ -63,6 +68,13 @@ class InterfaceModel:
             self.shape.require_supported_contact_angle(math.degrees(values[ParameterName.CONTACT_ANGLE]))
         return values
 
+    def _feasible_values(self, user_values: Mapping[str, float]) -> dict[str, float]:
+        """Значения для формул площадей: вне области существования формулы дают нефизичные числа."""
+        values = self.supported_values(user_values)
+        if not self.shape.feasible(self.pore.geometry(), values):
+            raise InfeasibleParametersError(f"форма {self.shape.name} не существует при {dict(user_values)}")
+        return values
+
     def profile(self, coordinate: ArrayLike, **user_values: float) -> FloatArray:
         """Модельный ρ/ρ_bulk в системе отсчёта формулы формы."""
         values = self.supported_values(user_values)
@@ -80,10 +92,10 @@ class InterfaceModel:
         return self.shape.phi_limits(self.pore.geometry(), self.supported_values(user_values))
 
     def surface_terms(self, **user_values: float) -> SurfaceTerms:
-        return self.shape.surface_terms(self.pore.geometry(), self.supported_values(user_values))
+        return self.shape.surface_terms(self.pore.geometry(), self._feasible_values(user_values))
 
     def capillary_energy(self, **user_values: float) -> float:
-        values = self.supported_values(user_values)
+        values = self._feasible_values(user_values)
         terms = self.shape.surface_terms(self.pore.geometry(), values)
         if ParameterName.CONTACT_ANGLE in values:
             return terms.capillary_energy(values[ParameterName.CONTACT_ANGLE])

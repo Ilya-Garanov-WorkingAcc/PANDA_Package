@@ -148,7 +148,14 @@ def _assign_blocks(times: FloatArray, block_ps: float | None) -> tuple[list[int]
         return [0] * times.size, 1
     if block_ps <= 0.0:
         raise ValueError(f"длина блока {block_ps} пс должна быть положительной")
-    spacing = float(np.median(np.diff(times))) if times.size > 1 else block_ps
+    if times.size == 1:
+        warnings.warn(
+            f"один кадр: длину блока {block_ps:g} пс проверить не по чему — профиль из одного блока",
+            PandaWarning,
+            stacklevel=3,
+        )
+        return [0], 1
+    spacing = float(np.median(np.diff(times)))
     elapsed = times - times[0]
     block_count = math.floor((elapsed[-1] + spacing) / block_ps + 1e-9)
     if block_count == 0:
@@ -240,5 +247,5 @@ def _check_area(pore: Pore, area: float, warned: set[str]) -> None:
         warnings.warn(
             f"площадь бина {area:.3f} нм² отличается от основания поры {base:.3f} нм² — проверь размеры поры",
             PandaWarning,
-            stacklevel=4,
+            stacklevel=3,
         )

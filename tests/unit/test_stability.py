@@ -1,12 +1,14 @@
 """Диаграмма устойчивости: в каждой точке (l, φ) — форма с наименьшим капиллярным функционалом."""
 
 import math
+from typing import Any, ClassVar
 
 import pytest
 
 from panda_md import SlitPore, SquarePore, TrianglePore
 from panda_md.analysis.stability import stability_diagram
-from panda_md.core.errors import PandaError
+from panda_md.core.errors import PandaError, PandaWarning
+from panda_md.pores.slit.roll import SlitRoll
 
 SQUARE = SquarePore(side_nm=6.0, length_nm=12.0, layer_width_nm=6.0)
 
@@ -69,3 +71,57 @@ def test_points_where_no_shape_exists_are_empty() -> None:
         triangle, contact_angle_deg=150.0, wall_layer=unreachable_layer, volume_fractions=(0.1,), length_ratios=(2.0,)
     )
     assert diagram.stable_shapes == ((None,),)
+
+
+@pytest.mark.parametrize(
+    ("arguments", "message"),
+    [
+        ({"length_ratios": (0.0, 2.0)}, "длина"),
+        ({"contact_angle_deg": 2.6}, None),
+        ({"contact_angle_deg": 190.0}, "угол"),
+        ({"shape_names": ("roll", "roll")}, "повтор"),
+    ],
+)
+def test_stability_diagram_checks_its_input(arguments: dict[str, object], message: str | None) -> None:
+    slit = SlitPore(width_nm=8.0, length_nm=16.0)
+    call: dict[str, Any] = {
+        "contact_angle_deg": 120.0,
+        "wall_layer": 0.0,
+        "volume_fractions": (0.2,),
+        "length_ratios": (2.0,),
+        **arguments,
+    }
+    if message is None:  # угол в радианах: формы с θ вне режима — диаграмма из одного слоя, предупредить
+        with pytest.warns(PandaWarning, match="градус"):
+            stability_diagram(slit, **call)
+        return
+    with pytest.raises(PandaError, match=message):
+        stability_diagram(slit, **call)
+
+
+class TiePore(SlitPore):
+    name: ClassVar[str] = "tie"
+
+
+@TiePore.register
+class FirstRoll(SlitRoll):
+    name: ClassVar[str] = "first_roll"
+
+
+@TiePore.register
+class SecondRoll(SlitRoll):
+    name: ClassVar[str] = "second_roll"
+
+
+def test_equal_energies_go_to_the_first_candidate() -> None:
+    pore = TiePore(width_nm=8.0, length_nm=16.0)
+    for order in (("first_roll", "second_roll"), ("second_roll", "first_roll")):
+        diagram = stability_diagram(
+            pore,
+            contact_angle_deg=120.0,
+            wall_layer=0.0,
+            volume_fractions=(0.3,),
+            length_ratios=(2.0,),
+            shape_names=order,
+        )
+        assert diagram.stable_shapes == ((order[0],),)

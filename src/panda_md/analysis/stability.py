@@ -4,17 +4,21 @@
 (у формы без θ — S_LV). Так же строит диаграмму PANDA_Polygon (`docs/model-runtime.js`, computePhase).
 """
 
+import math
+import warnings
 from collections.abc import Sequence
 
 from pydantic import ConfigDict
 
 from panda_md.core.enums import ParameterName
-from panda_md.core.errors import PandaError
+from panda_md.core.errors import PandaError, PandaWarning
 from panda_md.core.model import InterfaceModel
 from panda_md.core.pore import Pore
 from panda_md.core.types import PandaModel
 
 LENGTH_FIELD = "length_nm"  # поле поры, которое меняется вдоль оси l диаграммы
+MAX_CONTACT_ANGLE_DEG = 180.0
+RADIAN_SUSPICION_DEG = 2.0 * math.pi  # θ ≤ 2π° — скорее всего, передан угол в радианах
 
 
 class StabilityDiagram(PandaModel):
@@ -43,6 +47,18 @@ def stability_diagram(
     """Построить диаграмму для поры `pore`; длина поры берётся из `length_ratios`, остальные размеры — из `pore`."""
     if LENGTH_FIELD not in type(pore).model_fields:
         raise PandaError(f"у поры {pore.name} нет поля {LENGTH_FIELD}: диаграмму по длине не построить")
+    if any(ratio <= 0.0 for ratio in length_ratios):
+        raise PandaError(f"длина поры l должна быть положительной: {list(length_ratios)}")
+    if not 0.0 <= contact_angle_deg <= MAX_CONTACT_ANGLE_DEG:
+        raise PandaError(f"угол θ = {contact_angle_deg}° вне [0°, 180°]")
+    if contact_angle_deg <= RADIAN_SUSPICION_DEG:
+        warnings.warn(
+            f"θ = {contact_angle_deg}° — проверь, что угол задан в градусах, а не в радианах",
+            PandaWarning,
+            stacklevel=2,
+        )
+    if shape_names is not None and len(set(shape_names)) != len(shape_names):
+        raise PandaError(f"повтор в списке форм: {list(shape_names)}")
     candidates = _candidate_names(pore, shape_names)
     size_nm = pore.characteristic_size_nm()
     rows: list[tuple[str | None, ...]] = []

@@ -219,3 +219,26 @@ def test_walls_in_a_single_plane_give_the_whole_box_as_pore() -> None:
     assert plane.width_nm == pytest.approx(5.0)
     profiles = density_profile(trajectory, plane, "liquid", bins=20)
     assert profiles.block_particle_counts[0] == 100
+
+
+def test_warnings_point_at_the_caller() -> None:
+    trajectory = trajectory_from(uniform_slab(-1.0, 1.0, 100, 1))
+    other_base = SlitPore(width_nm=WIDTH_NM, length_nm=LENGTH_NM, wall_selection="walls")
+    with pytest.warns(PandaWarning, match="площадь бина") as caught:
+        density_profile(trajectory, other_base, "liquid", bins=20)
+    assert caught[0].filename == __file__
+
+
+def test_single_frame_with_blocks_is_reported() -> None:
+    trajectory = trajectory_from(uniform_slab(-1.0, 1.0, 100, 1))
+    with pytest.warns(PandaWarning, match="один кадр"):
+        profiles = density_profile(trajectory, pore(), "liquid", bins=20, block="1 ns")
+    assert profiles.block_count == 1
+
+
+def test_profile_set_requires_npz(tmp_path: Path) -> None:
+    profiles = density_profile(trajectory_from(uniform_slab(-1.0, 1.0, 100, 1)), pore(), "liquid", bins=20)
+    with pytest.raises(ValueError, match=r"\.npz"):
+        profiles.save(tmp_path / "set")
+    with pytest.raises(ValueError, match=r"\.npz"):
+        ProfileSet.load(tmp_path / "set.csv")
