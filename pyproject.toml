@@ -98,6 +98,9 @@ extend-exclude = ["PANDA", "smoke", "docs", "*.md"]
 select = ["E", "F", "W", "I", "UP", "B", "SIM", "ANN", "RUF", "NPY"]
 ignore = ["RUF001", "RUF002", "RUF003"]  # кириллица в строках и комментариях
 
+[tool.ruff.lint.per-file-ignores]
+"examples/build_test_notebook.py" = ["E501"]  # таблицы markdown-ячеек ноутбука
+
 [tool.mypy]
 python_version = "3.10"
 strict = true

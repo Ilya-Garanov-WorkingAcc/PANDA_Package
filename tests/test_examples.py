@@ -62,3 +62,21 @@ def _has_matplotlib() -> bool:
     except ImportError:
         return False
     return True
+
+
+def test_test_notebook_cells_compile_and_match_the_builder() -> None:
+    """examples/test_panda.ipynb — производный файл build_test_notebook.py; все ячейки кода — корректный Python."""
+    import importlib.util
+    import json
+
+    notebook = json.loads((EXAMPLES / "test_panda.ipynb").read_text())
+    sources = ["".join(cell["source"]) for cell in notebook["cells"]]
+    for cell, source in zip(notebook["cells"], sources, strict=True):
+        if cell["cell_type"] == "code":
+            compile(source, "test_panda.ipynb", "exec")
+    pytest.importorskip("nbformat")  # сборщик ноутбука нужен только для сверки с ним
+    spec = importlib.util.spec_from_file_location("build_test_notebook", EXAMPLES / "build_test_notebook.py")
+    assert spec is not None and spec.loader is not None
+    builder = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(builder)
+    assert sources == [source for _, source in builder.CELLS]

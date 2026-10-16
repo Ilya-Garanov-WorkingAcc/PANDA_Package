@@ -12,6 +12,7 @@ __pycache__/
 build/
 dist/
 site/
+panda_test_results/
 uv.lock
 
 # Старая PANDA — отдельный клон (github.com/FlufffyMelon/PANDA), только справочник
