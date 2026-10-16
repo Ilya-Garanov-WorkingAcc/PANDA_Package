@@ -12,7 +12,10 @@ import pytest
 
 from panda_md import SlitPore, SquarePore, TrianglePore
 from panda_md.analysis.stability import stability_diagram
+from panda_md.core.enums import ProfileCentering
 from panda_md.pores.polygon import PolygonPore
+from panda_md.trajectory.arrays import ArrayTrajectory
+from panda_md.trajectory.density import density_profile
 
 DATA = Path(__file__).parent / "data"
 TOLERANCE = 1e-12
@@ -104,3 +107,23 @@ def test_polygon_stability_diagram_matches_panda_polygon(pore_name: str) -> None
             if expected[i][j] != diagram.stable_shapes[i][j]
         ]
         assert not mismatches, f"θ={case['theta']} δ={case['delta']}: {mismatches[:5]} (всего {len(mismatches)})"
+
+
+def test_density_profile_matches_old_panda() -> None:
+    """Центрирование по жидкости и бины по ящику — как utils.get_center_pbc + get_numerical_density_profile."""
+    with np.load(DATA / "density_reference.npz") as reference:
+        trajectory = ArrayTrajectory(
+            positions_nm=reference["positions_nm"], boxes_nm=reference["boxes_nm"], times_ps=reference["times_ps"]
+        )
+        box = reference["boxes_nm"][0]
+        pore = SlitPore(width_nm=float(box[2]), length_nm=float(box[0]), base_aspect_ratio=float(box[1] / box[0]))
+        profiles = density_profile(
+            trajectory,
+            pore,
+            list(range(reference["positions_nm"].shape[1])),
+            centering=ProfileCentering.LIQUID,
+            bins=int(reference["bin_count"]),
+        )
+        np.testing.assert_allclose(
+            profiles.mean().density_per_nm3, reference["density_per_nm3"], rtol=0.0, atol=TOLERANCE
+        )

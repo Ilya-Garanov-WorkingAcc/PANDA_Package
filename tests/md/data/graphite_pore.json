@@ -1,0 +1,7 @@
+{
+  "normal_axis": "z",
+  "wall_selection": "resname GRAPHITE",
+  "width_nm": 8.268999791145324,
+  "length_nm": 17.27104034423828,
+  "base_aspect_ratio": 0.2969230521853608
+}

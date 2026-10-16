@@ -26,6 +26,7 @@ uv.lock
 smoke/out/
 *.npy
 *.npz
+!tests/*/data/*.npz
 *.xtc
 *.trr
 *.gro
