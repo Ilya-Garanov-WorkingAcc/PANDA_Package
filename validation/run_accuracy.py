@@ -2,8 +2,8 @@
 
 Запуск из корня репозитория (нужен panda-md[plot]):
     uv run python validation/run_accuracy.py
-Результат: validation/figures/*.png и validation/REPORT.md (таблицы и выводы пересобираются при каждом запуске).
-Время — несколько минут: каждое значение условия — 10 зёрен шума, каждый фит — мультистарт.
+Результат: validation/figures/*.png и validation/REPORT.md — таблицы пересобираются при каждом запуске; выводы
+написаны вручную в validation/README.md и сверяются с таблицами после перезапуска. Время — около минуты.
 """
 
 import time
@@ -89,6 +89,12 @@ def centering_study(shape: str) -> AccuracyStudy:
     )
 
 
+def describe(truth: dict[str, float], study_key: str) -> str:
+    """Истинные параметры для заголовка раздела; в исследовании угла θ меняется — его не пишем."""
+    shown = {name: value for name, value in truth.items() if not (study_key == "angle" and name == "theta")}
+    return ", ".join(f"{name} = {value:g}" for name, value in shown.items())
+
+
 def save_figure(study: AccuracyStudy, name: str) -> str:
     figure, axes = plt.subplots(figsize=(5.0, 3.6))
     plot_accuracy(study, axes)
@@ -120,7 +126,7 @@ def main() -> None:
             study = build(shape)
             figure = save_figure(study, f"{key}_{shape}")
             sections.append(
-                f"\n### {shape} (истинные {TRUTHS[shape]})\n\n{study.table()}\n\n![{shape}](figures/{figure})\n"
+                f"\n### {shape} ({describe(TRUTHS[shape], key)})\n\n{study.table()}\n\n![{shape}](figures/{figure})\n"
             )
             print(f"{key}/{shape}: {time.perf_counter() - started:.0f} с", flush=True)
     REPORT.write_text("".join(sections))

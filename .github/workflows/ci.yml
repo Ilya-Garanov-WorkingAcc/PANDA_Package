@@ -41,3 +41,10 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - run: uv build
       - run: uv run --isolated --no-project --with dist/*.whl python -c "import panda_md; print(panda_md.__version__)"
+      # колесо без extras: графики дают понятную ошибку, а не ImportError matplotlib
+      - run: |
+          uv run --isolated --no-project --with dist/*.whl python -c "import importlib
+          from panda_md.core.errors import MissingDependencyError
+          try: importlib.import_module('panda_md.plotting')
+          except MissingDependencyError: print('без matplotlib: понятная ошибка')
+          else: raise SystemExit('matplotlib не должен входить в колесо без extras')"

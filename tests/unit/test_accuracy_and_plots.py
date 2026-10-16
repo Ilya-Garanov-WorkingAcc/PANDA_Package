@@ -34,7 +34,7 @@ def test_without_noise_the_angle_is_recovered() -> None:
         density_bulk_per_nm3=DENSITY_BULK,
         seeds=[0],
     )
-    assert abs(errors[0]) < 0.5
+    assert abs(errors.errors_deg[0]) < 0.05  # среднее по бину против модели в центрах — малая систематика
 
 
 def test_study_summarises_errors_per_condition() -> None:
@@ -50,7 +50,12 @@ def test_study_summarises_errors_per_condition() -> None:
     assert table.splitlines()[0].startswith("| шум, %") and "| 2 |" in table
     with pytest.raises(ValidationError, match="подписи"):
         AccuracyStudy(
-            shape_name="roll", varied="x", labels=("a",), values=np.array([1.0, 2.0]), errors_deg=np.zeros((2, 1))
+            shape_name="roll",
+            varied="x",
+            labels=("a",),
+            values=np.array([1.0, 2.0]),
+            errors_deg=np.zeros((2, 1)),
+            at_bound_counts=(0, 0),
         )
 
 
@@ -125,3 +130,48 @@ def test_importing_package_does_not_import_matplotlib() -> None:
     check = "import sys, panda_md; print('matplotlib' in sys.modules)"
     output = subprocess.run([sys.executable, "-c", check], capture_output=True, text=True, check=True).stdout
     assert output.strip() == "False"
+
+
+def test_fits_at_the_angle_bound_are_counted() -> None:
+    cases = {"175": (175.0, AccuracyCase(truth={**ROLL_TRUTH, "theta": 175.0}, noise_std=0.01))}
+    study = accuracy_study(PORE.interface("roll"), "θ, °", cases, density_bulk_per_nm3=DENSITY_BULK, seeds=range(10))
+    assert len(study.at_bound_counts) == 1 and 0 < study.at_bound_counts[0] <= 10
+    assert "у границы θ" in study.table().splitlines()[0]
+    with pytest.raises(ValueError, match="зерно"):
+        accuracy_study(PORE.interface("roll"), "θ, °", cases, density_bulk_per_nm3=DENSITY_BULK, seeds=[])
+
+
+def test_density_map_figure_keeps_orientation_and_stability_colors(pyplot: object) -> None:
+    from matplotlib.colors import to_rgba
+    from matplotlib.lines import Line2D
+
+    from panda_md.plotting import plot_density_map, plot_stability
+    from panda_md.trajectory.maps import DensityMap
+
+    density = DensityMap(
+        length_edges_nm=np.linspace(-2.0, 2.0, 6),
+        height_edges_nm=np.linspace(-1.0, 1.0, 4),
+        density_per_nm3=np.arange(15.0).reshape(5, 3),
+        frame="pore",
+        axis_centered=True,
+        frame_count=1,
+        selection="тест",
+    )
+    mesh = plot_density_map(density).collections[0]
+    np.testing.assert_allclose(np.asarray(mesh.get_array()).reshape(3, 5), density.density_per_nm3.T)
+
+    diagram = stability_diagram(
+        PORE, contact_angle_deg=150.0, wall_layer=0.0, volume_fractions=(0.001, 0.4, 0.97), length_ratios=(1.0, 2.0)
+    )
+    axes = plot_stability(diagram)
+    axes.figure.canvas.draw()  # цвета клеток вычисляются при отрисовке
+    colors = np.asarray(axes.collections[0].get_facecolor(), dtype=float)
+    handles, labels = axes.get_legend_handles_labels()
+    label_colors = {}
+    for handle, label in zip(handles, labels, strict=True):
+        assert isinstance(handle, Line2D)
+        label_colors[label] = to_rgba(handle.get_color())
+    flat = [name for row in diagram.stable_shapes for name in row]
+    for color, name in zip(colors, flat, strict=True):
+        expected = to_rgba("#f0f0f0") if name is None else label_colors[name]
+        np.testing.assert_allclose(color, np.asarray(expected), atol=1e-6)

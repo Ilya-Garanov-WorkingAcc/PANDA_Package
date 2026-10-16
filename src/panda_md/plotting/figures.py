@@ -5,6 +5,7 @@ import numpy as np
 from panda_md.analysis.accuracy import AccuracyStudy
 from panda_md.analysis.blocks import FitResultSet
 from panda_md.analysis.stability import StabilityDiagram
+from panda_md.core.enums import ParameterName
 from panda_md.core.errors import MissingDependencyError
 from panda_md.core.result import FitResult
 from panda_md.trajectory.maps import DensityMap
@@ -35,7 +36,9 @@ def plot_fit(result: FitResult, ax: Axes | None = None) -> Axes:
         result.model_curve,
         "-",
         label=(
-            f"{result.shape_name}: θ = {result.values['theta']:.1f}°" if "theta" in result.values else result.shape_name
+            f"{result.shape_name}: θ = {result.values[ParameterName.CONTACT_ANGLE.value]:.1f}°"
+            if ParameterName.CONTACT_ANGLE.value in result.values
+            else result.shape_name
         ),
     )
     axes.set_xlabel("координата / размер поры")
@@ -44,7 +47,9 @@ def plot_fit(result: FitResult, ax: Axes | None = None) -> Axes:
     return axes
 
 
-def plot_blocks(blocks: FitResultSet, parameter: str = "theta", ax: Axes | None = None) -> Axes:
+def plot_blocks(
+    blocks: FitResultSet, parameter: str = ParameterName.CONTACT_ANGLE.value, ax: Axes | None = None
+) -> Axes:
     """Значение параметра в каждом блоке, среднее и ошибка среднего."""
     axes = _axes(ax)
     times_ns = 0.5 * (blocks.block_start_ps + blocks.block_stop_ps) / 1000.0

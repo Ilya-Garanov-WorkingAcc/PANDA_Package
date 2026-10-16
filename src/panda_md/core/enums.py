@@ -126,3 +126,17 @@ class AxisLocator(str, Enum):
 
     LIQUID_CENTER = "liquid_center"  # центр жидкости (круговое среднее с учётом PBC)
     VOID_CENTER = "void_center"  # центр пустоты: жидкость занимает всё, кроме отверстия, — центр жидкости + L/2
+
+
+class NoiseModel(str, Enum):
+    """Шум синтетического профиля."""
+
+    CONSTANT = "constant"  # σ = noise_std · ρ_bulk в каждом бине; отрицательные значения обрезаются до 0
+    POISSON = "poisson"  # σ ∝ √ρ, как у числа частиц в бине; в пустых бинах шума нет
+
+
+class ProfileSampling(str, Enum):
+    """Как синтетический профиль представляет бин."""
+
+    CENTER = "center"  # значение модели в центре бина
+    BIN_AVERAGE = "bin_average"  # среднее модели по бину — как гистограмма МД
