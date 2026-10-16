@@ -34,6 +34,11 @@ dependencies = [
 [project.urls]
 Repository = "https://github.com/Ilya-Garanov-WorkingAcc/PANDA_2.0"
 
+[project.optional-dependencies]
+md = [
+    "mdanalysis>=2.7",
+]
+
 # Группы зависимостей (PEP 735) — в опубликованный пакет не попадают.
 #   uv sync: группа dev (всё для разработки)
 #   uv sync --no-default-groups --group test: только пакет и то, что нужно для запуска тестов
@@ -85,3 +90,7 @@ strict = true
 files = ["src", "tests"]
 warn_unreachable = true
 plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["MDAnalysis", "MDAnalysis.*"]  # у MDAnalysis нет аннотаций типов
+ignore_missing_imports = true

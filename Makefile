@@ -21,14 +21,14 @@ lint:  ## black + ruff с автоисправлением
 deps:
 	sed -i 's/>/~/g' pyproject.toml
 
-install:  ## окружение разработки (.venv): пакет + группы test и lint
-	uv sync
+install:  ## окружение разработки (.venv): пакет с [md] + группы test и lint
+	uv sync --all-extras
 
 test:  ## тесты
 	uv run pytest
 
-test-env:  ## тесты в отдельном чистом окружении: только пакет и группа test
-	UV_PROJECT_ENVIRONMENT=.venv-test uv sync --no-default-groups --group test
+test-env:  ## тесты в отдельном чистом окружении: только пакет с [md] и группа test
+	UV_PROJECT_ENVIRONMENT=.venv-test uv sync --no-default-groups --group test --extra md
 	UV_PROJECT_ENVIRONMENT=.venv-test uv run --no-sync pytest
 
 lint-check:  ## black + ruff без изменения файлов (как в CI)
