@@ -5,7 +5,7 @@ contact angle and the interface shape of liquids confined in pores from one-dime
 of molecular simulations.
 
 > **Status: pre-alpha.** The core (parameters, pore/shape contract, generic fit) works for the slit pore
-> (all six shapes: droplet, doughnut, worm, roll, perforation, layer; rectangular base L × kL), the triangular pore (12 shapes) and the square pore (7 shapes); stability diagrams by the capillary functional. Trajectory processing and CLI are
+> (all six shapes: droplet, doughnut, worm, roll, perforation, layer; rectangular base L × kL), the triangular pore (12 shapes) and the square pore (7 shapes); stability diagrams by the capillary functional. Density profiles from MD trajectories (MDAnalysis, extra `md`) work for the slit pore. The CLI is
 > not implemented yet; the published 0.0.1 contains no code.
 ```python
 import panda_md as panda
@@ -15,6 +15,16 @@ roll = pore.interface("roll")
 profile = synthetic_profile(roll, {"theta": 120.0, "delta": 0.03, "phi": 0.4}, density_bulk_per_nm3=30.0)
 result = roll.fit(profile, optimize=["theta", "delta"], density_bulk_per_nm3=30.0)
 print(result)
+```
+
+From an MD trajectory (`pip install 'panda-md[md]'`):
+
+```python
+import panda_md as panda
+traj = panda.load_trajectory("system.tpr", "system.xtc")
+pore = panda.SlitPore.from_trajectory(traj, walls="resname GRAPHITE")
+profiles = panda.density_profile(traj, pore, "resname WATER and name OW", start="2 ns", block="1 ns")
+result = pore.interface("roll").fit(profiles.mean(), density_bulk_per_nm3=33.1)
 ```
 
 ## Method

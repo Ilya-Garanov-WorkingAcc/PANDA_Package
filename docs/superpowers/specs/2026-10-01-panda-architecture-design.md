@@ -53,6 +53,9 @@
 | D18 | Щель с основанием L × kL: k — поле `SlitPore`; осесимметричные формы — через эквивалентную квадратную ячейку kL × kL, червь и валик — вдоль короткой стороны, от k не зависят (стадия 2) |
 | D19 | Форма может не иметь θ (слой): тогда `regimes = {}`, свои `default_optimize`; капиллярная энергия — S_LV + S_SL |
 | D20 | Многоугольные поры: общая база `PolygonGeometry`/`PolygonPore` (a, L, ly); профиль и площади у формы необязательны — форма без профиля только в диаграмме устойчивости, `fit` для неё — `NotDerivedError` до оптимизации; диаграмма устойчивости — `analysis.stability`, общий код для всех пор (стадия 3) |
+| D21 | Траектория: интерфейс `Trajectory` в ядре (кадры — время, ящик, позиции запрошенных групп; нм, пс), реализации `ArrayTrajectory` (массивы) и `MDATrajectory` (MDAnalysis, extra `md`; импорт только внутри `load_trajectory`) (стадия 4) |
+| D22 | Пора в ящике: `normal_axis`, `wall_selection`, `locate_center_nm`; щель — середина наибольшего пустого промежутка между атомами стенок через PBC, `SlitPore.from_trajectory`; у многоугольных пор центр пока задаётся явно (`pore_center_nm`) — данных МД для них нет (стадия 4) |
+| D23 | Центрирование профиля — `pore` / `liquid`; «без сдвига» = `pore` с заданным центром. Осевое центрирование (`+axis`), `per="molecule"`, `wall_offset`, статистическая неэффективность — фаза 6: на 1D-профиль не влияют (стадия 4) |
 
 ---
 
@@ -249,7 +252,7 @@ class Pore(ABC):
     def available_interfaces(self) -> list[InterfaceModel]
 ```
 
-`SlitPore(width_nm, length_nm, base_aspect_ratio=1.0)` (стенки и ось — фаза 5, путь данных); `SlitPore.from_trajectory(traj, walls=<выборка>, L_axis="x"|"y"|"auto")`.
+`SlitPore(width_nm, length_nm, base_aspect_ratio=1.0, normal_axis=Axis.Z, wall_selection=None)`; `SlitPore.from_trajectory(traj, walls=<выборка>, length_axis=Axis.X)`.
 Поверхность стенки — по центрам крайних атомов подложки, с учётом образа через PBC; `wall_offset` (нм) —
 явная поправка, по умолчанию 0.
 
@@ -363,7 +366,7 @@ Trajectory → выборка → стенки/ось поры → центри�
 |-----------|----------|-----------------|
 | `pore` | середина между стенками → 0 | PORE |
 | `liquid` | центр масс выбранной жидкости вдоль координаты профиля → 0 (среднее по окружности) | LIQUID |
-| `none` | без сдвига | задаёт пользователь |
+| `pore` + `pore_center_nm` | заданный центр → 0 (данные уже отцентрированы — 0) | PORE |
 | `+axis` | ось формы → начало координат в плоскости стенок | не меняет |
 
 - Ось: `SymmetryAxis(orientation, locate)` в классе формы. Щель: roll — горизонтальная, `liquid_center`;
@@ -382,8 +385,8 @@ API:
 ```python
 import panda_md as panda
 
-traj = panda.load_trajectory("md.xtc", "md.gro")
-pore = panda.SlitPore.from_trajectory(traj, walls="resname GRA", L_axis="x")
+traj = panda.load_trajectory("md.gro", "md.xtc")   # топология, затем траектория
+pore = panda.SlitPore.from_trajectory(traj, walls="resname GRA", length_axis=panda.Axis.X)
 profiles = panda.density_profile(traj, pore, select="resname DECAN", centering="pore",
                                  bins=200, start="2 ns", block="1 ns")
 model = pore.interface("roll")
