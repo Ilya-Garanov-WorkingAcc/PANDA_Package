@@ -98,12 +98,12 @@ def density_profile(
             continue
         check_box(frame.box_nm)
         period = float(frame.box_nm[axis])
-        heights = _particle_heights(frame.positions_nm[0], frame.box_nm, axis, molecules)
-        center = _frame_center(frame, heights, pore, centering, pore_center_nm, period, warned)
+        heights = particle_positions(frame.positions_nm[0], frame.box_nm, molecules)[:, axis]
+        center = profile_frame_center(frame, heights, pore, centering, pore_center_nm, period, warned)
         coordinate = wrap_centered(heights - center, period)
         if edges is None:
             first_period = period
-            edges = _bin_edges(pore, centering, period, bins, bin_width_nm)
+            edges = profile_bin_edges(pore, centering, period, bins, bin_width_nm)
             blocks = [_BlockAccumulator(edges.size - 1) for _ in range(block_count)]
         counts, _ = np.histogram(coordinate, bins=edges)
         if centering is ProfileCentering.LIQUID:
@@ -180,19 +180,18 @@ def _assign_blocks(times: FloatArray, block_ps: float | None) -> tuple[list[int]
     return [index if index < block_count else -1 for index in assignment], block_count
 
 
-def _particle_heights(
-    positions: FloatArray, box: FloatArray, axis: int, molecules: tuple[IndexArray, FloatArray] | None
+def particle_positions(
+    positions: FloatArray, box: FloatArray, molecules: tuple[IndexArray, FloatArray] | None
 ) -> FloatArray:
-    """Координата частиц вдоль оси профиля: атомов или центров масс молекул."""
+    """Позиции частиц (n × 3): атомы или центры масс молекул (molecules — номер молекулы и масса каждого атома)."""
     if molecules is None:
-        heights: FloatArray = positions[:, axis]
-        return heights
+        return positions
     molecule_indices, masses = molecules
-    centers: FloatArray = molecule_centers(positions, box, molecule_indices, masses)[:, axis]
+    centers: FloatArray = molecule_centers(positions, box, molecule_indices, masses)
     return centers
 
 
-def _frame_center(
+def profile_frame_center(
     frame: TrajectoryFrame,
     heights: FloatArray,
     pore: Pore,
@@ -230,7 +229,7 @@ def _wall_gap(walls: FloatArray, period: float, center: float) -> float:
     return float(np.min(above) - np.max(below))
 
 
-def _bin_edges(
+def profile_bin_edges(
     pore: Pore, centering: ProfileCentering, period: float, bins: int, bin_width_nm: float | None
 ) -> FloatArray:
     if centering is ProfileCentering.PORE:

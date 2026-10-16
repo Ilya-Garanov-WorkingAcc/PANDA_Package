@@ -55,7 +55,7 @@ class DensityProfile(PandaModel):
         """Сохранить: .npz — полностью; .csv — столбцы и метаданные в строках-комментариях."""
         target = Path(path)
         if target.suffix == ".npz":
-            _save_npz(target, _profile_arrays(self), self._metadata())
+            save_npz_arrays(target, _profile_arrays(self), self._metadata())
         elif target.suffix == ".csv":
             header = "\n".join(f"{key}: {json.dumps(value)}" for key, value in self._metadata().items())
             arrays = _profile_arrays(self)
@@ -83,7 +83,15 @@ class DensityProfile(PandaModel):
         return {name: dumped[name] for name in CSV_METADATA_FIELDS}
 
 
-def _save_npz(path: Path, arrays: Mapping[str, FloatArray], metadata: Mapping[str, object]) -> None:
+def load_npz_arrays(path: Path) -> tuple[dict[str, FloatArray], dict[str, Any]]:
+    """Массивы и метаданные, сохранённые save_npz_arrays."""
+    with np.load(path) as archive:
+        metadata: dict[str, Any] = json.loads(str(archive["metadata"]))
+        arrays = {name: archive[name] for name in archive.files if name != "metadata"}
+    return arrays, metadata
+
+
+def save_npz_arrays(path: Path, arrays: Mapping[str, FloatArray], metadata: Mapping[str, object]) -> None:
     """Массивы — по именам, метаданные — JSON-строкой под ключом metadata."""
     # Any: заглушки numpy типизируют **kwds у savez как bool (allow_pickle); значения — массивы и строка
     payload: dict[str, Any] = {**arrays, "metadata": json.dumps(dict(metadata))}
@@ -213,7 +221,7 @@ class ProfileSet(PandaModel):
             )
         }
         metadata = self.model_dump(mode="json", exclude=set(arrays))
-        _save_npz(Path(path), arrays, metadata)
+        save_npz_arrays(Path(path), arrays, metadata)
 
     @classmethod
     def load(cls, path: str | Path) -> "ProfileSet":

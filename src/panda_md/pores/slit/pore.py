@@ -58,6 +58,7 @@ class SlitPore(Pore):
     width_nm: float = Field(gt=0.0)  # H — расстояние между стенками
     length_nm: float = Field(gt=0.0)  # L — длинная сторона основания ячейки
     base_aspect_ratio: float = Field(default=1.0, gt=0.0, le=1.0)  # k — короткая сторона / длинная
+    length_axis: Axis = Axis.X  # ось ящика вдоль длинной стороны основания (для 2D-карт и осевого центрирования)
     wall_offset_nm: float = Field(default=0.0, ge=0.0)  # поверхность стенки — дальше центров крайних атомов
 
     def geometry(self) -> SlitGeometry:
@@ -155,5 +156,6 @@ class SlitPore(Pore):
             length_nm=length,
             base_aspect_ratio=aspect_ratio,
             normal_axis=normal_axis,
+            length_axis=length_axis,
             wall_selection=walls,
         )
