@@ -112,3 +112,17 @@ TIME_UNIT_PICOSECONDS = {
     TimeUnit.NANOSECOND: 1e3,
     TimeUnit.MICROSECOND: 1e6,
 }
+
+
+class AxisOrientation(str, Enum):
+    """Направление оси симметрии формы относительно стенок."""
+
+    VERTICAL = "vertical"  # перпендикулярно стенкам (пончик, перфорация): центр ищется по обеим осям плоскости
+    HORIZONTAL = "horizontal"  # вдоль короткой стороны ячейки (валик): центр ищется только поперёк оси
+
+
+class AxisLocator(str, Enum):
+    """Как найти положение оси в кадре."""
+
+    LIQUID_CENTER = "liquid_center"  # центр жидкости (круговое среднее с учётом PBC)
+    VOID_CENTER = "void_center"  # центр пустоты: жидкость занимает всё, кроме отверстия, — центр жидкости + L/2

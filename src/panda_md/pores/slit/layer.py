@@ -15,12 +15,13 @@ from panda_md.core.parameters import VOLUME_FRACTION, WALL_LAYER_THICKNESS, Para
 from panda_md.core.shape import SurfaceTerms
 from panda_md.core.types import FloatArray
 from panda_md.pores.slit.pore import SlitGeometry, SlitPore
-from panda_md.pores.slit.shape import SlitShape
+from panda_md.pores.slit.shape import CrossSection, SlitShape
 
 
 @SlitPore.register
 class SlitLayer(SlitShape):
     name: ClassVar[str] = "layer"
+    cross_section: ClassVar[CrossSection] = CrossSection.FULL
     parameters: ClassVar[tuple[Parameter, ...]] = (WALL_LAYER_THICKNESS, VOLUME_FRACTION)
     regimes: ClassVar[dict[Regime, tuple[float, float]]] = {}  # контактного угла нет
     default_optimize: ClassVar[tuple[str, ...]] = (ParameterName.VOLUME_FRACTION.value,)

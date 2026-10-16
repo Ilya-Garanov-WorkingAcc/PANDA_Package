@@ -8,10 +8,11 @@ import numpy as np
 from pydantic import Field
 from scipy.integrate import trapezoid
 
+from panda_md.core.centering import SymmetryAxis
 from panda_md.core.enums import Frame, ParameterName, Regime
 from panda_md.core.errors import NotDerivedError, UnsupportedRegimeError
 from panda_md.core.parameters import Parameter, ParameterValues
-from panda_md.core.types import FloatArray, PandaModel
+from panda_md.core.types import BoolArray, FloatArray, PandaModel
 
 REGIME_BOUNDARY_DEG = 90.0  # граница смачивания и несмачивания
 REGIME_GAP_DEG = 0.5  # θ ∈ (90° − зазор, 90° + зазор) не считается: в формулах tan θ и 1/cos θ
@@ -55,6 +56,7 @@ class InterfaceShape(ABC, Generic[GeometryT]):
     parameters: ClassVar[tuple[Parameter, ...]]
     regimes: ClassVar[dict[Regime, tuple[float, float]]]  # диапазон θ в градусах для каждого выведенного режима
     frame: ClassVar[Frame]  # система отсчёта, в которой записаны формулы
+    symmetry_axis: ClassVar[SymmetryAxis | None] = None  # ось для осевого центрирования; None — нет
     default_optimize: ClassVar[tuple[str, ...]] = (
         ParameterName.CONTACT_ANGLE.value,
         ParameterName.WALL_LAYER_THICKNESS.value,
@@ -67,6 +69,14 @@ class InterfaceShape(ABC, Generic[GeometryT]):
     def profile(self, coordinate: FloatArray, geometry: GeometryT, values: ParameterValues) -> FloatArray:
         """ρ/ρ_bulk на безразмерной координате. Вызывается только для допустимых параметров."""
         raise NotDerivedError(f"{self.name}: профиль плотности не выведен")
+
+    def contains(self, points: FloatArray, geometry: GeometryT, values: ParameterValues) -> BoolArray:
+        """Какие точки (n × 3, безразмерные: вдоль длинной стороны, вдоль короткой, вдоль оси профиля) — в жидкости.
+
+        Ось симметрии формы (если есть) — в начале координат плоскости стенок; координаты в плоскости стенок
+        периодичны с периодом ячейки. Вызывается только для допустимых параметров.
+        """
+        raise NotDerivedError(f"{self.name}: трёхмерная форма (contains) не выведена")
 
     def phi_limits(self, geometry: GeometryT, values: ParameterValues) -> tuple[float, float]:
         """Допустимый интервал φ при остальных параметрах."""
@@ -84,6 +94,9 @@ class InterfaceShape(ABC, Generic[GeometryT]):
 
     def has_phi_limits(self) -> bool:
         return type(self).phi_limits is not InterfaceShape.phi_limits
+
+    def has_contains(self) -> bool:
+        return type(self).contains is not InterfaceShape.contains
 
     def has_profile(self) -> bool:
         return type(self).profile is not InterfaceShape.profile

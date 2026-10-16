@@ -17,11 +17,13 @@ from panda_md.core.types import FloatArray
 from panda_md.pores.common import spherical_cap_centroid_offset, spherical_cap_volume_factor
 from panda_md.pores.slit.axisymmetric import AxisymmetricSlitShape
 from panda_md.pores.slit.pore import SLIT_HALF_WIDTH, SlitGeometry, SlitPore
+from panda_md.pores.slit.shape import CrossSection
 
 
 @SlitPore.register
 class SlitDroplet(AxisymmetricSlitShape):
     name: ClassVar[str] = "droplet"
+    cross_section: ClassVar[CrossSection] = CrossSection.DISK
     parameters: ClassVar[tuple[Parameter, ...]] = (CONTACT_ANGLE, WALL_LAYER_THICKNESS, VOLUME_FRACTION)
     regimes: ClassVar[dict[Regime, tuple[float, float]]] = {Regime.NON_WETTING: (90.0, 180.0)}
 

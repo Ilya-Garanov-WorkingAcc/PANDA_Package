@@ -17,12 +17,13 @@ from panda_md.core.shape import SurfaceTerms
 from panda_md.core.types import FloatArray
 from panda_md.pores.common import circular_segment_centroid_offset, circular_segment_factor
 from panda_md.pores.slit.pore import SLIT_HALF_WIDTH, SlitGeometry, SlitPore
-from panda_md.pores.slit.shape import SlitShape
+from panda_md.pores.slit.shape import CrossSection, SlitShape
 
 
 @SlitPore.register
 class SlitWorm(SlitShape):
     name: ClassVar[str] = "worm"
+    cross_section: ClassVar[CrossSection] = CrossSection.BAND
     parameters: ClassVar[tuple[Parameter, ...]] = (CONTACT_ANGLE, WALL_LAYER_THICKNESS, VOLUME_FRACTION)
     regimes: ClassVar[dict[Regime, tuple[float, float]]] = {Regime.NON_WETTING: (90.0, 180.0)}
 

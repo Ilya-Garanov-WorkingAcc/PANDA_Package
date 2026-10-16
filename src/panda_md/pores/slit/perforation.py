@@ -10,16 +10,22 @@ from typing import ClassVar
 
 import numpy as np
 
-from panda_md.core.enums import ParameterName, Regime
+from panda_md.core.centering import SymmetryAxis
+from panda_md.core.enums import AxisLocator, AxisOrientation, ParameterName, Regime
 from panda_md.core.parameters import CONTACT_ANGLE, VOLUME_FRACTION, WALL_LAYER_THICKNESS, Parameter, ParameterValues
 from panda_md.core.types import FloatArray
 from panda_md.pores.slit.axisymmetric import AxisymmetricSlitShape
 from panda_md.pores.slit.pore import SlitGeometry, SlitPore
+from panda_md.pores.slit.shape import CrossSection
 
 
 @SlitPore.register
 class SlitPerforation(AxisymmetricSlitShape):
     name: ClassVar[str] = "perforation"
+    cross_section: ClassVar[CrossSection] = CrossSection.HOLE
+    symmetry_axis: ClassVar[SymmetryAxis | None] = SymmetryAxis(
+        orientation=AxisOrientation.VERTICAL, locate=AxisLocator.VOID_CENTER
+    )
     parameters: ClassVar[tuple[Parameter, ...]] = (CONTACT_ANGLE, WALL_LAYER_THICKNESS, VOLUME_FRACTION)
     regimes: ClassVar[dict[Regime, tuple[float, float]]] = {Regime.NON_WETTING: (90.0, 180.0)}
 
