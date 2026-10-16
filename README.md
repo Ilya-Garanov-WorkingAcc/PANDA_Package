@@ -144,7 +144,10 @@ ROADMAP.md      project plan
 The original research code lives at https://github.com/FlufffyMelon/PANDA.
 
 ## How to cite
+
 Cite the method paper (Semenchuk, Kondratyuk, Kopanichuk, Colloids Surf. A 708 (2025) 135994) and the software;
 metadata for both are in [CITATION.cff](https://github.com/Ilya-Garanov-WorkingAcc/PANDA_2.0/blob/main/CITATION.cff).
+
+## License
 
 MIT, see [LICENSE](https://github.com/Ilya-Garanov-WorkingAcc/PANDA_2.0/blob/main/LICENSE).

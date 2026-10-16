@@ -65,3 +65,38 @@ def test_fixed_parameters_have_exactly_zero_spread_in_block_summary() -> None:
     blocks = fit_blocks(pore.interface("roll"), profiles, FitSpec(density_bulk_per_nm3=33.13))
     assert blocks.std("phi") == 0.0
     assert "phi = 0.48661 ± 0," in blocks.summary()
+
+
+def test_angle_tolerance_does_not_accept_angles_beyond_180() -> None:
+    """Ревью исправлений: допуск 1e−9° у границ режима пропускал θ = 180 + 5e−10 (и падал дальше в площадях)."""
+    from panda_md import TrianglePore
+    from panda_md.core.errors import UnsupportedRegimeError
+
+    filament = TrianglePore(side_nm=4.0, length_nm=10.0, layer_width_nm=4.0).interface("filament_w1c0")
+    for angle in (180.0 + 5e-10, -5e-10):
+        with pytest.raises(UnsupportedRegimeError):
+            filament.shape.require_supported_contact_angle(angle)
+
+
+def test_hash_agrees_with_equality_for_negative_zero() -> None:
+    from panda_md.core.profile import DensityProfile
+
+    first = DensityProfile(coordinate_nm=[-0.0, 1.0], density_per_nm3=[1.0, 2.0])
+    second = DensityProfile(coordinate_nm=[0.0, 1.0], density_per_nm3=[1.0, 2.0])
+    assert first == second and hash(first) == hash(second)
+
+
+def test_old_fit_result_json_does_not_claim_the_current_version() -> None:
+    """Ревью исправлений: JSON без версии при загрузке выглядел посчитанным текущей версией."""
+    import json
+
+    from panda_md import FitResult
+    from panda_md.synthetic.profiles import synthetic_profile
+
+    model = SlitPore(width_nm=8.0, length_nm=16.0).interface("roll")
+    profile = synthetic_profile(model, {"theta": 120.0, "delta": 0.03, "phi": 0.4}, density_bulk_per_nm3=30.0)
+    result = model.fit(profile, density_bulk_per_nm3=30.0)
+    assert result.library_version is not None
+    old = json.loads(result.model_dump_json())
+    del old["library_version"]
+    assert FitResult.model_validate(old).library_version is None

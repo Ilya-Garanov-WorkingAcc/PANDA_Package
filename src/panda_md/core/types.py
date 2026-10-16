@@ -194,7 +194,8 @@ def _values_equal(first: object, second: object) -> bool:
 
 def _hashable(value: object) -> object:
     if isinstance(value, np.ndarray):
-        return (value.shape, str(value.dtype), value.tobytes())
+        normalized = value + 0.0 if np.issubdtype(value.dtype, np.floating) else value  # −0.0 == 0.0 и в хеше
+        return (value.shape, str(value.dtype), normalized.tobytes())
     if isinstance(value, Mapping):
         return tuple(sorted((key, _hashable(item)) for key, item in value.items()))
     if isinstance(value, (tuple, list)):

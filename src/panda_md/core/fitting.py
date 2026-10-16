@@ -24,6 +24,7 @@ from panda_md.core.result import FitResult
 from panda_md.core.shape import REGIME_BOUNDARY_DEG, REGIME_GAP_DEG, PoreGeometry
 from panda_md.core.spec import FitSpec
 from panda_md.core.types import BoolArray, FloatArray
+from panda_md.core.version import library_version
 
 if TYPE_CHECKING:
     from panda_md.core.model import InterfaceModel
@@ -449,6 +450,7 @@ def _build_result(
     feasible = objective.is_feasible(values)
     curve = objective.prediction(values) if feasible else np.zeros_like(objective.data)
     return FitResult(
+        library_version=library_version(),
         pore_name=model.pore.name,
         shape_name=model.shape.name,
         regime=outcome.regime,

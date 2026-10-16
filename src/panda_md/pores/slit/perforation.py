@@ -18,10 +18,6 @@ from panda_md.pores.slit.axisymmetric import AxisymmetricSlitShape
 from panda_md.pores.slit.pore import SlitGeometry, SlitPore
 from panda_md.pores.slit.shape import CrossSection
 
-HOLE_FIT_TOLERANCE = 1e-6  # формула φ_min верна, если при ней d = l с этой относительной точностью
-HOLE_FIT_GRID_POINTS = 401  # сетка по φ для численной границы, если формула дала посторонний корень
-HOLE_FIT_BISECTIONS = 60
-
 
 @SlitPore.register
 class SlitPerforation(AxisymmetricSlitShape):
@@ -78,40 +74,22 @@ class SlitPerforation(AxisymmetricSlitShape):
 
     def square_phi_limits(self, square: SlitGeometry, values: ParameterValues) -> tuple[float, float]:
         """φ_min — отверстие касается своего образа; φ_max — отверстие закрывается.
-        Формула φ_min (уравнение (21) с δ) получена возведением в квадрат: в узкой ячейке (k·l ≲ 0.55) она даёт
-        посторонний корень, при котором отверстие шире ячейки (ρ < 0). Тогда граница ищется численно — по условию
-        «диаметр отверстия у стенки равен стороне ячейки»; если отверстие не помещается ни при какой φ, интервал пуст.
+        Диаметр отверстия у стенки d(φ) = ¼√D(φ) + c, D линейно убывает с φ, поэтому d ≥ c. Если c > l, отверстие
+        не помещается в ячейку ни при какой φ — перфорации нет (интервал пуст). Иначе корень формулы φ_min настоящий.
+        Формула (21) получена возведением в квадрат и в узкой ячейке (c > l) даёт посторонний корень с отверстием
+        шире ячейки и ρ < 0 (итоговый аудит, O12).
         """
         lower, upper = self._formula_phi_limits(square, values)
-        if upper <= 0.0:
-            return 0.0, 0.0  # отверстие не закрывается ни при какой φ ≥ 0: перфорации нет
-        if self._hole_fits(square, values, lower, HOLE_FIT_TOLERANCE):
-            return lower, upper
-        return self._numeric_lower_limit(square, values, upper), upper
+        if upper <= 0.0 or self._smallest_hole_diameter(values) > square.pore_length_ratio:
+            return max(upper, 0.0), max(upper, 0.0)  # пустой интервал: перфорации в такой ячейке нет
+        return max(lower, 0.0), upper
 
-    def _hole_fits(self, square: SlitGeometry, values: ParameterValues, phi: float, tolerance: float) -> bool:
-        """Отверстие при этой φ помещается в ячейку: дискриминант (19) ≥ 0 и d ≤ l."""
-        trial = {**values, ParameterName.VOLUME_FRACTION.value: phi}
-        if phi < 0.0 or self._discriminant(square, trial) < 0.0:
-            return False
-        return self.hole_diameter(square, trial) <= square.pore_length_ratio * (1.0 + tolerance)
-
-    def _numeric_lower_limit(self, square: SlitGeometry, values: ParameterValues, upper: float) -> float:
-        grid = np.linspace(0.0, upper, HOLE_FIT_GRID_POINTS)
-        fits = [self._hole_fits(square, values, float(phi), 0.0) for phi in grid]
-        if not any(fits):
-            return upper  # пустой интервал: перфорации в такой ячейке нет
-        first = fits.index(True)
-        if first == 0:
-            return 0.0
-        low, high = float(grid[first - 1]), float(grid[first])
-        for _ in range(HOLE_FIT_BISECTIONS):  # граница «помещается / не помещается»
-            middle = 0.5 * (low + high)
-            if self._hole_fits(square, values, middle, 0.0):
-                high = middle
-            else:
-                low = middle
-        return high
+    def _smallest_hole_diameter(self, values: ParameterValues) -> float:
+        """c — диаметр отверстия у стенки при D = 0: меньше он не бывает ни при какой φ (уравнение (19))."""
+        contact_angle = values[ParameterName.CONTACT_ANGLE]
+        width = self.accessible_width(values)
+        arc_term = math.pi - 2.0 * contact_angle
+        return 0.5 * width * math.tan(contact_angle) - 0.25 * width * arc_term / math.cos(contact_angle) ** 2
 
     def _formula_phi_limits(self, square: SlitGeometry, values: ParameterValues) -> tuple[float, float]:
         """Уравнение (21) с δ (alpha.py): φ_min — отверстие касается образа, φ_max — закрывается."""

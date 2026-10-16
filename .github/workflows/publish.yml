@@ -14,15 +14,13 @@ permissions:
   contents: read
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
-      - run: uv sync --no-default-groups --group test --extra md --extra plot
-      - run: uv run --no-sync pytest
+  # публикация только после всего CI (lint, тесты 3.10–3.13, нижние версии, документация, сборка):
+  # тег на красном коммите не уходит на PyPI
+  ci:
+    uses: ./.github/workflows/ci.yml
+
   build:
-    needs: test
+    needs: ci
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

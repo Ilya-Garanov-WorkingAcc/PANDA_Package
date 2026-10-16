@@ -52,6 +52,11 @@ def main() -> None:
     spec = panda.FitSpec(density_bulk_per_nm3=arguments.density_bulk)
     comparison = panda.compare_shapes(pore, profiles.mean(), spec)
     print(comparison)
+    if arguments.shape is None and comparison.indistinguishable:
+        print(
+            f"the profile cannot tell apart {', '.join(comparison.indistinguishable)}: "
+            "check the 2D map below and the stability diagram, or choose with --shape"
+        )
     shape = arguments.shape or comparison.best.shape_name
     model = pore.interface(shape)
     result = model.fit(profiles.mean(), density_bulk_per_nm3=arguments.density_bulk)

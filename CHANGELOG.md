@@ -38,8 +38,9 @@ Kopanichuk, Colloids Surf. A 708 (2025) 135994.
 
 - At exactly the boundary angle between two shapes of a polygonal pore (135° in the square, 120° in the
   triangle) neither neighbouring shape exists: the existence conditions of the source formulas are strict.
-- The lower volume-fraction limit of the slit perforation in the published formula is a spurious root in
-  narrow cells (k·l < π/4 at θ = 180°, δ = 0); PANDA finds the limit numerically there.
+- In a narrow slit cell (k·l < π/4 at θ = 180°, δ = 0) the hole of a perforation never fits the cell: the
+  shape does not exist there. The published lower volume-fraction limit is a spurious root in that case
+  (hole wider than the cell, negative density); PANDA reports an empty interval.
 - Near θ = 180° the profile depends weakly on θ: report the spread over time blocks (`fit_blocks`).
 
 ## [0.0.1] — 2026-10-02

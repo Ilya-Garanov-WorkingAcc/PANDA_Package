@@ -1,11 +1,8 @@
 """Итог фита: значения параметров, качество, флаги проверок, данные для графика."""
 
-from pydantic import Field
-
 from panda_md.core.enums import Frame, Normalization, Regime
 from panda_md.core.spec import FitSpec
 from panda_md.core.types import Array1D, FrozenFloats, PandaModel
-from panda_md.core.version import library_version
 
 
 class FitResult(PandaModel):
@@ -33,7 +30,7 @@ class FitResult(PandaModel):
     model_curve: Array1D  # модель в системе отсчёта данных
     alternatives: tuple["FitResult", ...] = ()  # лучшие результаты в других режимах смачивания
     spec: FitSpec
-    library_version: str = Field(default_factory=library_version)  # версия PANDA, сделавшая фит
+    library_version: str | None = None  # версия PANDA, сделавшая фит; None — результат из старого JSON
 
     def summary(self) -> str:
         regime_label = self.regime.value if self.regime is not None else "—"
