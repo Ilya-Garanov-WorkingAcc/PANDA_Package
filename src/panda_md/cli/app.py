@@ -1,6 +1,7 @@
 """Команды `panda`: shapes, profile, fit, run. Тонкая обёртка над API; коды возврата: 0 — успех, 1 — ошибка
 входа, 2 — фит завершён с флагами проблем."""
 
+import sys
 import warnings
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
@@ -9,11 +10,14 @@ from pathlib import Path
 from typing import Annotated, TextIO
 
 import typer
+from pydantic import ValidationError
 
 from panda_md.cli.config import load_config
 from panda_md.cli.options import (
+    CONFIG_HINT,
     DEFAULT_PORE,
     PORE_TYPE_KEY,
+    CommandLineError,
     load_pore,
     parse_bounds,
     parse_numbers,
@@ -25,9 +29,14 @@ from panda_md.cli.options import (
 from panda_md.cli.pipeline import (
     AUTO_SHAPE,
     EXIT_INPUT_ERROR,
+    EXIT_INTERRUPTED,
     EXIT_SUCCESS,
     WALL_SELECTION_FIELD,
     build_profiles,
+    check_outputs,
+    check_plot,
+    check_profiles_output,
+    check_shape_name,
     load_profile,
     require_file,
     run_fit,
@@ -41,6 +50,7 @@ from panda_md.core.enums import (
     Regime,
 )
 from panda_md.core.errors import PandaError
+from panda_md.core.parameters import PROFILE_SHIFT
 from panda_md.core.pore import Pore
 from panda_md.core.spec import FitSpec
 from panda_md.pores.registry import pore_class, pore_types
@@ -52,6 +62,7 @@ app = typer.Typer(
     no_args_is_help=True,
     add_completion=False,
     pretty_exceptions_enable=False,
+    rich_markup_mode=None,  # иначе rich съедает «[md]» в «panda-md[md]»
 )
 
 
@@ -101,7 +112,9 @@ def profile(
     center_by: Annotated[ProfileCentering, typer.Option("--center-by", help="что поставить в 0")] = (
         ProfileCentering.PORE
     ),
-    bins: Annotated[int, typer.Option("--bins", min=1, help="число бинов")] = DEFAULT_BIN_COUNT,
+    bins: Annotated[
+        int | None, typer.Option("--bins", min=1, help=f"число бинов (по умолчанию {DEFAULT_BIN_COUNT})")
+    ] = None,
     bin_width: Annotated[float | None, typer.Option("--bin-width", help="ширина бина, нм (вместо --bins)")] = None,
     start: Annotated[str, typer.Option("--start", help="начало: пс или «2 ns»")] = "0",
     stop: Annotated[str | None, typer.Option("--stop", help="конец: пс или «10 ns»")] = None,
@@ -122,6 +135,12 @@ def profile(
     Без размеров поры (--pore-file, -g) щель измеряется по атомам стенок (--walls «выборка») в кадре --start;
     найденную пору сохраняет --pore-output — её JSON потом передаётся в panda fit --pore-file.
     """
+    if bins is not None and bin_width is not None:
+        raise CommandLineError("--bins и --bin-width взаимоисключающие")
+    if bin_width is not None and bin_width <= 0.0:
+        raise CommandLineError(f"--bin-width {bin_width:g}: ширина бина должна быть положительной")
+    check_profiles_output(output)
+    check_outputs(pore_output)
     pore_type, pore_values = pore_request(pore_name, pore_file, geometry or [])
     pore_center_nm = None
     if walls is not None:
@@ -136,7 +155,7 @@ def profile(
         select,
         centering=center_by,
         pore_center_nm=pore_center_nm,
-        bins=bins,
+        bins=bins or DEFAULT_BIN_COUNT,
         bin_width_nm=bin_width,
         start=start,
         stop=stop,
@@ -179,8 +198,11 @@ def fit_command(
 ) -> int:
     """Фит профиля формой интерфейса; сводка в терминал, результат в JSON."""
     pore = load_pore(pore_name, pore_file, geometry or [])
+    free = split_names(optimize) if optimize else None
+    if free is not None and not free:
+        raise CommandLineError("--optimize: не назван ни один параметр")
     spec = FitSpec(
-        optimize=split_names(optimize) if optimize else None,
+        optimize=free,
         fixed=parse_numbers(fix or [], "--fix"),
         bounds=parse_bounds(bounds or []),
         normalization=normalization,
@@ -188,7 +210,9 @@ def fit_command(
         loss=loss,
         regime=regime.regime(),
     )
-    _check_shape(pore, shape)
+    check_shape_name(type(pore), shape)
+    check_plot(plot)
+    check_outputs(output)
     density, profiles = load_profile(profile_path)
     return run_fit(pore, density, profiles, shape, spec, blocks=blocks, output=output, plot=plot, echo=_echo)
 
@@ -200,11 +224,20 @@ def run(config: Annotated[Path, typer.Argument(help="файл настроек .
     pore_values = dict(settings.pore)
     pore_type = pore_class(str(pore_values.pop(PORE_TYPE_KEY, DEFAULT_PORE)))
     source = settings.profile
+    fit_settings = settings.fit
+    if fit_settings is None and source.input is not None:
+        raise CommandLineError(f"{config.name}: профиль готов (input), а раздела [fit] нет — нечего делать")
+    if fit_settings is not None:  # всё, что можно проверить, — до долгого прохода по траектории
+        check_shape_name(pore_type, fit_settings.shape)
+        check_plot(fit_settings.plot)
+        check_outputs(fit_settings.output)
     if source.input is not None:
-        pore = require_dimensions(pore_type, pore_values)
+        pore = require_dimensions(pore_type, pore_values, CONFIG_HINT)
         density, profiles = load_profile(require_file(source.input))
     else:
         assert source.topology is not None and source.select is not None  # проверено в ProfileConfig
+        check_profiles_output(source.output)
+        check_outputs(source.pore_output)
         pore, profiles = build_profiles(
             pore_type,
             pore_values,
@@ -213,7 +246,7 @@ def run(config: Annotated[Path, typer.Argument(help="файл настроек .
             source.select,
             centering=source.centering,
             pore_center_nm=source.pore_center_nm,
-            bins=source.bins,
+            bins=source.bins or DEFAULT_BIN_COUNT,
             bin_width_nm=source.bin_width_nm,
             start=source.start,
             stop=source.stop,
@@ -224,28 +257,22 @@ def run(config: Annotated[Path, typer.Argument(help="файл настроек .
             output=source.output,
             pore_output=source.pore_output,
             echo=_echo,
+            hint=CONFIG_HINT,
         )
         density = profiles.mean()
-    if settings.fit is None:
+    if fit_settings is None:
         return EXIT_SUCCESS
-    _check_shape(pore, settings.fit.shape)
     return run_fit(
         pore,
         density,
         profiles,
-        settings.fit.shape,
-        settings.fit.spec(),
-        blocks=settings.fit.blocks,
-        output=settings.fit.output,
-        plot=settings.fit.plot,
+        fit_settings.shape,
+        fit_settings.spec(),
+        blocks=fit_settings.blocks,
+        output=fit_settings.output,
+        plot=fit_settings.plot,
         echo=_echo,
     )
-
-
-def _check_shape(pore: Pore, shape: str) -> None:
-    """До чтения профиля и фита: опечатка в имени формы — сразу ошибка со списком форм."""
-    if shape != AUTO_SHAPE:
-        pore.interface(shape)
 
 
 def _describe_pore(name: str, pore_type: type[Pore]) -> str:
@@ -265,7 +292,7 @@ def _describe_pore(name: str, pore_type: type[Pore]) -> str:
         axis_text = f"  ось: {axis.orientation.value} ({axis.locate.value})" if axis is not None else ""
         lines.append(f"  {shape_name}  [{regimes or 'без θ'}]{axis_text}")
         lines.append(f"    свободны по умолчанию: {', '.join(shape_class.default_optimize)}")
-        for parameter in shape_class.parameters:
+        for parameter in (*shape_class.parameters, PROFILE_SHIFT):  # shift есть у каждой модели
             default = "из данных" if parameter.default is None else f"{parameter.default:g}"
             lower, upper = parameter.bounds
             lines.append(
@@ -295,19 +322,32 @@ def _readable_warnings() -> Iterator[None]:
 
 def main(arguments: Sequence[str] | None = None) -> int:
     """Запуск команды; возвращает код возврата (0 — успех, 1 — ошибка входа, 2 — фит с флагами проблем)."""
+    command_line = list(sys.argv[1:] if arguments is None else arguments)
     try:
         with _readable_warnings():
-            code = app(args=None if arguments is None else list(arguments), prog_name="panda", standalone_mode=False)
+            code = app(args=command_line or ["--help"], prog_name="panda", standalone_mode=False)
     except typer.TyperException as error:  # ошибки разбора команды: у click код 2, но 2 у нас — флаги фита
         typer.echo(f"ошибка: {error.format_message()}", err=True)
         return EXIT_INPUT_ERROR
-    except typer.Abort:
+    except (typer.Abort, KeyboardInterrupt):
         typer.echo("прервано", err=True)
+        return EXIT_INTERRUPTED
+    except ValidationError as error:  # до ValueError: коротко, с именем поля, без ссылок на документацию pydantic
+        typer.echo(f"ошибка: {_validation_message(error)}", err=True)
         return EXIT_INPUT_ERROR
-    except (PandaError, ValueError, OSError) as error:  # ValueError — в т. ч. ошибки проверки pydantic
+    except (PandaError, ValueError, OSError) as error:
         typer.echo(f"ошибка: {error}", err=True)
         return EXIT_INPUT_ERROR
     return code if isinstance(code, int) else EXIT_SUCCESS
+
+
+def _validation_message(error: ValidationError) -> str:
+    parts = []
+    for issue in error.errors(include_url=False):
+        location = ".".join(str(item) for item in issue["loc"])
+        message = str(issue["msg"]).removeprefix("Value error, ")
+        parts.append(f"{location}: {message}" if location else message)
+    return f"{error.title}: " + "; ".join(parts)
 
 
 def console() -> None:

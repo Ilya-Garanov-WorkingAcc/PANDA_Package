@@ -15,6 +15,7 @@ from panda_md.core.types import Array1D, Array2D, FloatArray, PandaModel
 MIN_PROFILE_POINTS = 2
 CSV_COMMENT = "# "
 CSV_METADATA_FIELDS = ("frame", "particle_count", "pore_volume_nm3", "flipped", "frame_count")
+CSV_COLUMNS = ("coordinate_nm", "density_per_nm3", "density_sem_per_nm3")  # порядок столбцов без заголовка
 
 
 class DensityProfile(PandaModel):
@@ -125,6 +126,13 @@ def _read_csv(source: Path) -> tuple[dict[str, object], dict[str, FloatArray]]:
             else:
                 columns = content.split(",")
     table = np.loadtxt(source, delimiter=",", comments=CSV_COMMENT.strip(), ndmin=2)
+    if not columns or not set(columns) <= set(CSV_COLUMNS):  # заголовка нет или он чужой — столбцы по порядку
+        if table.shape[1] not in (len(CSV_COLUMNS) - 1, len(CSV_COLUMNS)):
+            raise InvalidProfileError(
+                f"{source.name}: {table.shape[1]} столбцов — нужно 2 или 3 (координата, нм; плотность, нм⁻³; "
+                "ошибка плотности) или заголовок «# " + ",".join(CSV_COLUMNS) + "»"
+            )
+        columns = list(CSV_COLUMNS[: table.shape[1]])
     return metadata, {name: table[:, index] for index, name in enumerate(columns)}
 
 

@@ -11,6 +11,8 @@ from panda_md.pores.registry import pore_class
 DEFAULT_PORE = "slit"
 PORE_TYPE_KEY = "type"  # тип поры в JSON поры и в разделе [pore] конфига
 WALL_COORDINATE_COUNT = 2  # «--walls z1,z2»: координаты двух стенок
+OPTIONS_HINT = "--pore-file pore.json или -g поле=значение"  # где задать размеры поры в командах
+CONFIG_HINT = "поля размеров в разделе [pore] файла настроек"  # и в panda run
 
 
 class CommandLineError(PandaError):
@@ -81,13 +83,10 @@ def missing_fields(pore_type: type[Pore], values: Mapping[str, object]) -> list[
     return [name for name, field in pore_type.model_fields.items() if field.is_required() and name not in values]
 
 
-def require_dimensions(pore_type: type[Pore], values: Mapping[str, object]) -> Pore:
+def require_dimensions(pore_type: type[Pore], values: Mapping[str, object], hint: str = OPTIONS_HINT) -> Pore:
     missing = missing_fields(pore_type, values)
     if missing:
-        raise CommandLineError(
-            f"задай размеры поры {pore_type.name}: --pore-file pore.json или -g поле=значение; "
-            f"не хватает: {', '.join(missing)}"
-        )
+        raise CommandLineError(f"задай размеры поры {pore_type.name}: {hint}; не хватает: {', '.join(missing)}")
     return pore_type.model_validate(dict(values))
 
 

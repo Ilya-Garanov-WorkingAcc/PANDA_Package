@@ -13,11 +13,17 @@ from panda_md.trajectory.maps import DensityMap
 try:
     import matplotlib.pyplot as plt
     from matplotlib.axes import Axes
+    from matplotlib.backend_bases import FigureCanvasBase
     from matplotlib.colors import ListedColormap
 except ImportError as error:  # pragma: no cover — проверяется тестом без matplotlib
     raise MissingDependencyError("для графиков нужен matplotlib: pip install 'panda-md[plot]'") from error
 
 EMPTY_CELL_COLOR = "#f0f0f0"  # точки диаграммы, где ни одна форма не существует
+
+
+def supported_figure_formats() -> tuple[str, ...]:
+    """Расширения файлов, в которые matplotlib сохраняет рисунок (png, pdf, svg, …)."""
+    return tuple(FigureCanvasBase.get_supported_filetypes())
 
 
 def _axes(ax: Axes | None) -> Axes:

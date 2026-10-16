@@ -12,7 +12,6 @@ from panda_md.core.enums import Orientation, ParticleGrouping, ProfileCentering
 from panda_md.core.spec import FitSpec
 from panda_md.core.timing import TimeValue
 from panda_md.core.types import PandaModel
-from panda_md.trajectory.density import DEFAULT_BIN_COUNT
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -29,7 +28,7 @@ class ProfileConfig(PandaModel):
     select: str | None = None  # выборка атомов жидкости (синтаксис MDAnalysis)
     centering: ProfileCentering = ProfileCentering.PORE
     pore_center_nm: float | None = None  # центр поры вдоль оси профиля; None — по атомам стенок
-    bins: int = Field(default=DEFAULT_BIN_COUNT, ge=1)
+    bins: int | None = Field(default=None, ge=1)  # None — 200 бинов, если не задана bin_width_nm
     bin_width_nm: float | None = Field(default=None, gt=0.0)
     start: TimeValue = 0.0
     stop: TimeValue | None = None
@@ -47,6 +46,8 @@ class ProfileConfig(PandaModel):
             raise ValueError("input и topology/trajectory/select взаимоисключающие: профиль готов или строится")
         if self.input is None and (self.topology is None or not self.trajectory or self.select is None):
             raise ValueError("задай input (готовый профиль) или topology, trajectory и select")
+        if self.bins is not None and self.bin_width_nm is not None:
+            raise ValueError("bins и bin_width_nm взаимоисключающие")
         return self
 
 

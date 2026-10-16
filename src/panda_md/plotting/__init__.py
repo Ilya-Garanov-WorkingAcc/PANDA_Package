@@ -10,6 +10,14 @@ from panda_md.plotting.figures import (
     plot_density_map,
     plot_fit,
     plot_stability,
+    supported_figure_formats,
 )
 
-__all__ = ["plot_accuracy", "plot_blocks", "plot_density_map", "plot_fit", "plot_stability"]
+__all__ = [
+    "plot_accuracy",
+    "plot_blocks",
+    "plot_density_map",
+    "plot_fit",
+    "plot_stability",
+    "supported_figure_formats",
+]

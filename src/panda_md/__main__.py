@@ -2,4 +2,5 @@
 
 from panda_md.cli import console
 
-console()
+if __name__ == "__main__":
+    console()

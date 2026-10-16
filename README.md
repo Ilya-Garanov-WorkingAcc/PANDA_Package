@@ -50,6 +50,9 @@ panda run panda.toml          # profile + fit from one settings file
 
 Model parameters are set the same way for every shape: `--optimize theta,delta`, `--fix phi=0.5`,
 `--bounds theta=100:180`. Pore dimensions: `--pore-file pore.json` or `-g width_nm=8 -g length_nm=16`.
+`-o result.json` holds `{"fit": …, "blocks": …, "comparison": …}`: the fit of the (block-averaged) profile, the
+fit of every block with `--blocks`, the shape ranking with `--shape auto`. A `.csv` profile from another program
+needs no header: columns are coordinate (nm), density (nm⁻³) and, optionally, its error.
 Exit code: 0 — success, 1 — input error, 2 — the fit finished but raised problem flags (at a bound, outside the
 shape's existence domain, θ at 90°, optimizer failure).
 

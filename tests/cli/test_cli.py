@@ -1,5 +1,6 @@
 """Командная строка: команды запускаются и дают тот же ответ, что Python API; коды возврата 0 / 1 / 2."""
 
+import importlib
 import json
 import subprocess
 import sys
@@ -60,7 +61,7 @@ def pore_file(tmp_path: Path) -> Path:
 
 
 def read_values(path: Path) -> dict[str, float]:
-    values: dict[str, float] = json.loads(path.read_text())["values"]
+    values: dict[str, float] = json.loads(path.read_text())["fit"]["values"]
     return values
 
 
@@ -135,7 +136,9 @@ def test_fit_parameter_options_build_the_same_spec(
     expected = fit(PORE.interface("roll"), DensityProfile.load(profile_file), spec)
     assert code == 0
     assert read_values(output) == pytest.approx(expected.values, abs=1e-9)
-    assert json.loads(output.read_text())["spec"]["fixed"] == {"phi": 0.4}
+    saved = json.loads(output.read_text())
+    assert saved["fit"]["spec"]["fixed"] == {"phi": 0.4}
+    assert saved["blocks"] is None and saved["comparison"] is None
 
 
 def test_fit_with_problem_flags_exits_with_2(
@@ -168,8 +171,9 @@ def test_fit_auto_compares_shapes_and_keeps_the_best(
     assert code in (0, 2)
     assert "сравнение форм" in out
     saved = json.loads(output.read_text())
-    assert saved["shape_name"] == comparison.best.shape_name == "roll"
-    assert saved["values"] == pytest.approx(comparison.best.values, abs=1e-9)
+    assert saved["fit"]["shape_name"] == comparison.best.shape_name == "roll"
+    assert saved["fit"]["values"] == pytest.approx(comparison.best.values, abs=1e-9)
+    assert [row["shape_name"] for row in saved["comparison"]["rows"]] == [row.shape_name for row in comparison.rows]
 
 
 def test_fit_profile_set_uses_mean_and_blocks_fit_each_block(
@@ -207,7 +211,8 @@ def test_fit_profile_set_uses_mean_and_blocks_fit_each_block(
     assert code in (0, 2)
     assert "среднее ± ошибка среднего" in out
     saved = json.loads(blocks_output.read_text())
-    assert [result["values"]["theta"] for result in saved["results"]] == pytest.approx(
+    assert saved["fit"]["values"] == pytest.approx(expected.values, abs=1e-9)  # и фит среднего профиля
+    assert [result["values"]["theta"] for result in saved["blocks"]["results"]] == pytest.approx(
         list(expected_blocks.values("theta")), abs=1e-9
     )
 
@@ -423,7 +428,7 @@ def test_profile_derives_slit_from_walls_and_saves_pore_for_fit(
         "-o", str(fit_output),
     )  # fmt: skip
     assert code in (0, 2), err
-    assert json.loads(fit_output.read_text())["pore_name"] == "slit"
+    assert json.loads(fit_output.read_text())["fit"]["pore_name"] == "slit"
 
 
 def test_profile_partial_geometry_is_input_error(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> None:
@@ -532,3 +537,224 @@ def test_console_entry_point_runs() -> None:
     )
     assert completed.returncode == 0, completed.stderr
     assert "roll" in completed.stdout
+
+
+# --- итоговое ревью стадии 8 ---
+
+
+def fit_arguments(profile_file: Path, pore_file: Path) -> list[str]:
+    return ["fit", str(profile_file), "--pore-file", str(pore_file), "--shape", "roll", *RHO]
+
+
+def test_npz_that_is_not_a_panda_profile_is_input_error(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path, pore_file: Path, roll_profile: DensityProfile
+) -> None:
+    foreign = tmp_path / "foreign.npz"
+    np.savez(foreign, coordinate_nm=roll_profile.coordinate_nm, density_per_nm3=roll_profile.density_per_nm3)
+    renamed = tmp_path / "renamed.npz"
+    with renamed.open("wb") as stream:
+        np.save(stream, roll_profile.density_per_nm3)
+    for path in (foreign, renamed):
+        code, _, err = run_cli(capsys, *fit_arguments(path, pore_file))
+        assert code == 1
+        assert "не профиль PANDA" in err and path.name in err
+
+
+@pytest.mark.parametrize("header", [None, "# z,rho"])
+def test_csv_from_another_program_uses_column_order(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    pore_file: Path,
+    roll_profile: DensityProfile,
+    header: str | None,
+) -> None:
+    path = tmp_path / "profile.csv"
+    rows = "\n".join(
+        f"{float(z)!r},{float(rho)!r}"
+        for z, rho in zip(roll_profile.coordinate_nm, roll_profile.density_per_nm3, strict=True)
+    )
+    path.write_text((header + "\n" if header else "") + rows + "\n")
+    output = tmp_path / "result.json"
+    code, _, err = run_cli(capsys, *fit_arguments(path, pore_file), "-o", str(output))
+    reference = DensityProfile(coordinate_nm=roll_profile.coordinate_nm, density_per_nm3=roll_profile.density_per_nm3)
+    expected = fit(PORE.interface("roll"), reference, FitSpec(density_bulk_per_nm3=DENSITY_BULK))
+    assert code == 0, err
+    assert read_values(output) == pytest.approx(expected.values, abs=1e-9)
+
+
+def test_csv_with_wrong_column_count_is_input_error(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path, pore_file: Path
+) -> None:
+    path = tmp_path / "profile.csv"
+    path.write_text("1,2,3,4\n2,3,4,5\n")
+    code, _, err = run_cli(capsys, *fit_arguments(path, pore_file))
+    assert code == 1
+    assert "столбц" in err
+
+
+def test_bad_outputs_are_rejected_before_any_work(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path, profile_file: Path, pore_file: Path
+) -> None:
+    code, out, err = run_cli(capsys, *fit_arguments(profile_file, pore_file), "-o", str(tmp_path / "absent" / "r.json"))
+    assert code == 1 and "absent" in err and out == ""
+    pytest.importorskip("matplotlib")
+    code, out, err = run_cli(capsys, *fit_arguments(profile_file, pore_file), "--plot", str(tmp_path / "fit.xyz"))
+    assert code == 1 and "xyz" in err and out == ""
+
+
+def test_profile_output_must_be_npz_before_reading_trajectory(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path, pore_file: Path
+) -> None:
+    topology, coordinates = write_md_files(tmp_path)
+    code, out, err = run_cli(
+        capsys, "profile", str(topology), str(coordinates), "--pore-file", str(pore_file), "--walls", "resname WAL",
+        "--select", "resname LIQ", "-o", str(tmp_path / "profiles.csv"),
+    )  # fmt: skip
+    assert code == 1 and ".npz" in err and out == ""
+
+
+@pytest.mark.parametrize(
+    ("arguments", "message"),
+    [
+        (["--bins", "80", "--bin-width", "0.1"], "--bins"),
+        (["--bin-width", "-1"], "--bin-width"),
+        (["-g", "base_aspect_ratio=0.5"], "base_aspect_ratio"),  # без размеров, но с полем, которое не используется
+        (["--walls", "1.0,9.0"], "координаты стенок"),  # координаты стенок щель не измеряют
+    ],
+)
+def test_profile_contradictory_options_are_input_errors(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path, arguments: list[str], message: str
+) -> None:
+    topology, coordinates = write_md_files(tmp_path)
+    base = ["profile", str(topology), str(coordinates), "--select", "resname LIQ", "-o", str(tmp_path / "p.npz")]
+    if "--walls" not in arguments:
+        base += ["--walls", "resname WAL"]
+    code, _, err = run_cli(capsys, *base, *arguments)
+    assert code == 1
+    assert message in err
+
+
+def test_fit_empty_optimize_is_input_error(
+    capsys: pytest.CaptureFixture[str], profile_file: Path, pore_file: Path
+) -> None:
+    code, out, err = run_cli(capsys, *fit_arguments(profile_file, pore_file), "--optimize", ",")
+    assert code == 1 and "--optimize" in err and out == ""
+
+
+def test_validation_errors_are_short_and_name_the_field(capsys: pytest.CaptureFixture[str], profile_file: Path) -> None:
+    code, _, err = run_cli(capsys, "fit", str(profile_file), "-g", "width_nm=abc", "-g", "length_nm=16")
+    assert code == 1
+    assert "width_nm" in err
+    assert "pydantic.dev" not in err
+
+
+def test_no_arguments_prints_help_without_error(capsys: pytest.CaptureFixture[str]) -> None:
+    code, out, err = run_cli(capsys)
+    assert code == 0
+    assert "fit" in out
+    assert "ошибка" not in err
+
+
+def test_help_keeps_square_brackets(capsys: pytest.CaptureFixture[str]) -> None:
+    code, out, _ = run_cli(capsys, "profile", "--help")
+    assert code == 0
+    assert "panda-md[md]" in out
+
+
+def test_shapes_lists_the_profile_shift(capsys: pytest.CaptureFixture[str]) -> None:
+    _, out, _ = run_cli(capsys, "shapes", "--pore", "slit")
+    assert "shift" in out
+
+
+def test_interrupt_exits_with_130(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, profile_file: Path, pore_file: Path
+) -> None:
+    cli_app = sys.modules["panda_md.cli.app"]  # имя panda_md.cli.app занято объектом Typer
+
+    def interrupt(*_: object, **__: object) -> None:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(cli_app, "run_fit", interrupt)
+    code, _, _ = run_cli(capsys, *fit_arguments(profile_file, pore_file))
+    assert code == 130
+
+
+def test_importing_main_module_does_not_run_the_command() -> None:
+    importlib.import_module("panda_md.__main__")  # без SystemExit
+
+
+def write_config(directory: Path, pore: str, profile: str, fit_section: str | None) -> Path:
+    config = directory / "panda.toml"
+    text = f"[pore]\n{pore}\n[profile]\n{profile}\n"
+    if fit_section is not None:
+        text += f"[fit]\n{fit_section}\n"
+    config.write_text(text)
+    return config
+
+
+def test_run_readme_variant_measures_slit_and_resolves_every_path(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    pytest.importorskip("matplotlib")
+    topology, coordinates = write_md_files(tmp_path)
+    config = write_config(
+        tmp_path,
+        'type = "slit"\nwall_selection = "resname WAL"',
+        f'topology = "{topology.name}"\ntrajectory = ["{coordinates.name}"]\nselect = "resname LIQ"\nbins = 80\n'
+        'block = "20 ps"\noutput = "profiles.npz"\npore_output = "pore.json"',
+        'shape = "roll"\ndensity_bulk_per_nm3 = 5.0\nblocks = true\noutput = "result.json"\nplot = "fit.png"',
+    )
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    previous = Path.cwd()
+    try:
+        import os
+
+        os.chdir(elsewhere)  # пути — от файла настроек, а не от текущего каталога
+        code, _, err = run_cli(capsys, "run", str(config))
+    finally:
+        os.chdir(previous)
+    assert code in (0, 2), err
+    for name in ("profiles.npz", "pore.json", "result.json", "fit.png"):
+        assert (tmp_path / name).exists(), name
+    assert json.loads((tmp_path / "pore.json").read_text())["type"] == "slit"
+
+
+def test_run_checks_shape_and_plot_before_reading_trajectory(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    topology, coordinates = write_md_files(tmp_path)
+    profile = (
+        f'topology = "{topology.name}"\ntrajectory = ["{coordinates.name}"]\nselect = "resname LIQ"\n'
+        'output = "profiles.npz"'
+    )
+    pore = 'type = "slit"\nwall_selection = "resname WAL"'
+    config = write_config(tmp_path, pore, profile, 'shape = "rol"')
+    code, out, err = run_cli(capsys, "run", str(config))
+    assert code == 1 and "rol" in err and out == ""
+    assert not (tmp_path / "profiles.npz").exists()
+
+    monkeypatch.setitem(sys.modules, "matplotlib", None)
+    monkeypatch.delitem(sys.modules, "panda_md.plotting", raising=False)
+    monkeypatch.delitem(sys.modules, "panda_md.plotting.figures", raising=False)
+    config = write_config(tmp_path, pore, profile, 'shape = "roll"\nplot = "fit.png"')
+    code, out, err = run_cli(capsys, "run", str(config))
+    assert code == 1 and "matplotlib" in err and out == ""
+    assert not (tmp_path / "profiles.npz").exists()
+
+
+@pytest.mark.parametrize(
+    ("profile", "fit_section", "message"),
+    [
+        ('input = "p.npz"', 'shape = "roll"', "[pore]"),  # подсказка — раздел файла, а не опции команды
+        ('input = "p.npz"', None, "[fit]"),  # готовый профиль и нет фита — нечего делать
+        ('input = "p.npz"\nbins = 80\nbin_width_nm = 0.1', 'shape = "roll"', "bin_width_nm"),
+    ],
+)
+def test_run_config_mistakes_are_explained(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path, profile: str, fit_section: str | None, message: str
+) -> None:
+    config = write_config(tmp_path, 'type = "slit"', profile, fit_section)
+    code, _, err = run_cli(capsys, "run", str(config))
+    assert code == 1
+    assert message in err
