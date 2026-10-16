@@ -131,8 +131,8 @@ def test_bin_width_sets_bin_count() -> None:
 def test_problems_with_pore_and_selection_are_reported() -> None:
     trajectory = trajectory_from(uniform_slab(-1.0, 1.0, 100, 1))
     no_walls = SlitPore(width_nm=WIDTH_NM, length_nm=LENGTH_NM, base_aspect_ratio=ASPECT_RATIO)
-    with pytest.raises(InvalidTrajectoryError, match="pore_center_nm"):
-        density_profile(trajectory, no_walls, "liquid")
+    with pytest.raises(InvalidTrajectoryError, match="pore_center_nm"):  # явное центрирование по поре без стенок
+        density_profile(trajectory, no_walls, "liquid", centering="pore")
     too_wide = SlitPore(width_nm=12.0, length_nm=LENGTH_NM, base_aspect_ratio=ASPECT_RATIO)
     with pytest.raises(InvalidTrajectoryError, match="шире ящика"):
         density_profile(trajectory, too_wide, "liquid", pore_center_nm=PORE_CENTER_NM)
@@ -274,3 +274,17 @@ def test_molecules_with_liquid_centering() -> None:
     assert mean.particle_count == 200
     center = np.sum(mean.coordinate_nm * mean.density_per_nm3) / np.sum(mean.density_per_nm3)
     assert center == pytest.approx(0.0, abs=0.05)
+
+
+def test_default_centering_falls_back_to_liquid_without_walls() -> None:
+    """Итоговый аудит (спецификация §5): без стенок и центра поры — центрирование по жидкости с предупреждением."""
+    from panda_md.core.enums import Frame
+    from panda_md.core.errors import PandaWarning
+
+    trajectory = trajectory_from(uniform_slab(-1.0, 1.0, 2000, 2))
+    with_walls = density_profile(trajectory, pore(), "liquid", bins=20)
+    assert with_walls.frame is Frame.PORE  # стенки известны — по поре, как раньше
+    bare = SlitPore(width_nm=WIDTH_NM, length_nm=LENGTH_NM, base_aspect_ratio=ASPECT_RATIO)
+    with pytest.warns(PandaWarning, match="по жидкости"):
+        fallback = density_profile(trajectory, bare, "liquid", bins=20)
+    assert fallback.frame is Frame.LIQUID

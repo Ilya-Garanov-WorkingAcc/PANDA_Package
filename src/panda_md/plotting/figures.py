@@ -1,5 +1,7 @@
 """Графики: профиль и модель, фит по блокам, 2D-карта плотности, диаграмма устойчивости, точность метода."""
 
+from pathlib import Path
+
 import numpy as np
 
 from panda_md.analysis.accuracy import AccuracyStudy
@@ -15,6 +17,7 @@ try:
     from matplotlib.axes import Axes
     from matplotlib.backend_bases import FigureCanvasBase
     from matplotlib.colors import ListedColormap
+    from matplotlib.figure import Figure
 except ImportError as error:  # pragma: no cover — проверяется тестом без matplotlib
     raise MissingDependencyError("для графиков нужен matplotlib: pip install 'panda-md[plot]'") from error
 
@@ -51,6 +54,13 @@ def plot_fit(result: FitResult, ax: Axes | None = None) -> Axes:
     axes.set_ylabel("плотность (нормированная)")
     axes.legend()
     return axes
+
+
+def save_fit_figure(result: FitResult, path: str | Path, dpi: int = 150) -> None:
+    """Сохранить график фита в файл (формат — по расширению) без pyplot: ни окна, ни глобальных фигур."""
+    figure = Figure()
+    plot_fit(result, figure.subplots())
+    figure.savefig(path, dpi=dpi, bbox_inches="tight")
 
 
 def plot_blocks(

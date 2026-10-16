@@ -11,9 +11,11 @@ from collections.abc import Sequence
 from pydantic import ConfigDict
 
 from panda_md.core.enums import ParameterName
-from panda_md.core.errors import PandaError, PandaWarning
+from panda_md.core.errors import PandaError, PandaWarning, UnsupportedRegimeError
 from panda_md.core.model import InterfaceModel
+from panda_md.core.parameters import VOLUME_FRACTION, WALL_LAYER_THICKNESS
 from panda_md.core.pore import Pore
+from panda_md.core.shape import REGIME_BOUNDARY_DEG, REGIME_GAP_DEG, regime_of
 from panda_md.core.types import PandaModel
 
 LENGTH_FIELD = "length_nm"  # поле поры, которое меняется вдоль оси l диаграммы
@@ -22,7 +24,10 @@ RADIAN_SUSPICION_DEG = 2.0 * math.pi  # θ ≤ 2π° — скорее всего
 
 
 class StabilityDiagram(PandaModel):
-    """Результат: stable_shapes[i][j] — устойчивая форма при length_ratios[i], volume_fractions[j] (None — ни одной)."""
+    """Результат: `stable_shapes[i][j]` — устойчивая форма при `length_ratios[i]`, `volume_fractions[j]`.
+
+    None — ни одна форма не существует.
+    """
 
     model_config = ConfigDict(frozen=True)
 
@@ -59,7 +64,8 @@ def stability_diagram(
         )
     if shape_names is not None and len(set(shape_names)) != len(shape_names):
         raise PandaError(f"повтор в списке форм: {list(shape_names)}")
-    candidates = _candidate_names(pore, shape_names)
+    _check_parameter_values(wall_layer, volume_fractions)
+    candidates = _supported_candidates(pore, _candidate_names(pore, shape_names), contact_angle_deg)
     size_nm = pore.characteristic_size_nm()
     rows: list[tuple[str | None, ...]] = []
     for length_ratio in length_ratios:
@@ -80,6 +86,59 @@ def stability_diagram(
         shape_names=candidates,
         stable_shapes=tuple(rows),
     )
+
+
+def _check_parameter_values(wall_layer: float, volume_fractions: Sequence[float]) -> None:
+    """δ и φ — в границах параметров модели: за ними формулы молча экстраполируются."""
+    lower, upper = WALL_LAYER_THICKNESS.bounds
+    if not lower <= wall_layer <= upper:
+        raise PandaError(f"δ = {wall_layer} вне границ параметра [{lower}, {upper}]")
+    lower, upper = VOLUME_FRACTION.bounds
+    outside = [value for value in volume_fractions if not lower <= value <= upper]
+    if outside:
+        raise PandaError(f"φ вне [{lower}, {upper}]: {outside}")
+
+
+def _supported_candidates(pore: Pore, candidates: tuple[str, ...], contact_angle_deg: float) -> tuple[str, ...]:
+    """Формы, которые при этом θ могут существовать и для которых выведены формулы.
+    Форма с θ вне диапазона своего режима просто не существует (у многоугольных пор режимы узкие) — она выпадает
+    молча. Форма, у которой режим этого θ не выведен вообще (θ < 90° у форм щели, O1), выпадает с предупреждением;
+    если так у всех форм с углом, диаграмма не определена — ошибка, а не «слой во всей поре».
+    """
+    registry = pore.own_registry()
+    supported: list[str] = []
+    not_derived: list[str] = []
+    with_angle = 0
+    for name in candidates:
+        shape = registry[name]()
+        if ParameterName.CONTACT_ANGLE.value not in {parameter.name for parameter in shape.parameters}:
+            supported.append(name)  # форма без θ (слой) от режима не зависит
+            continue
+        with_angle += 1
+        try:
+            shape.require_supported_contact_angle(contact_angle_deg)
+        except UnsupportedRegimeError:
+            if _in_regime_gap(contact_angle_deg) or regime_of(contact_angle_deg) not in shape.regimes:
+                not_derived.append(name)
+        else:
+            supported.append(name)
+    if with_angle and len(not_derived) == with_angle:
+        raise UnsupportedRegimeError(
+            f"при θ = {contact_angle_deg:g}° формулы не выведены ни у одной формы поры {pore.name} с углом "
+            f"({', '.join(not_derived)}): диаграмма не определена"
+        )
+    if not_derived:
+        warnings.warn(
+            f"при θ = {contact_angle_deg:g}° формулы режима не выведены — в диаграмме не участвуют: "
+            f"{', '.join(not_derived)}",
+            PandaWarning,
+            stacklevel=3,
+        )
+    return tuple(supported)
+
+
+def _in_regime_gap(contact_angle_deg: float) -> bool:
+    return abs(contact_angle_deg - REGIME_BOUNDARY_DEG) < REGIME_GAP_DEG
 
 
 def _candidate_names(pore: Pore, shape_names: Sequence[str] | None) -> tuple[str, ...]:

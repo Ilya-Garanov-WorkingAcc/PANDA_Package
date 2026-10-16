@@ -30,6 +30,7 @@ from panda_md.trajectory.density import (
     particle_positions,
     profile_bin_edges,
     profile_frame_center,
+    resolve_centering,
 )
 
 DEFAULT_MAP_BINS = (100, 100)
@@ -72,7 +73,7 @@ def density_map(
     select: str | Sequence[int],
     *,
     shape: str | None = None,
-    centering: ProfileCentering | str = ProfileCentering.PORE,
+    centering: ProfileCentering | str | None = None,
     bins: tuple[int, int] = DEFAULT_MAP_BINS,
     start: TimeValue = 0.0,
     stop: TimeValue | None = None,
@@ -89,7 +90,7 @@ def density_map(
     Ось профиля центрируется и при необходимости отражается так же, как в `density_profile`. width_window_nm —
     только для вертикальной оси: учитываются частицы не дальше половины окна от оси по короткой стороне.
     """
-    centering = ProfileCentering(centering)
+    centering = resolve_centering(centering, pore, pore_center_nm)
     orientation = Orientation(orientation)
     grouping = ParticleGrouping(per)
     if min(bins) < MIN_MAP_BINS:

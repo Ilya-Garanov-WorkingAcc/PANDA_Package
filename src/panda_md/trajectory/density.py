@@ -49,7 +49,7 @@ def density_profile(
     pore: Pore,
     select: str | Sequence[int],
     *,
-    centering: ProfileCentering | str = ProfileCentering.PORE,
+    centering: ProfileCentering | str | None = None,
     bins: int = DEFAULT_BIN_COUNT,
     bin_width_nm: float | None = None,
     start: TimeValue = 0.0,
@@ -62,13 +62,15 @@ def density_profile(
 ) -> ProfileSet:
     """Профили плотности выбранных частиц вдоль оси поры, усреднённые по блокам времени длины `block`.
 
-    centering=PORE: 0 — центр поры; он берётся из `pore_center_nm` или в каждом кадре из атомов стенок
+    centering=None: по поре, если известны стенки (`pore.wall_selection`) или `pore_center_nm`, иначе по жидкости
+    с предупреждением. centering=PORE: 0 — центр поры; он берётся из `pore_center_nm` или в каждом кадре из атомов
+    стенок
     (`pore.wall_selection`); бины выровнены по стенкам поры. centering=LIQUID: 0 — центр выборки (среднее
     по атомам без весов) с учётом PBC; бины покрывают весь ящик вдоль оси профиля. Неполный последний блок
     отбрасывается. per=MOLECULE: частица — центр масс выбранных атомов молекулы (с учётом PBC; «name OW» даст
     кислород, а не центр масс воды), N — число молекул.
     """
-    centering = ProfileCentering(centering)
+    centering = resolve_centering(centering, pore, pore_center_nm)
     orientation = Orientation(orientation)
     grouping = ParticleGrouping(per)
     liquid = trajectory.select(select)
@@ -151,6 +153,23 @@ def density_profile(
         pore_volume_nm3=pore.volume_nm3(),
         flipped=flipped,
     )
+
+
+def resolve_centering(
+    centering: ProfileCentering | str | None, pore: Pore, pore_center_nm: float | None
+) -> ProfileCentering:
+    """Явное центрирование — как задано; без него — по поре, если её центр можно найти, иначе по жидкости."""
+    if centering is not None:
+        return ProfileCentering(centering)
+    if pore.wall_selection is not None or pore_center_nm is not None:
+        return ProfileCentering.PORE
+    warnings.warn(
+        "стенки поры не заданы (wall_selection) и центр поры не известен (pore_center_nm): профиль центрирован по "
+        "жидкости — для форм, касающихся обеих стенок, задай стенки",
+        PandaWarning,
+        stacklevel=3,
+    )
+    return ProfileCentering.LIQUID
 
 
 def _assign_blocks(times: FloatArray, block_ps: float | None) -> tuple[list[int], int]:

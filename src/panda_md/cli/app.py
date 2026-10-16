@@ -109,9 +109,10 @@ def profile(
     walls: Annotated[
         str | None, typer.Option("--walls", help="выборка атомов стенок или координаты стенок «z1,z2» (нм)")
     ] = None,
-    center_by: Annotated[ProfileCentering, typer.Option("--center-by", help="что поставить в 0")] = (
-        ProfileCentering.PORE
-    ),
+    center_by: Annotated[
+        ProfileCentering | None,
+        typer.Option("--center-by", help="что поставить в 0; по умолчанию pore, если стенки известны, иначе liquid"),
+    ] = None,
     bins: Annotated[
         int | None, typer.Option("--bins", min=1, help=f"число бинов (по умолчанию {DEFAULT_BIN_COUNT})")
     ] = None,

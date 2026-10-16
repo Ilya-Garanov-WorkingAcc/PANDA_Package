@@ -11,9 +11,12 @@ from pydantic import Field, model_validator
 from panda_md.core.enums import Frame, Normalization, ProfileCentering
 from panda_md.core.errors import InvalidProfileError
 from panda_md.core.types import Array1D, Array2D, FloatArray, PandaModel
+from panda_md.core.version import library_version
 
 MIN_PROFILE_POINTS = 2
 CSV_COMMENT = "# "
+CSV_COMMENT_MARK = "#"  # при чтении пробел после # не обязателен
+VERSION_KEY = "panda_version"  # версия PANDA, записавшая файл
 CSV_METADATA_FIELDS = ("frame", "particle_count", "pore_volume_nm3", "flipped", "frame_count")
 CSV_COLUMNS = ("coordinate_nm", "density_per_nm3", "density_sem_per_nm3")  # порядок столбцов без заголовка
 
@@ -58,7 +61,8 @@ class DensityProfile(PandaModel):
         if target.suffix == ".npz":
             save_npz_arrays(target, _profile_arrays(self), self._metadata())
         elif target.suffix == ".csv":
-            header = "\n".join(f"{key}: {json.dumps(value)}" for key, value in self._metadata().items())
+            metadata = {**self._metadata(), VERSION_KEY: library_version()}
+            header = "\n".join(f"{key}: {json.dumps(value)}" for key, value in metadata.items())
             arrays = _profile_arrays(self)
             columns = list(arrays)
             table = np.column_stack([arrays[name] for name in columns])
@@ -70,9 +74,7 @@ class DensityProfile(PandaModel):
     def load(cls, path: str | Path) -> "DensityProfile":
         source = Path(path)
         if source.suffix == ".npz":
-            with np.load(source) as archive:
-                metadata = json.loads(str(archive["metadata"]))
-                arrays = {name: archive[name] for name in archive.files if name != "metadata"}
+            arrays, metadata = load_npz_arrays(source)
         elif source.suffix == ".csv":
             metadata, arrays = _read_csv(source)
         else:
@@ -89,13 +91,14 @@ def load_npz_arrays(path: Path) -> tuple[dict[str, FloatArray], dict[str, Any]]:
     with np.load(path) as archive:
         metadata: dict[str, Any] = json.loads(str(archive["metadata"]))
         arrays = {name: archive[name] for name in archive.files if name != "metadata"}
+    metadata.pop(VERSION_KEY, None)  # версия, которой файл записан, — справочно; в модель не идёт
     return arrays, metadata
 
 
 def save_npz_arrays(path: Path, arrays: Mapping[str, FloatArray], metadata: Mapping[str, object]) -> None:
     """Массивы — по именам, метаданные — JSON-строкой под ключом metadata."""
     # Any: заглушки numpy типизируют **kwds у savez как bool (allow_pickle); значения — массивы и строка
-    payload: dict[str, Any] = {**arrays, "metadata": json.dumps(dict(metadata))}
+    payload: dict[str, Any] = {**arrays, "metadata": json.dumps({**metadata, VERSION_KEY: library_version()})}
     np.savez(path, **payload)
 
 
@@ -117,15 +120,21 @@ def _read_csv(source: Path) -> tuple[dict[str, object], dict[str, FloatArray]]:
     columns: list[str] = []
     with source.open(encoding="utf-8") as stream:
         for line in stream:
-            if not line.startswith(CSV_COMMENT):
+            if not line.startswith(CSV_COMMENT_MARK):
                 break
-            content = line[len(CSV_COMMENT) :].strip()
+            content = line[len(CSV_COMMENT_MARK) :].strip()  # «# frame: …» и «#frame: …»
             key, separator, value = content.partition(": ")
+            if separator and key == VERSION_KEY:
+                continue
             if separator and key in CSV_METADATA_FIELDS:
                 metadata[key] = json.loads(value)
             else:
-                columns = content.split(",")
-    table = np.loadtxt(source, delimiter=",", comments=CSV_COMMENT.strip(), ndmin=2)
+                columns = [name.strip() for name in content.split(",")]
+    table = np.loadtxt(source, delimiter=",", comments=CSV_COMMENT_MARK, ndmin=2)
+    if columns and set(columns) <= set(CSV_COLUMNS) and len(columns) != table.shape[1]:
+        raise InvalidProfileError(
+            f"{source.name}: в заголовке {len(columns)} столбца ({', '.join(columns)}), в данных — {table.shape[1]}"
+        )
     if not columns or not set(columns) <= set(CSV_COLUMNS):  # заголовка нет или он чужой — столбцы по порядку
         if table.shape[1] not in (len(CSV_COLUMNS) - 1, len(CSV_COLUMNS)):
             raise InvalidProfileError(
@@ -234,9 +243,7 @@ class ProfileSet(PandaModel):
     @classmethod
     def load(cls, path: str | Path) -> "ProfileSet":
         _require_npz(Path(path))
-        with np.load(Path(path)) as archive:
-            metadata = json.loads(str(archive["metadata"]))
-            arrays = {name: archive[name] for name in archive.files if name != "metadata"}
+        arrays, metadata = load_npz_arrays(Path(path))
         return cls(**arrays, **metadata)
 
 

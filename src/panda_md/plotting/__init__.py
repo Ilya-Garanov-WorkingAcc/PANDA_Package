@@ -10,6 +10,7 @@ from panda_md.plotting.figures import (
     plot_density_map,
     plot_fit,
     plot_stability,
+    save_fit_figure,
     supported_figure_formats,
 )
 
@@ -19,5 +20,6 @@ __all__ = [
     "plot_density_map",
     "plot_fit",
     "plot_stability",
+    "save_fit_figure",
     "supported_figure_formats",
 ]

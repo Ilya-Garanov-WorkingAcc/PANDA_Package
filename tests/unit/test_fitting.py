@@ -11,7 +11,7 @@ from panda_md.core.errors import (
     EmptyWindowError,
     InfeasibleParametersError,
     InvalidBoundsError,
-    MissingParameterValueError,
+    InvalidProfileError,
     ProfileMismatchError,
     UnidentifiableParameterError,
     UnsupportedRegimeError,
@@ -99,7 +99,7 @@ def test_empty_window_is_an_error(slit_pore: SlitPore) -> None:
 
 
 def test_mean_normalization_requires_phi(slit_pore: SlitPore) -> None:
-    with pytest.raises(MissingParameterValueError, match="phi"):
+    with pytest.raises(InvalidProfileError, match="ρ_bulk"):  # причина и что задать — итоговый аудит
         slit_pore.interface("roll").fit(roll_profile(slit_pore))
 
 
@@ -217,3 +217,19 @@ def test_shape_without_contact_angle_fits_volume_fraction(slit_pore: SlitPore) -
     assert layer.default_optimize == ("phi",)
     assert result.regime is None
     assert result.values["phi"] == pytest.approx(0.4, abs=0.006)  # край ступеньки — с точностью до бина
+
+
+def test_profile_of_a_pore_with_another_volume_is_rejected() -> None:
+    """Итоговый аудит: профиль поры 4 × 10 нм, подставленный в пору 4 × 12 нм, давал θ = 105.6° без флагов."""
+    from panda_md import SlitPore
+    from panda_md.core.errors import ProfileMismatchError
+    from panda_md.synthetic.profiles import synthetic_profile
+
+    measured = SlitPore(width_nm=4.0, length_nm=10.0)
+    profile = synthetic_profile(
+        measured.interface("worm"), {"theta": 120.0, "delta": 0.0, "phi": 0.3}, density_bulk_per_nm3=30.0
+    )
+    other = SlitPore(width_nm=4.0, length_nm=12.0)
+    with pytest.raises(ProfileMismatchError, match="объём"):
+        other.interface("worm").fit(profile, density_bulk_per_nm3=30.0)
+    measured.interface("worm").fit(profile, density_bulk_per_nm3=30.0)  # своя пора — без ошибки

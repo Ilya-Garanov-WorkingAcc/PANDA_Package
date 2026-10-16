@@ -101,6 +101,10 @@ def test_perforation_matches_rectcell(aspect_ratio: float, length_ratio: float) 
     base = aspect_ratio * length_ratio**2
     lower = 1 - math.pi / (4 * base) * (side**2 - math.pi * side / 2 + 2 / 3)  # отверстие касается образа
     upper = 1 - math.pi / (4 * base) * (5 / 3 - math.pi / 2)  # отверстие закрывается
+    if side < math.pi / 4:
+        assert perforation.phi_limits(theta=FULL_NON_WETTING, phi=0.9) == pytest.approx((upper, upper), abs=TOLERANCE)
+        assert not perforation.is_feasible(theta=FULL_NON_WETTING, phi=0.5 * (lower + upper))
+        return
     assert perforation.phi_limits(theta=FULL_NON_WETTING, phi=0.9) == pytest.approx((lower, upper), abs=TOLERANCE)
     phi = 0.5 * (lower + upper)
     hole = math.pi / 4 + math.sqrt((math.pi / 4) ** 2 - 2 / 3 + 4 * (1 - phi) * base / math.pi)  # (22)

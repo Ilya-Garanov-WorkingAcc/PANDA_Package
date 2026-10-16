@@ -1,11 +1,12 @@
 """Общая базовая модель pydantic, типы массивов numpy с проверкой и неизменяемый словарь."""
 
 from collections.abc import Callable, Iterator, Mapping
-from typing import Annotated, Generic, TypeVar
+from typing import Annotated, Any, Generic, TypeVar
 
 import numpy as np
 from numpy.typing import NDArray
 from pydantic import AfterValidator, BaseModel, ConfigDict, PlainSerializer, PlainValidator
+from typing_extensions import Self
 
 FloatArray = NDArray[np.float64]
 BoolArray = NDArray[np.bool_]
@@ -142,4 +143,68 @@ class PandaModel(BaseModel):
         extra="forbid",
         validate_default=True,
         arbitrary_types_allowed=True,
+        protected_namespaces=(),  # поля model_curve и т. п.: pydantic < 2.10 предупреждает о префиксе model_
     )
+
+    def __eq__(self, other: object) -> bool:
+        """Сравнение по значениям; массивы — поэлементно (иначе == падает: truth value of an array is ambiguous)."""
+        if type(other) is not type(self):
+            return NotImplemented
+        assert isinstance(other, PandaModel)
+        return _values_equal(self.__dict__, other.__dict__)
+
+    def __hash__(self) -> int:
+        return hash((type(self), _hashable(self.__dict__)))
+
+    def __deepcopy__(self, memo: dict[int, object] | None = None) -> Self:
+        duplicate = super().__deepcopy__(memo)
+        _freeze_arrays(duplicate.__dict__)
+        return duplicate
+
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        super().__setstate__(state)
+        _freeze_arrays(self.__dict__)
+
+    def model_copy(self, *, update: Mapping[str, Any] | None = None, deep: bool = False) -> Self:
+        """Копия; с update — заново через проверку модели (pydantic по умолчанию её пропускает)."""
+        if not update:
+            return super().model_copy(deep=deep)
+        values = {name: getattr(self, name) for name in type(self).model_fields}
+        return self.model_validate({**values, **update})
+
+
+def _values_equal(first: object, second: object) -> bool:
+    if isinstance(first, np.ndarray) or isinstance(second, np.ndarray):
+        return (
+            isinstance(first, np.ndarray)
+            and isinstance(second, np.ndarray)
+            and first.shape == second.shape
+            and bool(np.array_equal(first, second))
+        )
+    if isinstance(first, Mapping) and isinstance(second, Mapping):
+        return first.keys() == second.keys() and all(_values_equal(first[key], second[key]) for key in first)
+    if isinstance(first, (tuple, list)) and isinstance(second, (tuple, list)):
+        return len(first) == len(second) and all(_values_equal(a, b) for a, b in zip(first, second, strict=True))
+    return bool(first == second)
+
+
+def _hashable(value: object) -> object:
+    if isinstance(value, np.ndarray):
+        return (value.shape, str(value.dtype), value.tobytes())
+    if isinstance(value, Mapping):
+        return tuple(sorted((key, _hashable(item)) for key, item in value.items()))
+    if isinstance(value, (tuple, list)):
+        return tuple(_hashable(item) for item in value)
+    return value
+
+
+def _freeze_arrays(value: object) -> None:
+    """Массивы внутри копии — снова только для чтения (deepcopy и pickle создают изменяемые)."""
+    if isinstance(value, np.ndarray):
+        value.flags.writeable = False
+    elif isinstance(value, Mapping):
+        for item in value.values():
+            _freeze_arrays(item)
+    elif isinstance(value, (tuple, list)):
+        for item in value:
+            _freeze_arrays(item)

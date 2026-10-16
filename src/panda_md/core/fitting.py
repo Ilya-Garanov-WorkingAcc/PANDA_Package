@@ -5,7 +5,6 @@ import math
 from typing import TYPE_CHECKING
 
 import numpy as np
-from scipy.integrate import trapezoid
 from scipy.optimize import Bounds, minimize
 
 from panda_md.core.enums import Frame, LossFunction, Normalization, OptimizerMethod, ParameterName, Regime
@@ -39,6 +38,7 @@ BOUND_PROXIMITY_FRACTION = 1e-3  # ближе этой доли ширины г�
 BARRIER_LEVEL_FACTOR = 10.0  # уровень барьера: во столько раз выше ошибки нулевой модели (+1)
 BARRIER_SLOPE = 100.0  # наклон барьера по величине выхода φ за границы существования
 COVERAGE_TOLERANCE = 0.05  # данные должны доходить до стенок с точностью 5 % размера поры
+VOLUME_TOLERANCE = 0.01  # объём поры профиля и поры фита: расхождение больше 1 % — другая пора
 OUTSIDE_MASS_TOLERANCE = 0.05  # допустимая доля ∫ρ за пределами поры (система поры)
 
 CONTACT_ANGLE_NAME = ParameterName.CONTACT_ANGLE.value
@@ -168,6 +168,17 @@ def _resolve_normalization(spec: FitSpec) -> Normalization:
     return Normalization.BULK if spec.density_bulk_per_nm3 is not None else Normalization.MEAN
 
 
+def histogram_integral(centers: FloatArray, density: FloatArray) -> float:
+    """∫ρ гистограммы: Σ ρ_i · ширина бина i (края — середины между центрами, крайние — симметрично).
+    Трапеция по центрам бинов теряет по полбина у краёв: если жидкость касается стенки, φ занижается.
+    """
+    midpoints = 0.5 * (centers[:-1] + centers[1:])
+    first = centers[0] - (midpoints[0] - centers[0])
+    last = centers[-1] + (centers[-1] - midpoints[-1])
+    edges = np.concatenate(([first], midpoints, [last]))
+    return float(np.sum(density * np.diff(edges)))
+
+
 def _window_mask(reduced: ReducedProfile, geometry: PoreGeometry, window: tuple[float, float] | None) -> BoolArray:
     if window is not None:
         lower, upper = window
@@ -184,6 +195,18 @@ def _window_mask(reduced: ReducedProfile, geometry: PoreGeometry, window: tuple[
             f"{float(np.max(reduced.coordinate)):.3g}] — проверь размер поры и систему отсчёта профиля"
         )
     return mask
+
+
+def _check_pore_volume(profile: DensityProfile, pore_volume_nm3: float) -> None:
+    """Объём поры, к которому отнесены N и φ профиля, должен совпадать с объёмом поры фита."""
+    if profile.pore_volume_nm3 is None:
+        return
+    mismatch = abs(profile.pore_volume_nm3 / pore_volume_nm3 - 1.0)
+    if mismatch > VOLUME_TOLERANCE:
+        raise ProfileMismatchError(
+            f"профиль посчитан для поры объёмом {profile.pore_volume_nm3:.4g} нм³, а у поры фита объём "
+            f"{pore_volume_nm3:.4g} нм³ ({mismatch:.1%}): φ и нормировка будут неверны — проверь размеры поры"
+        )
 
 
 def _check_profile_matches_pore(reduced: ReducedProfile, geometry: PoreGeometry) -> None:
@@ -447,6 +470,7 @@ def fit(model: "InterfaceModel", profile: DensityProfile, spec: FitSpec) -> FitR
     reduced = model.pore.reduce(profile, normalization, spec.density_bulk_per_nm3)
     window_mask = _window_mask(reduced, geometry, spec.window)
     _check_profile_matches_pore(reduced, geometry)
+    _check_pore_volume(profile, model.pore.volume_nm3())
     optimize = spec.optimize if spec.optimize is not None else model.default_optimize
     has_volume_fraction = VOLUME_FRACTION_NAME in model.parameters.names
     if normalization is Normalization.MEAN and not has_volume_fraction:
@@ -455,11 +479,19 @@ def fit(model: "InterfaceModel", profile: DensityProfile, spec: FitSpec) -> FitR
             f"задай density_bulk_per_nm3"
         )
 
+    phi_unknown = VOLUME_FRACTION_NAME not in spec.fixed and VOLUME_FRACTION_NAME not in optimize
+    if normalization is Normalization.MEAN and has_volume_fraction and phi_unknown:
+        raise InvalidProfileError(
+            f"нормировка mean: φ из данных не выводится (для φ = ∫ρ/ρ_bulk нужна ρ_bulk) — задай "
+            f"density_bulk_per_nm3 (--rho-bulk), зафиксируй phi или освободи её в optimize (форма {model.shape.name})"
+        )
     values_from_data: dict[str, float] = {}
     initial = dict(spec.initial)
     volume_fraction_from_data: float | None = None
     if normalization is Normalization.BULK and has_volume_fraction and VOLUME_FRACTION_NAME not in spec.fixed:
-        volume_fraction_from_data = float(trapezoid(reduced.density, reduced.coordinate) / geometry.profile_integral())
+        volume_fraction_from_data = (
+            histogram_integral(reduced.coordinate, reduced.density) / geometry.profile_integral()
+        )
         if VOLUME_FRACTION_NAME not in optimize:
             values_from_data[VOLUME_FRACTION_NAME] = volume_fraction_from_data
         elif VOLUME_FRACTION_NAME not in initial and _within_fit_bounds(

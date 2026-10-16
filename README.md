@@ -4,9 +4,13 @@
 contact angle and the interface shape of liquids confined in pores from one-dimensional density profiles
 of molecular simulations.
 
-> **Status: pre-alpha.** The core (parameters, pore/shape contract, generic fit) works for the slit pore
-> (all six shapes: droplet, doughnut, worm, roll, perforation, layer; rectangular base L × kL), the triangular pore (12 shapes) and the square pore (7 shapes); stability diagrams by the capillary functional. Density profiles from MD trajectories (MDAnalysis, extra `md`) work for the slit pore; command line
-> `panda`. The published 0.0.1 contains no code.
+> **Status: alpha (0.1.0).** Slit pore (six shapes, rectangular base L × kL), triangular pore (12 shapes) and
+> square pore (7 shapes); fitting, the data path from MD trajectories (MDAnalysis, extra `md`), analysis over
+> time blocks, stability diagrams, figures (extra `plot`) and the command line `panda`. Limitations: no formulas
+> for the wetting regime θ < 90° of the slit shapes; see [CHANGELOG.md](CHANGELOG.md).
+
+Documentation: `make docs` builds it from `docs/manual/` (mkdocs); examples: [examples/](examples/).
+
 ```python
 import panda_md as panda
 from panda_md.synthetic.profiles import synthetic_profile
@@ -126,7 +130,10 @@ default). They are not part of the published package.
 
 ```
 src/panda_md/   the package (typed, ships py.typed)
-tests/          pytest tests
+tests/          pytest tests (what each suite checks: tests/README.md)
+examples/       runnable scripts and a settings file for `panda run`
+validation/     accuracy of the method on synthetic data (REPORT.md, figures)
+docs/manual/    user documentation (mkdocs)
 docs/           design documents: audit of the previous version, architecture specification
 smoke/          exploratory scripts run against the previous PANDA version
 ROADMAP.md      project plan
@@ -136,6 +143,8 @@ ROADMAP.md      project plan
 
 The original research code lives at https://github.com/FlufffyMelon/PANDA.
 
-## License
+## How to cite
+Cite the method paper (Semenchuk, Kondratyuk, Kopanichuk, Colloids Surf. A 708 (2025) 135994) and the software;
+metadata for both are in [CITATION.cff](CITATION.cff).
 
 MIT, see [LICENSE](LICENSE).

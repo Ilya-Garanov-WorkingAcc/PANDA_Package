@@ -11,6 +11,7 @@ __pycache__/
 *.egg-info/
 build/
 dist/
+site/
 uv.lock
 
 # Старая PANDA — отдельный клон (github.com/FlufffyMelon/PANDA), только справочник

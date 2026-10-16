@@ -16,6 +16,7 @@ from panda_md.core.types import BoolArray, FloatArray, PandaModel
 
 REGIME_BOUNDARY_DEG = 90.0  # граница смачивания и несмачивания
 REGIME_GAP_DEG = 0.5  # θ ∈ (90° − зазор, 90° + зазор) не считается: в формулах tan θ и 1/cos θ
+ANGLE_TOLERANCE_DEG = 1e-9  # градусы → радианы → градусы: degrees(radians(120)) = 119.99999999999999
 CENTER_OF_MASS_GRID_POINTS = 20001  # сетка для численного центра масс, если форма не дала формулу
 
 
@@ -106,7 +107,7 @@ class InterfaceShape(ABC, Generic[GeometryT]):
 
     def require_supported_contact_angle(self, contact_angle_deg: float) -> Regime:
         """Режим угла, если для него у формы выведены формулы; иначе UnsupportedRegimeError."""
-        if abs(contact_angle_deg - REGIME_BOUNDARY_DEG) < REGIME_GAP_DEG:
+        if abs(contact_angle_deg - REGIME_BOUNDARY_DEG) < REGIME_GAP_DEG - ANGLE_TOLERANCE_DEG:
             raise UnsupportedRegimeError(
                 f"θ = {contact_angle_deg:.2f}° внутри зазора ±{REGIME_GAP_DEG}° у 90°: формулы там не определены"
             )
@@ -117,7 +118,7 @@ class InterfaceShape(ABC, Generic[GeometryT]):
                 f"формулы не выведены"
             )
         lower, upper = self.regimes[regime]
-        if not lower <= contact_angle_deg <= upper:
+        if not lower - ANGLE_TOLERANCE_DEG <= contact_angle_deg <= upper + ANGLE_TOLERANCE_DEG:
             raise UnsupportedRegimeError(
                 f"форма {self.name}: θ = {contact_angle_deg:.4g}° вне диапазона режима {regime.value} "
                 f"[{lower}, {upper}]"

@@ -7,7 +7,7 @@ import pytest
 
 from panda_md import SlitPore, SquarePore, TrianglePore
 from panda_md.analysis.stability import stability_diagram
-from panda_md.core.errors import PandaError, PandaWarning
+from panda_md.core.errors import PandaError, PandaWarning, UnsupportedRegimeError
 from panda_md.pores.slit.roll import SlitRoll
 
 SQUARE = SquarePore(side_nm=6.0, length_nm=12.0, layer_width_nm=6.0)
@@ -65,12 +65,20 @@ def test_shapes_without_surface_terms_are_left_out() -> None:
 
 
 def test_points_where_no_shape_exists_are_empty() -> None:
-    triangle = TrianglePore(side_nm=6.0, length_nm=12.0, layer_width_nm=6.0)
-    unreachable_layer = 1.0 / (2.0 * math.sqrt(3.0))  # a′ = 0: доступного сечения нет
+    triangle = TrianglePore(side_nm=4.0, length_nm=8.0, layer_width_nm=4.0)
     diagram = stability_diagram(
-        triangle, contact_angle_deg=150.0, wall_layer=unreachable_layer, volume_fractions=(0.1,), length_ratios=(2.0,)
+        triangle, contact_angle_deg=150.0, wall_layer=0.1, volume_fractions=(0.9,), length_ratios=(2.0,)
     )
     assert diagram.stable_shapes == ((None,),)
+    unreachable_layer = 1.0 / (2.0 * math.sqrt(3.0))  # a′ = 0: вне границ δ — ошибка (итоговый аудит)
+    with pytest.raises(PandaError, match="вне"):
+        stability_diagram(
+            triangle,
+            contact_angle_deg=150.0,
+            wall_layer=unreachable_layer,
+            volume_fractions=(0.1,),
+            length_ratios=(2.0,),
+        )
 
 
 @pytest.mark.parametrize(
@@ -91,8 +99,8 @@ def test_stability_diagram_checks_its_input(arguments: dict[str, object], messag
         "length_ratios": (2.0,),
         **arguments,
     }
-    if message is None:  # угол в радианах: формы с θ вне режима — диаграмма из одного слоя, предупредить
-        with pytest.warns(PandaWarning, match="градус"):
+    if message is None:  # угол в радианах: предупредить; формул при θ ≈ 2.6° у щели нет — ошибка (итоговый аудит)
+        with pytest.warns(PandaWarning, match="градус"), pytest.raises(UnsupportedRegimeError):
             stability_diagram(slit, **call)
         return
     with pytest.raises(PandaError, match=message):
@@ -130,12 +138,39 @@ def test_equal_energies_go_to_the_first_candidate() -> None:
 def test_zero_angle_is_not_mistaken_for_radians() -> None:
     import warnings
 
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
         stability_diagram(
-            SlitPore(width_nm=8.0, length_nm=16.0),
+            SquarePore(side_nm=4.0, length_nm=8.0, layer_width_nm=4.0),  # у квадрата смачивание выведено
             contact_angle_deg=0.0,
             wall_layer=0.0,
             volume_fractions=(0.2,),
             length_ratios=(2.0,),
         )
+    assert not [warning for warning in caught if "градус" in str(warning.message)]
+
+
+def test_diagram_outside_derived_regime_is_not_silently_layer() -> None:
+    """Итоговый аудит: при θ < 90° формы с θ молча выпадали, и вся щель становилась «layer»."""
+    from panda_md import SlitPore, SquarePore
+    from panda_md.core.errors import PandaWarning, UnsupportedRegimeError
+
+    for angle in (60.0, 90.0):
+        with pytest.raises(UnsupportedRegimeError, match="не выведены"):
+            stability_diagram(SlitPore(width_nm=4.0, length_nm=20.0), contact_angle_deg=angle, wall_layer=0.0,
+                              volume_fractions=[0.3], length_ratios=[2.0])  # fmt: skip
+    square = SquarePore(side_nm=4.0, length_nm=8.0, layer_width_nm=4.0)
+    with pytest.warns(PandaWarning, match="не участвуют"):
+        diagram = stability_diagram(square, contact_angle_deg=60.0, wall_layer=0.0, volume_fractions=[0.3],
+                                    length_ratios=[2.0])  # fmt: skip
+    assert "filament_w1c0" in diagram.shape_names and "droplet_w1c0" not in diagram.shape_names
+
+
+@pytest.mark.parametrize(("wall_layer", "volume_fraction"), [(-0.3, 0.3), (0.3, 0.3), (0.0, 1.3), (0.0, -0.1)])
+def test_diagram_rejects_values_outside_parameter_bounds(wall_layer: float, volume_fraction: float) -> None:
+    from panda_md import SlitPore
+    from panda_md.core.errors import PandaError
+
+    with pytest.raises(PandaError, match="вне"):
+        stability_diagram(SlitPore(width_nm=4.0, length_nm=20.0), contact_angle_deg=130.0, wall_layer=wall_layer,
+                          volume_fractions=[volume_fraction], length_ratios=[2.0])  # fmt: skip

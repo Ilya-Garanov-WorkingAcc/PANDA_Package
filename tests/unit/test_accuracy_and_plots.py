@@ -2,6 +2,7 @@
 
 import importlib
 import sys
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -175,3 +176,29 @@ def test_density_map_figure_keeps_orientation_and_stability_colors(pyplot: objec
     for color, name in zip(colors, flat, strict=True):
         expected = to_rgba("#f0f0f0") if name is None else label_colors[name]
         np.testing.assert_allclose(color, np.asarray(expected), atol=1e-6)
+
+
+def test_save_fit_figure_writes_a_file_without_pyplot_state(tmp_path: Path) -> None:
+    """Итоговый аудит: CLI сам импортировал matplotlib; сохранение графика — в panda_md.plotting."""
+    import matplotlib.pyplot as plt
+
+    from panda_md.plotting import save_fit_figure
+
+    model = SlitPore(width_nm=8.0, length_nm=16.0).interface("roll")
+    profile = synthetic_profile(model, {"theta": 120.0, "delta": 0.03, "phi": 0.4}, density_bulk_per_nm3=30.0)
+    before = plt.get_fignums()
+    save_fit_figure(model.fit(profile, density_bulk_per_nm3=30.0), tmp_path / "fit.svg")
+    assert (tmp_path / "fit.svg").read_text().startswith("<?xml")
+    assert plt.get_fignums() == before  # открытых фигур pyplot не прибавилось
+
+
+def test_only_plotting_imports_matplotlib() -> None:
+    import re
+
+    package = Path(__file__).parents[2] / "src" / "panda_md"
+    offenders = [
+        str(path.relative_to(package))
+        for path in package.rglob("*.py")
+        if path.parent.name != "plotting" and re.search(r"^\s*(import|from) matplotlib", path.read_text(), re.M)
+    ]
+    assert offenders == []

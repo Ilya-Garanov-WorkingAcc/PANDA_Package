@@ -1,7 +1,5 @@
 """PANDA: Predicting Angle from Nanoscale Density Analysis."""
 
-from importlib.metadata import PackageNotFoundError, version
-
 from panda_md.analysis.blocks import FitResultSet, StatisticalInefficiency, fit_blocks, statistical_inefficiency
 from panda_md.analysis.compare import ShapeComparison, ShapeFit, compare_shapes
 from panda_md.core.centering import SymmetryAxis
@@ -26,6 +24,7 @@ from panda_md.core.parameters import Parameter
 from panda_md.core.profile import DensityProfile, ProfileSet
 from panda_md.core.result import FitResult
 from panda_md.core.spec import FitSpec
+from panda_md.core.version import library_version
 from panda_md.pores.slit import SlitPore
 from panda_md.pores.square import SquarePore
 from panda_md.pores.triangle import TrianglePore
@@ -35,10 +34,7 @@ from panda_md.trajectory.density import density_profile
 from panda_md.trajectory.maps import DensityMap, density_map
 from panda_md.trajectory.reader import load_trajectory
 
-try:
-    __version__ = version("panda-md")
-except PackageNotFoundError:  # пакет не установлен (запуск из исходников без установки)
-    __version__ = "0.0.0"
+__version__ = library_version()
 
 __all__ = [
     "ArrayTrajectory",

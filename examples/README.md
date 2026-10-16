@@ -1,0 +1,13 @@
+# Examples
+
+| Script | What it shows | Needs |
+|--------|---------------|-------|
+| `01_synthetic_fit.py` | model → synthetic profile → fit; comparison of all shapes | `panda-md` |
+| `02_md_pipeline.py` | full pipeline on your MD trajectory: pore from the walls, profiles by blocks, shape comparison, fit per block, 2D map, figures | `panda-md[md,plot]`, a trajectory |
+| `03_saved_profiles.py` | analysis of saved profiles: water in a graphite slit pore (θ ≈ 171°) | `panda-md` (`[plot]` for `--output`), the repository checkout |
+| `04_stability_diagram.py` | which shape has the lowest capillary energy over (L/H, φ) | `panda-md` (`[plot]` for `--output`) |
+| `05_custom_shape.py` | a new interface shape declared in a user script and registered with the slit pore | `panda-md` |
+| `panda.toml` | settings file for `panda run`: profile from a trajectory + fit | `panda-md[md]` |
+
+Run from the repository root, e.g. `python examples/01_synthetic_fit.py`. Examples 01, 03, 04 and 05 are run by
+the test suite (`tests/test_examples.py`).

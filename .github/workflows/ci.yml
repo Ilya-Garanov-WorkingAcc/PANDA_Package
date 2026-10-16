@@ -34,6 +34,22 @@ jobs:
       - run: uv sync --no-default-groups --group test --extra md --extra plot
       - run: uv run --no-sync pytest
 
+  # нижние границы зависимостей из pyproject.toml (numpy 1.26, scipy 1.11, pydantic 2.6, typer 0.27.2, …)
+  test-lowest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv venv .venv-lowest --python 3.10
+      - run: uv pip install --python .venv-lowest --resolution lowest-direct ".[md,plot]" "pytest>=8"
+      - run: .venv-lowest/bin/python -m pytest
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv run --group docs mkdocs build --strict
+
   build:
     runs-on: ubuntu-latest
     steps:

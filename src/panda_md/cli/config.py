@@ -26,7 +26,7 @@ class ProfileConfig(PandaModel):
     topology: Path | None = None
     trajectory: tuple[Path, ...] = ()
     select: str | None = None  # выборка атомов жидкости (синтаксис MDAnalysis)
-    centering: ProfileCentering = ProfileCentering.PORE
+    centering: ProfileCentering | None = None  # None — pore, если стенки известны, иначе liquid
     pore_center_nm: float | None = None  # центр поры вдоль оси профиля; None — по атомам стенок
     bins: int | None = Field(default=None, ge=1)  # None — 200 бинов, если не задана bin_width_nm
     bin_width_nm: float | None = Field(default=None, gt=0.0)

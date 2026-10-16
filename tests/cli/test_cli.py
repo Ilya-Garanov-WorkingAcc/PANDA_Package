@@ -14,6 +14,7 @@ from panda_md.analysis.blocks import fit_blocks
 from panda_md.analysis.compare import compare_shapes
 from panda_md.cli import main
 from panda_md.core.enums import NoiseModel, ProfileSampling, Regime
+from panda_md.core.errors import PandaWarning
 from panda_md.core.fitting import fit
 from panda_md.core.profile import DensityProfile
 from panda_md.synthetic.profiles import synthetic_profile
@@ -164,12 +165,14 @@ def test_fit_auto_compares_shapes_and_keeps_the_best(
     capsys: pytest.CaptureFixture[str], tmp_path: Path, profile_file: Path, pore_file: Path
 ) -> None:
     output = tmp_path / "result.json"
-    code, out, _ = run_cli(
+    code, out, err = run_cli(
         capsys, "fit", str(profile_file), "--pore-file", str(pore_file), "--shape", "auto", *RHO, "-o", str(output)
     )
-    comparison = compare_shapes(PORE, DensityProfile.load(profile_file), FitSpec(density_bulk_per_nm3=DENSITY_BULK))
+    with pytest.warns(PandaWarning, match="неразличимы"):  # валик и перфорация по профилю неразличимы
+        comparison = compare_shapes(PORE, DensityProfile.load(profile_file), FitSpec(density_bulk_per_nm3=DENSITY_BULK))
     assert code in (0, 2)
     assert "сравнение форм" in out
+    assert "неразличимы" in err
     saved = json.loads(output.read_text())
     assert saved["fit"]["shape_name"] == comparison.best.shape_name == "roll"
     assert saved["fit"]["values"] == pytest.approx(comparison.best.values, abs=1e-9)
@@ -395,12 +398,14 @@ def test_profile_needs_walls_for_pore_centering(
     capsys: pytest.CaptureFixture[str], tmp_path: Path, pore_file: Path
 ) -> None:
     topology, coordinates = write_md_files(tmp_path)
-    code, _, err = run_cli(
-        capsys, "profile", str(topology), str(coordinates), "--pore-file", str(pore_file), "--select", "resname LIQ",
-        "-o", str(tmp_path / "p.npz"),
-    )  # fmt: skip
+    base = ["profile", str(topology), str(coordinates), "--pore-file", str(pore_file), "--select", "resname LIQ"]
+    code, _, err = run_cli(capsys, *base, "--center-by", "pore", "-o", str(tmp_path / "p.npz"))
     assert code == 1
     assert "стен" in err
+    code, _, err = run_cli(capsys, *base, "-o", str(tmp_path / "liquid.npz"))  # по умолчанию — по жидкости
+    assert code == 0
+    assert "по жидкости" in err
+    assert ProfileSet.load(tmp_path / "liquid.npz").centering.value == "liquid"
 
 
 def test_profile_derives_slit_from_walls_and_saves_pore_for_fit(

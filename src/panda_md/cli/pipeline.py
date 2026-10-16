@@ -155,7 +155,7 @@ def build_profiles(
     trajectory_files: Sequence[Path],
     select: str,
     *,
-    centering: ProfileCentering,
+    centering: ProfileCentering | None,
     pore_center_nm: float | None,
     bins: int,
     bin_width_nm: float | None,
@@ -248,14 +248,6 @@ def run_fit(
 
 
 def _save_plot(result: FitResult, path: Path) -> None:
-    import matplotlib
+    from panda_md.plotting import save_fit_figure  # matplotlib — только в panda_md.plotting
 
-    matplotlib.use("Agg")  # только файл, без окна
-    import matplotlib.pyplot as plt
-
-    from panda_md.plotting import plot_fit
-
-    figure, axes = plt.subplots()
-    plot_fit(result, axes)
-    figure.savefig(path, dpi=150, bbox_inches="tight")
-    plt.close(figure)
+    save_fit_figure(result, path)

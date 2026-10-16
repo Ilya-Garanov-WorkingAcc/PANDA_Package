@@ -3,6 +3,7 @@
 import pytest
 
 from panda_md import FitResult, FitSpec, SlitPore
+from panda_md.core.profile import DensityProfile
 from panda_md.synthetic.profiles import synthetic_profile
 
 DENSITY_BULK = 30.0
@@ -43,3 +44,35 @@ def test_frozen_result_round_trips_through_json() -> None:
     assert restored.values == result.values
     assert restored.spec == result.spec
     assert dict(restored.spec.fixed) == {"phi": 0.4}
+
+
+def _profile(density: list[float]) -> DensityProfile:
+
+    return DensityProfile(coordinate_nm=[0.0, 1.0, 2.0], density_per_nm3=density)
+
+
+def test_models_with_arrays_compare_and_hash_by_value() -> None:
+    """Итоговый аудит: == и in падали (truth value of an array is ambiguous), hash — unhashable ndarray."""
+    first, same, other = _profile([1.0, 2.0, 3.0]), _profile([1.0, 2.0, 3.0]), _profile([1.0, 2.0, 4.0])
+    assert first == same and first != other
+    assert first in [other, same]
+    assert hash(first) == hash(same)
+    assert len({first, same, other}) == 2
+
+
+def test_copies_keep_arrays_read_only() -> None:
+    import copy
+    import pickle
+
+    original = _profile([1.0, 2.0, 3.0])
+    for duplicate in (copy.deepcopy(original), pickle.loads(pickle.dumps(original)), original.model_copy(deep=True)):
+        assert duplicate == original
+        with pytest.raises(ValueError, match="read-only"):
+            duplicate.density_per_nm3[0] = 123.0
+
+
+def test_model_copy_with_update_is_validated() -> None:
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError, match="отрицательна"):
+        _profile([1.0, 2.0, 3.0]).model_copy(update={"density_per_nm3": [-1.0, 5.0, 6.0]})

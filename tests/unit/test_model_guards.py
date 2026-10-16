@@ -5,6 +5,7 @@ from typing import ClassVar
 
 import numpy as np
 import pytest
+from scipy.integrate import trapezoid
 
 from panda_md.core.enums import Frame, Regime
 from panda_md.core.errors import PandaError, UnknownShapeError, UnsupportedRegimeError
@@ -97,3 +98,45 @@ def test_surface_terms_outside_existence_region_are_a_clear_error() -> None:
         droplet.surface_terms(**values)
     with pytest.raises(InfeasibleParametersError, match="не существует"):
         droplet.capillary_energy(**values)
+
+
+@pytest.mark.parametrize("shape_name", ["capsule_w3c0", "droplet_w2c0", "droplet_w3c0", "filament_w2c0"])
+def test_round_regime_bound_survives_degree_radian_round_trip(shape_name: str) -> None:
+    """Итоговый аудит: degrees(radians(120)) = 119.999…, и θ = 120° считался вне режима [120, 180]."""
+    from panda_md import TrianglePore
+
+    model = TrianglePore(side_nm=4.0, length_nm=8.0, layer_width_nm=6.0).interface(shape_name)
+    model.supported_values({"theta": 120.0, "delta": 0.02, "phi": 0.3})  # без UnsupportedRegimeError
+
+
+def test_regime_gap_bound_has_the_same_tolerance() -> None:
+    roll = SlitPore(width_nm=8.0, length_nm=16.0).interface("roll")
+    roll.shape.require_supported_contact_angle(90.5 - 1e-12)  # граница зазора у 90° — тоже с допуском
+
+
+@pytest.mark.parametrize(
+    ("length_nm", "aspect_ratio", "theta", "delta"),
+    [
+        (2.0, 1.0, 180.0, 0.0),
+        (0.9, 1.0, 163.2, 0.1),
+        (4.264, 0.086, 164.3, 0.0),
+        (20.0, 0.1, 180.0, 0.0),
+        (0.4, 1.0, 150.0, 0.0),
+    ],
+)
+def test_perforation_exists_only_where_the_hole_fits_the_cell(
+    length_nm: float, aspect_ratio: float, theta: float, delta: float
+) -> None:
+    """Итоговый аудит: при k·l ≲ 0.55 нижняя граница φ — посторонний корень, отверстие шире ячейки, ρ < 0."""
+    pore = SlitPore(width_nm=4.0, length_nm=length_nm, base_aspect_ratio=aspect_ratio)
+    perforation = pore.interface("perforation")
+    lower, upper = perforation.phi_limits(theta=theta, delta=delta, phi=0.5)
+    assert lower >= 0.0
+    coordinate = np.linspace(-0.5, 0.5, 4001)
+    for phi in np.linspace(lower, upper, 9)[1:-1]:
+        values = {"theta": theta, "delta": delta, "phi": float(phi)}
+        if not perforation.is_feasible(**values):
+            continue
+        density = perforation.profile(coordinate, **values)
+        assert float(np.min(density)) >= -1e-9
+        assert trapezoid(density, coordinate) == pytest.approx(phi, rel=2e-3)

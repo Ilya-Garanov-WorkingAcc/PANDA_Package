@@ -1,12 +1,13 @@
 """Фит по блокам времени и статистическая неэффективность — оценка ошибки угла и выбор длины блока."""
 
 import math
+import warnings
 from collections.abc import Sequence
 
 import numpy as np
 from pydantic import Field, model_validator
 
-from panda_md.core.errors import PandaError
+from panda_md.core.errors import PandaError, PandaWarning
 from panda_md.core.fitting import fit
 from panda_md.core.model import InterfaceModel
 from panda_md.core.profile import ProfileSet
@@ -16,6 +17,7 @@ from panda_md.core.types import Array1D, FloatArray, PandaModel
 
 MIN_SERIES_LENGTH = 4  # статистическую неэффективность по меньшему ряду не оценить
 MIN_BLOCKS = 20  # меньше блоков — дисперсия средних по блокам слишком шумная для плато
+MIN_PLATEAU_LENGTHS = 3  # плато — среднее по последней трети длин: меньше трёх надёжных длин — не плато
 
 
 class FitResultSet(PandaModel):
@@ -108,6 +110,13 @@ class StatisticalInefficiency(PandaModel):
         всех длин) — оценка числа шагов ряда на одно независимое значение."""
         lengths = np.array(self.block_lengths)
         reliable = self.inefficiency[self.series_length // lengths >= MIN_BLOCKS]
+        if reliable.size < MIN_PLATEAU_LENGTHS:
+            warnings.warn(
+                f"плато не оценить: длин блоков, при которых блоков не меньше {MIN_BLOCKS}, всего {reliable.size} — "
+                f"нужен ряд длиннее {MIN_PLATEAU_LENGTHS * MIN_BLOCKS} значений; s, скорее всего, занижена",
+                PandaWarning,
+                stacklevel=2,
+            )
         values = reliable if reliable.size else self.inefficiency
         return float(np.mean(values[2 * len(values) // 3 :]))
 
@@ -122,7 +131,13 @@ def statistical_inefficiency(
     variance = float(np.var(series, ddof=1))
     if variance == 0.0:
         raise PandaError("ряд постоянен: неэффективность не определена")
-    longest = max(1, series.size // MIN_BLOCKS) if max_block_length is None else max_block_length
+    if max_block_length is None and series.size // MIN_BLOCKS < MIN_PLATEAU_LENGTHS:
+        raise PandaError(
+            f"ряд из {series.size} значений слишком короток: для плато нужно не меньше "
+            f"{MIN_PLATEAU_LENGTHS * MIN_BLOCKS} (хотя бы {MIN_PLATEAU_LENGTHS} длины блока по {MIN_BLOCKS} блоков); "
+            f"возьми блоки короче или задай max_block_length"
+        )
+    longest = series.size // MIN_BLOCKS if max_block_length is None else max_block_length
     longest = min(longest, series.size // 2)
     lengths: list[int] = []
     inefficiency: list[float] = []

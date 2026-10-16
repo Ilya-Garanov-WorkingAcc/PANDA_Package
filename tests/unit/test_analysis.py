@@ -6,8 +6,8 @@ import pytest
 from panda_md import FitSpec, SlitPore, TrianglePore
 from panda_md.analysis.blocks import fit_blocks, statistical_inefficiency
 from panda_md.analysis.compare import compare_shapes
-from panda_md.core.enums import Frame, ProfileCentering
-from panda_md.core.errors import PandaError, ProfileMismatchError
+from panda_md.core.enums import Frame, Normalization, ProfileCentering
+from panda_md.core.errors import PandaError, PandaWarning, ProfileMismatchError
 from panda_md.core.profile import ProfileSet
 from panda_md.synthetic.profiles import synthetic_profile
 
@@ -84,7 +84,8 @@ def test_statistical_inefficiency_rejects_useless_series() -> None:
 
 def test_shape_comparison_ranks_the_true_shape_first() -> None:
     profile = noisy_blocks().mean()
-    comparison = compare_shapes(SLIT, profile, FitSpec(density_bulk_per_nm3=DENSITY_BULK))
+    with pytest.warns(PandaWarning, match="неразличимы"):  # перфорация по профилю почти как валик
+        comparison = compare_shapes(SLIT, profile, FitSpec(density_bulk_per_nm3=DENSITY_BULK))
     assert comparison.best.shape_name == "roll"
     assert comparison.rows[0].shape_name == "roll"
     losses = [result.loss for result in comparison.fitted if result.feasible]
@@ -162,3 +163,46 @@ def test_best_names_the_reasons_when_nothing_fits() -> None:
     comparison = compare_shapes(triangle, profile, FitSpec(density_bulk_per_nm3=30.0), shape_names=["droplet_w2c0"])
     with pytest.raises(PandaError, match=r"droplet_w2c0.*профиль"):
         _ = comparison.best
+
+
+def test_statistical_inefficiency_of_a_short_series_is_not_reported_as_independent() -> None:
+    """Итоговый аудит: 32 значения θ по блокам давали одну длину блока и s = 1 («ряд независим»)."""
+    from panda_md.core.errors import PandaError, PandaWarning
+
+    series = np.random.default_rng(0).normal(size=32)
+    with pytest.raises(PandaError, match="короток"):
+        statistical_inefficiency(series)
+    with pytest.warns(PandaWarning, match="плато"):
+        statistical_inefficiency(series, max_block_length=4).plateau()
+
+
+def test_compare_shapes_flags_shapes_that_the_profile_cannot_tell_apart() -> None:
+    """Итоговый аудит: на профиле валика перфорация выигрывала у валика на 0.3 % loss — без всякой оговорки."""
+    from panda_md import SlitPore, compare_shapes
+    from panda_md.core.enums import NoiseModel, ProfileSampling
+    from panda_md.core.errors import PandaWarning
+    from panda_md.synthetic.profiles import synthetic_profile
+
+    pore = SlitPore(width_nm=8.0, length_nm=16.0)
+    profile = synthetic_profile(
+        pore.interface("roll"), {"theta": 120.0, "delta": 0.03, "phi": 0.4}, density_bulk_per_nm3=30.0,
+        noise_std=0.005, seed=0, noise_model=NoiseModel.POISSON, sampling=ProfileSampling.BIN_AVERAGE,
+    )  # fmt: skip
+    with pytest.warns(PandaWarning, match="неразличимы"):
+        comparison = compare_shapes(pore, profile, FitSpec(density_bulk_per_nm3=30.0))
+    assert {"roll", "perforation"} <= set(comparison.indistinguishable)
+    assert "≈" in comparison.summary()
+
+
+def test_mean_normalization_without_phi_explains_what_to_set() -> None:
+    """Итоговый аудит: «задай значение phi…» без причины; compare_shapes тихо оставлял один слой."""
+    from panda_md import SlitPore, compare_shapes
+    from panda_md.core.errors import InvalidProfileError
+    from panda_md.synthetic.profiles import synthetic_profile
+
+    pore = SlitPore(width_nm=8.0, length_nm=16.0)
+    profile = synthetic_profile(pore.interface("roll"), {"theta": 120.0, "phi": 0.4}, density_bulk_per_nm3=30.0)
+    with pytest.raises(InvalidProfileError, match="ρ_bulk"):
+        pore.interface("roll").fit(profile, normalization=Normalization.MEAN)
+    with pytest.raises(InvalidProfileError, match="ρ_bulk"):
+        compare_shapes(pore, profile)

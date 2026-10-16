@@ -131,3 +131,19 @@ def test_fit_of_shape_without_profile_fails_before_optimizing() -> None:
         synthetic_profile(
             corner_droplet, {"theta": 140.0, "delta": 0.02, "phi": 0.1}, density_bulk_per_nm3=DENSITY_BULK
         )
+
+
+def test_volume_fraction_from_histogram_is_exact_on_a_coarse_grid() -> None:
+    """Итоговый аудит: ∫ρ трапецией по центрам бинов теряла по полбина у стенок — φ занижена, θ смещён."""
+    from panda_md import SlitPore
+    from panda_md.core.enums import ProfileSampling
+    from panda_md.synthetic.profiles import synthetic_profile
+
+    worm = SlitPore(width_nm=4.0, length_nm=10.0).interface("worm")
+    truth = {"theta": 120.0, "delta": 0.0, "phi": 0.3}
+    profile = synthetic_profile(
+        worm, truth, density_bulk_per_nm3=30.0, bin_count=20, sampling=ProfileSampling.BIN_AVERAGE
+    )
+    result = worm.fit(profile, density_bulk_per_nm3=30.0)
+    assert result.volume_fraction_from_data == pytest.approx(0.3, abs=1e-4)  # синтетика: 16 точек на бин
+    assert result.values["theta"] == pytest.approx(120.0, abs=0.5)

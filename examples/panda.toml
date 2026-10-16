@@ -1,0 +1,19 @@
+# Settings for `panda run examples/panda.toml`: paths are relative to this file; replace them with your files.
+[pore]
+type = "slit"
+wall_selection = "resname GRAPHITE"   # no dimensions: measured from the walls
+
+[profile]
+topology = "system.tpr"
+trajectory = ["system.xtc"]
+select = "resname WATER and name OW"
+start = "2 ns"
+block = "1 ns"
+output = "water.npz"
+pore_output = "pore.json"
+
+[fit]                                 # every FitSpec field, plus shape, blocks, output, plot
+shape = "roll"
+density_bulk_per_nm3 = 33.1
+blocks = true
+output = "result.json"

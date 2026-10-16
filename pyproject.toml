@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "panda-md"
-version = "0.0.1"
+version = "0.1.0"
 description = "PANDA (Predicting Angle from Nanoscale Density Analysis): contact angle and interface shape of confined liquids from 1D density profiles of molecular simulations"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -13,7 +13,7 @@ license-files = ["LICENSE"]
 authors = [{ name = "Ilya Garanov" }]
 keywords = ["molecular dynamics", "contact angle", "wetting", "nanopores", "density profile"]
 classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
+    "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
@@ -29,8 +29,9 @@ dependencies = [
     "numpy>=1.26",
     "scipy>=1.11",
     "pydantic>=2.6",
-    "typer>=0.26",  # с 0.26 click встроен в typer: ошибки разбора — typer.TyperException
+    "typer>=0.27.2",  # typer.TyperException — с 0.27.2 (click встроен в typer с 0.26)
     "tomli>=2 ; python_full_version < '3.11'",
+    "typing-extensions>=4.6",
 ]
 
 [project.scripts]
@@ -65,12 +66,16 @@ dev = [
     { include-group = "test" },
     { include-group = "lint" },
 ]
+docs = [
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.26",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/panda_md"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src", "tests", "README.md", "LICENSE", "pyproject.toml"]
+include = ["src", "tests", "examples", "README.md", "CHANGELOG.md", "CITATION.cff", "LICENSE", "pyproject.toml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

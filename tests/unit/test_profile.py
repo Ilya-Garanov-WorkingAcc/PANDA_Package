@@ -1,5 +1,7 @@
 """Профиль плотности и его приведение к безразмерному виду."""
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 from pydantic import ValidationError
@@ -82,3 +84,31 @@ def test_mean_normalization_needs_particle_count() -> None:
 def test_profile_rejects_all_zero_density() -> None:
     with pytest.raises(ValidationError, match="профиль пуст"):
         make_profile(density_per_nm3=np.zeros(50))
+
+
+def test_saved_files_and_results_record_the_library_version(tmp_path: Path) -> None:
+    """Итоговый аудит: ни в результате, ни в файлах не было версии PANDA — для статьи это воспроизводимость."""
+    import json
+
+    import panda_md
+    from panda_md import SlitPore
+    from panda_md.synthetic.profiles import synthetic_profile
+
+    model = SlitPore(width_nm=8.0, length_nm=16.0).interface("roll")
+    profile = synthetic_profile(model, {"theta": 120.0, "delta": 0.03, "phi": 0.4}, density_bulk_per_nm3=30.0)
+    assert model.fit(profile, density_bulk_per_nm3=30.0).library_version == panda_md.__version__
+    for name in ("profile.npz", "profile.csv"):
+        profile.save(tmp_path / name)
+        assert DensityProfile.load(tmp_path / name) == profile
+    with np.load(tmp_path / "profile.npz") as archive:
+        assert json.loads(str(archive["metadata"]))["panda_version"] == panda_md.__version__
+    assert f'panda_version: "{panda_md.__version__}"' in (tmp_path / "profile.csv").read_text()
+
+
+def test_csv_metadata_without_space_and_column_mismatch(tmp_path: Path) -> None:
+    path = tmp_path / "profile.csv"
+    path.write_text('#frame: "liquid"\n#coordinate_nm,density_per_nm3\n-1,1\n0,2\n1,1\n')
+    assert DensityProfile.load(path).frame.value == "liquid"
+    path.write_text("# coordinate_nm,density_per_nm3\n-1,1,0.1\n0,2,0.1\n1,1,0.1\n")
+    with pytest.raises(InvalidProfileError, match="столбц"):
+        DensityProfile.load(path)
