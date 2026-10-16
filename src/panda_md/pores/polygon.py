@@ -12,6 +12,7 @@ from pydantic import Field, model_validator
 
 from panda_md.core.pore import Pore
 from panda_md.core.shape import PoreGeometry
+from panda_md.core.types import FloatArray
 
 
 class PolygonGeometry(PoreGeometry, ABC):
@@ -49,6 +50,10 @@ class PolygonPore(Pore, ABC):
         return self.geometry_class(
             pore_length_ratio=self.length_nm / self.side_nm, layer_width_ratio=self.layer_width_nm / self.side_nm
         )
+
+    def bin_cross_section_nm2(self, box_nm: FloatArray) -> float:
+        """Слой ящика L × ly, на который нормирован профиль (от ящика не зависит)."""
+        return self.length_nm * self.layer_width_nm
 
     def characteristic_size_nm(self) -> float:
         return self.side_nm

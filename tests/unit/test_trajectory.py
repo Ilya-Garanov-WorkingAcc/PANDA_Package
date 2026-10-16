@@ -1,4 +1,4 @@
-"""Источники кадров: массивы numpy и MDAnalysis."""
+"""Источники кадров (массивы numpy и MDAnalysis) и щель, построенная по атомам стенок."""
 
 from typing import Any
 
@@ -6,6 +6,8 @@ import numpy as np
 import pytest
 from pydantic import ValidationError
 
+from panda_md import SlitPore
+from panda_md.core.enums import Axis
 from panda_md.core.errors import InvalidTrajectoryError, MissingDependencyError
 from panda_md.trajectory.arrays import ArrayTrajectory
 from panda_md.trajectory.reader import MDATrajectory, load_trajectory
@@ -63,6 +65,24 @@ def test_frames_are_chosen_by_time_and_stride() -> None:
         trajectory.frame_indices(start="1 ns")
     with pytest.raises(ValueError, match="stride"):
         trajectory.frame_indices(stride=0)
+
+
+def test_slit_from_trajectory_finds_walls_through_box_boundary() -> None:
+    pore = SlitPore.from_trajectory(slit_trajectory(), walls="walls")
+    assert pore.width_nm == pytest.approx(BOX_NM[2] + WALL_LAYERS_NM[0] - WALL_LAYERS_NM[-1])
+    assert pore.length_nm == pytest.approx(6.0)
+    assert pore.base_aspect_ratio == pytest.approx(4.0 / 6.0)
+    assert pore.wall_selection == "walls"
+    assert pore.locate_center_nm(wall_atoms()[:, 2], BOX_NM[2]) == pytest.approx(
+        (WALL_LAYERS_NM[-1] + BOX_NM[2] + WALL_LAYERS_NM[0]) / 2.0
+    )
+
+
+def test_slit_from_trajectory_rejects_wrong_axes() -> None:
+    with pytest.raises(InvalidTrajectoryError, match="length_axis='x'"):
+        SlitPore.from_trajectory(slit_trajectory(), walls="walls", length_axis=Axis.Y)
+    with pytest.raises(InvalidTrajectoryError, match="совпадает"):
+        SlitPore.from_trajectory(slit_trajectory(), walls="walls", length_axis=Axis.Z)
 
 
 def memory_universe(dimensions: list[float]) -> Any:  # noqa: ANN401 — MDAnalysis без аннотаций типов
