@@ -9,7 +9,8 @@ blocks.mean("theta"), blocks.sem("theta")
 ```
 
 `panda.statistical_inefficiency(series)` estimates how many consecutive values are correlated (block-variance
-method); a value s means that blocks shorter than s samples underestimate the error.
+method); a value s means that blocks shorter than s samples underestimate the error. The plateau needs at
+least 60 values (three block lengths with 20 blocks each); a shorter series is an error, not «s = 1».
 
 ## Stability diagrams
 
@@ -23,7 +24,9 @@ diagram = stability_diagram(
 ```
 
 For every (L/H, φ) the feasible shape with the smallest capillary energy S_LV − cos θ·S_SL wins. Shapes without
-derived surface areas (doughnut and perforation of the slit) do not take part.
+derived surface areas (doughnut and perforation of the slit) do not take part. δ and φ must lie within the
+parameter bounds; at an angle whose regime has no formulas (θ < 90° for the slit) the diagram is undefined and
+an error is raised instead of a pore full of «layer».
 
 ## Accuracy of the method
 

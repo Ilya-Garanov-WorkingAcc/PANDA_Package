@@ -28,6 +28,7 @@ class Parameter(PandaModel):
     unit: Unit = Unit.DIMENSIONLESS
     symbol: str = ""
     description: str = ""
+    natural_lower_bound: bool = False  # нижняя граница физическая (δ = 0 — слоя нет): её достижение — не флаг
 
     @model_validator(mode="after")
     def _check_bounds_and_default(self) -> "Parameter":
@@ -61,6 +62,7 @@ WALL_LAYER_THICKNESS = Parameter(
     bounds=(0.0, 0.1),
     unit=Unit.PORE_SIZE,
     symbol="δ",
+    natural_lower_bound=True,
     description="толщина слоя у стенки, недоступного анализируемой жидкости",
 )
 VOLUME_FRACTION = Parameter(

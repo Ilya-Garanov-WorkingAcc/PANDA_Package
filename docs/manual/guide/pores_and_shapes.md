@@ -29,9 +29,9 @@ characteristic size, δ too.
 
 | Shape | Picture | θ regime | Symmetry axis |
 |-------|---------|----------|---------------|
-| `droplet` | spherical segment on one wall | 90°–180° | — |
+| `droplet` | spherical segment on one wall | 90°–180° | vertical, liquid centre |
 | `roll` | cylindrical segment bridging the walls | 90°–180° | horizontal, liquid centre |
-| `worm` | cylindrical segment on one wall | 90°–180° | — |
+| `worm` | cylindrical segment on one wall | 90°–180° | horizontal, liquid centre |
 | `doughnut` | liquid ring around a column of the other liquid | 90°–180° | vertical, liquid centre |
 | `perforation` | film between the walls with a hole | 90°–180° | vertical, centre of the hole |
 | `layer` | flat layer in the middle, no contact angle | — | — |

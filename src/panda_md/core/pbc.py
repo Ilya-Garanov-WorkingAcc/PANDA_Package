@@ -27,7 +27,8 @@ def circular_mean(values: FloatArray, period: float) -> float:
         raise InvalidTrajectoryError("центр по пустой выборке не определён")
     angles = 2.0 * math.pi * values / period
     mean_angle = math.atan2(-float(np.mean(np.sin(angles))), -float(np.mean(np.cos(angles)))) + math.pi
-    return period * mean_angle / (2.0 * math.pi)
+    center = (period * mean_angle / (2.0 * math.pi)) % period
+    return center if center < period else 0.0  # −1e−17 % L даёт ровно L
 
 
 def largest_gap(values: FloatArray, period: float) -> tuple[float, float]:

@@ -1,5 +1,6 @@
 """Графики: профиль и модель, фит по блокам, 2D-карта плотности, диаграмма устойчивости, точность метода."""
 
+import math
 from pathlib import Path
 
 import numpy as np
@@ -72,7 +73,9 @@ def plot_blocks(
     values = blocks.values(parameter)
     axes.plot(times_ns, values, "o-", label="блоки")
     mean = blocks.mean(parameter)
-    axes.axhline(mean, color="black", linewidth=1, label=f"среднее {mean:.4g} ± {blocks.sem(parameter):.2g}")
+    error = blocks.sem(parameter)
+    spread = f" ± {error:.2g}" if math.isfinite(error) else " (один блок: ошибка не оценена)"
+    axes.axhline(mean, color="black", linewidth=1, label=f"среднее {mean:.4g}{spread}")
     axes.set_xlabel("время, нс")
     axes.set_ylabel(parameter)
     axes.legend()
@@ -85,7 +88,8 @@ def plot_density_map(density: DensityMap, ax: Axes | None = None) -> Axes:
     mesh = axes.pcolormesh(density.length_edges_nm, density.height_edges_nm, density.density_per_nm3.T, shading="flat")
     axes.figure.colorbar(mesh, ax=axes, label="ρ, нм⁻³")
     axes.set_xlabel("x, нм" + (" (ось формы в 0)" if density.axis_centered else ""))
-    axes.set_ylabel(f"z, нм (система {density.frame.value})")
+    flipped = ", отражена z → −z" if density.flipped else ""
+    axes.set_ylabel(f"z, нм (система {density.frame.value}{flipped})")
     axes.set_aspect("equal")
     return axes
 

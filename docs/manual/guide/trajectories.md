@@ -24,12 +24,15 @@ profiles.save("water.npz")
 
 ## Centering
 
-- `pore` (default): 0 is the middle between the walls, found from `pore.wall_selection` in every frame (or a
+By default (`centering=None`) the profile is centred on the pore if its walls (`wall_selection`) or its
+centre (`pore_center_nm`) are known, otherwise on the liquid, with a warning.
+
+- `pore`: 0 is the middle between the walls, found from `pore.wall_selection` in every frame (or a
   fixed `pore_center_nm`); bins are aligned with the walls. The profile is flipped z → −z if the liquid sits at
   the upper wall (`orientation="keep"` disables it).
 - `liquid`: 0 is the centre of the selected atoms (circular mean across the box); bins cover the whole box.
 
-Shapes with a symmetry axis (roll, doughnut, perforation) can also be centred along the walls; this matters
+Shapes with a symmetry axis (droplet, worm, roll, doughnut, perforation) can also be centred along the walls; this matters
 for 2D maps, not for the 1D profile:
 
 ```python

@@ -5,6 +5,8 @@ import sys
 from importlib.metadata import version
 from importlib.resources import files
 
+import pytest
+
 import panda_md
 
 
@@ -36,3 +38,30 @@ def test_analysis_is_public() -> None:
 def test_three_dimensional_shapes_are_public() -> None:
     expected = {"AxisLocator", "AxisOrientation", "DensityMap", "SymmetryAxis", "density_map", "synthetic_trajectory"}
     assert expected <= set(panda_md.__all__)
+
+
+def test_common_entry_points_are_exported_from_the_package() -> None:
+    """Итоговый аудит: диаграмма, синтетика и классы ошибок были доступны только по глубоким путям."""
+    import panda_md
+
+    for name in (
+        "stability_diagram",
+        "StabilityDiagram",
+        "synthetic_profile",
+        "InvalidProfileError",
+        "ProfileMismatchError",
+        "UnsupportedRegimeError",
+        "NotDerivedError",
+        "InfeasibleParametersError",
+        "MissingDependencyError",
+        "InvalidTrajectoryError",
+    ):
+        assert hasattr(panda_md, name) and name in panda_md.__all__, name
+
+
+def test_cli_prints_the_version(capsys: pytest.CaptureFixture[str]) -> None:
+    import panda_md
+    from panda_md.cli import main
+
+    assert main(["--version"]) == 0
+    assert panda_md.__version__ in capsys.readouterr().out

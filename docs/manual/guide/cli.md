@@ -1,6 +1,6 @@
 # Command line
 
-`panda --help` and `panda COMMAND --help` list every option. The command line builds the same `FitSpec` and
+`panda --help` and `panda COMMAND --help` list every option; `panda --version` prints the version. The command line builds the same `FitSpec` and
 calls the same functions as the Python API.
 
 | Command | Does |
@@ -14,7 +14,8 @@ calls the same functions as the Python API.
 
 `--pore-file pore.json` (a JSON of the pore fields, optionally with `"type"`) and/or `-g FIELD=VALUE`
 (`-g width_nm=8 -g length_nm=16`). Without dimensions `panda profile` measures the slit from the wall atoms
-(`--walls "selection"`) and `--pore-output pore.json` saves it for `panda fit`. `--walls z1,z2` fixes the wall
+(`--walls "selection"`) and `--pore-output pore.json` saves it for `panda fit`. Without walls and without
+`--center-by` the profile is centred on the liquid (with a warning). `--walls z1,z2` fixes the wall
 positions instead (the pore dimensions are then required).
 
 ## Parameters

@@ -53,6 +53,7 @@ from panda_md.core.errors import PandaError
 from panda_md.core.parameters import PROFILE_SHIFT
 from panda_md.core.pore import Pore
 from panda_md.core.spec import FitSpec
+from panda_md.core.version import library_version
 from panda_md.pores.registry import pore_class, pore_types
 from panda_md.trajectory.density import DEFAULT_BIN_COUNT
 
@@ -86,6 +87,21 @@ GeometryOption = Annotated[
 
 def _echo(text: str) -> None:
     typer.echo(text)
+
+
+def _print_version(value: bool) -> None:
+    if value:
+        typer.echo(f"panda-md {library_version()}")
+        raise typer.Exit()
+
+
+@app.callback()
+def _options(
+    version: Annotated[
+        bool, typer.Option("--version", callback=_print_version, is_eager=True, help="версия panda-md")
+    ] = False,
+) -> None:
+    """PANDA: краевой угол и форма интерфейса жидкости в поре по профилю плотности МД."""
 
 
 @app.command()

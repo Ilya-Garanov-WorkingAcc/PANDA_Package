@@ -169,7 +169,11 @@ class PandaModel(BaseModel):
         """Копия; с update — заново через проверку модели (pydantic по умолчанию её пропускает)."""
         if not update:
             return super().model_copy(deep=deep)
-        values = {name: getattr(self, name) for name in type(self).model_fields}
+        values = {field.alias or name: getattr(self, name) for name, field in type(self).model_fields.items()}
+        update = {
+            (type(self).model_fields[name].alias if name in type(self).model_fields else None) or name: value
+            for name, value in update.items()
+        }
         return self.model_validate({**values, **update})
 
 

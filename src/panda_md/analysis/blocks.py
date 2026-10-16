@@ -15,6 +15,8 @@ from panda_md.core.result import FitResult
 from panda_md.core.spec import FitSpec
 from panda_md.core.types import Array1D, FloatArray, PandaModel
 
+SAME_VALUE_TOLERANCE = 1e-12  # относительная разница значений, которую считаем шумом float
+MIN_BLOCKS_FOR_SPREAD = 2  # разброс по одному блоку не определён
 MIN_SERIES_LENGTH = 4  # статистическую неэффективность по меньшему ряду не оценить
 MIN_BLOCKS = 20  # меньше блоков — дисперсия средних по блокам слишком шумная для плато
 MIN_PLATEAU_LENGTHS = 3  # плато — среднее по последней трети длин: меньше трёх надёжных длин — не плато
@@ -45,7 +47,12 @@ class FitResultSet(PandaModel):
 
     def std(self, name: str) -> float:
         """Разброс по блокам; при одном блоке не определён (nan)."""
-        return float(np.std(self.values(name), ddof=1)) if len(self.results) > 1 else math.nan
+        values = self.values(name)
+        if len(values) < MIN_BLOCKS_FOR_SPREAD:
+            return math.nan
+        if np.ptp(values) <= SAME_VALUE_TOLERANCE * max(1.0, float(np.max(np.abs(values)))):
+            return 0.0  # одинаковое во всех блоках значение: без шума float вида 2e-17
+        return float(np.std(values, ddof=1))
 
     def sem(self, name: str) -> float:
         """Ошибка среднего: std / √(число блоков) — верна, если блоки длиннее времени корреляции."""

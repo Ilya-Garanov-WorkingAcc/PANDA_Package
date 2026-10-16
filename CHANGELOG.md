@@ -24,13 +24,23 @@ Kopanichuk, Colloids Surf. A 708 (2025) 135994.
 - Synthetic profiles and point clouds for tests and validation; accuracy study of the method
   (`validation/REPORT.md`).
 - Plots (extra `plot`, matplotlib): fit, blocks, density map, stability diagram, accuracy.
-- Command line `panda`: `shapes`, `profile`, `fit`, `run CONFIG.toml`; exit codes 0 / 1 / 2.
+- Command line `panda`: `shapes`, `profile`, `fit`, `run CONFIG.toml`, `--version`; exit codes 0 / 1 / 2.
+- Reproducibility: the PANDA version is stored in every `FitResult` and in saved `.npz` / `.csv` files.
+- Shape comparison marks shapes whose losses differ by less than 2 % as indistinguishable by the profile.
 
 ### Not yet available
 
 - Formulas of the wetting regime (θ < 90°) for the slit shapes; the fit flags a result pressed to 90°.
 - Surface areas of the doughnut and the perforation (they do not enter stability diagrams).
 - Cylindrical pore; 3D shapes (`contains`) of the triangular and square pores; wall detection in polygonal pores.
+
+### Known limitations
+
+- At exactly the boundary angle between two shapes of a polygonal pore (135° in the square, 120° in the
+  triangle) neither neighbouring shape exists: the existence conditions of the source formulas are strict.
+- The lower volume-fraction limit of the slit perforation in the published formula is a spurious root in
+  narrow cells (k·l < π/4 at θ = 180°, δ = 0); PANDA finds the limit numerically there.
+- Near θ = 180° the profile depends weakly on θ: report the spread over time blocks (`fit_blocks`).
 
 ## [0.0.1] — 2026-10-02
 

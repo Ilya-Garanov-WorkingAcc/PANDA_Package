@@ -93,7 +93,7 @@ def test_map_needs_a_shape_with_an_axis_and_survives_saving(tmp_path: Path) -> N
     )
     found = SlitPore.from_trajectory(trajectory, walls="walls")
     with pytest.raises(NotDerivedError, match="оси симметрии"):
-        density_map(trajectory, found, "liquid", shape="droplet")
+        density_map(trajectory, found, "liquid", shape="layer")
     density = density_map(trajectory, found, "liquid", shape="roll", bins=(10, 12))
     density.save(tmp_path / "map.npz")
     assert DensityMap.load(tmp_path / "map.npz").model_dump_json() == density.model_dump_json()
@@ -222,4 +222,16 @@ def test_map_with_liquid_centering_per_molecule_and_axis_window() -> None:
     sliced = density_map(molecular, found, "liquid", shape="doughnut", bins=(40, 40), width_window_nm=0.8)
     assert sliced.density_per_nm3[20, 20] > 1.3 * whole.density_per_nm3[20, 20]  # срез через ось — без усреднения
     with pytest.raises(NotDerivedError, match="оси"):
-        density_map(molecular, found, "liquid", shape="worm", bins=(10, 10))
+        density_map(molecular, found, "liquid", shape="layer", bins=(10, 10))
+
+
+def test_droplet_map_with_axial_centering_is_symmetric() -> None:
+    """Итоговый аудит: у капли не было оси — карту капли нельзя было совместить по кадрам."""
+    droplet = PORE.interface("droplet")
+    trajectory = synthetic_trajectory(
+        droplet, {"theta": 130.0, "delta": 0.03, "phi": 0.05}, density_bulk_per_nm3=DENSITY_BULK, frame_count=20, seed=5
+    )
+    found = SlitPore.from_trajectory(trajectory, walls="walls")
+    density = density_map(trajectory, found, "liquid", shape="droplet", bins=(40, 20)).density_per_nm3
+    np.testing.assert_allclose(density, density[::-1, :], atol=0.35 * DENSITY_BULK)  # симметрия x → −x
+    assert float(np.max(density[18:22, :])) > 0.6 * DENSITY_BULK  # у оси — жидкость, а не размазанное облако

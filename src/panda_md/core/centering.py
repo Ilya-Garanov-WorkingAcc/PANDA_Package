@@ -21,7 +21,7 @@ from panda_md.core.types import FloatArray, PandaModel
 
 LATERAL_BINS = 64  # бинов гистограммы вдоль стороны ячейки
 SMOOTHING_FRACTION = 1.0 / 16.0  # σ сглаживания в долях стороны ячейки
-REFINEMENT_SIGMAS = 2.0  # уточнение — по окну ± 2σ вокруг экстремума
+REGION_LEVEL = 0.5  # граница области вокруг экстремума — половина его высоты (по ширине на полувысоте)
 WEAK_CONTRAST = 0.3  # перепад сглаженной гистограммы меньше 30 % среднего — форма почти однородна
 
 
@@ -45,12 +45,25 @@ def _smooth_periodic(counts: FloatArray, sigma_bins: float) -> FloatArray:
     return result
 
 
-def _refined_center(deviation: FloatArray, index: int, period: float) -> float:
-    """Центр вдоль одной оси: среднее с весами (положительное отклонение) в окне ± 2σ вокруг экстремума."""
+def _region_center(deviation: FloatArray, index: int, period: float) -> float | None:
+    """Центр вдоль одной оси: среднее с весами по связной области выше половины экстремума вокруг index.
+    Для симметричной формы область симметрична, и её середина — ось при любой ширине формы: и у узкой ямки
+    (маленькое отверстие), и у широкого плато (форма в полъячейки), где экстремум стоит в случайной точке, а окно
+    фиксированной ширины вокруг него ось не находило (итоговый аудит). None — область занимает всю ось (строка
+    не пересекает форму), центр по ней не определён.
+    """
     size = deviation.size
-    half_window = max(1, round(REFINEMENT_SIGMAS * SMOOTHING_FRACTION * size))
-    offsets = np.arange(-half_window, half_window + 1)
-    weights = np.clip(deviation[(index + offsets) % size], 0.0, None)
+    level = REGION_LEVEL * float(deviation[index])  # область — выше половины экстремума: шум вдали в неё не входит
+    left = 0
+    while left < size - 1 and deviation[(index - left - 1) % size] > level:
+        left += 1
+    right = 0
+    while left + right < size - 1 and deviation[(index + right + 1) % size] > level:
+        right += 1
+    if left + right >= size - 1:
+        return None
+    offsets = np.arange(-left, right + 1)
+    weights = np.clip(deviation[(index + offsets) % size] - level, 0.0, None)
     total = float(np.sum(weights))
     shift = float(np.sum(weights * offsets)) / total if total > 0.0 else 0.0
     return ((index + 0.5 + shift) * period / size) % period
@@ -58,8 +71,10 @@ def _refined_center(deviation: FloatArray, index: int, period: float) -> float:
 
 def structure_center(values: FloatArray, periods: FloatArray) -> tuple[FloatArray, float]:
     """Центр жидкости (по каждой оси, в [0, L)) и перепад сглаженной гистограммы, делённый на среднее.
-
-    values — координаты частиц (n × d, d = 1 или 2), periods — стороны ячейки (d).
+    values — координаты частиц (n × d, d = 1 или 2), periods — стороны ячейки (d). Экстремум сглаженной
+    гистограммы — избыток (жидкость) или недостаток (пустота: перфорация, жидкость почти во всей ячейке); по каждой
+    оси центр — середина связной области отклонения вдоль строки через экстремум, а если строка целиком в области,
+    — середина области маргинального распределения по этой оси. Центр пустоты переводится в центр жидкости (+ L/2).
     """
     dimensions = values.shape[1]
     counts, _ = np.histogramdd(
@@ -75,9 +90,16 @@ def structure_center(values: FloatArray, periods: FloatArray) -> tuple[FloatArra
     peak = np.unravel_index(int(np.argmax(deviation)), deviation.shape)
     center = np.empty(dimensions)
     for axis_index in range(dimensions):
+        period = float(periods[axis_index])
         index: list[int | slice] = [int(position) for position in peak]
         index[axis_index] = slice(None)
-        center[axis_index] = _refined_center(deviation[tuple(index)], int(peak[axis_index]), float(periods[axis_index]))
+        found = _region_center(deviation[tuple(index)], int(peak[axis_index]), period)
+        if found is None:
+            other_axes = tuple(axis for axis in range(dimensions) if axis != axis_index)
+            marginal = deviation.sum(axis=other_axes)
+            marginal = marginal - float(np.mean(marginal))
+            found = _region_center(marginal, int(np.argmax(marginal)), period)
+        center[axis_index] = found if found is not None else 0.0
     if not liquid_peak:
         center = np.mod(center + 0.5 * periods, periods)  # центр пустоты → центр жидкости
     return center, max(excess, deficit) / mean

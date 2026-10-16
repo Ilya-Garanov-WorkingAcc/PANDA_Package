@@ -42,12 +42,16 @@ best results of the other regimes are kept in `result.alternatives`.
 |------|---------|
 | `success = False` | the optimizer did not converge |
 | `feasible = False` | the best point is outside the shape's existence domain |
-| `at_bounds` | a free parameter is at its bound — the true value may lie beyond |
+| `at_bounds` | a free parameter is at its bound — the true value may lie beyond (δ = 0 is a physical bound, not flagged) |
 | `at_regime_boundary` | θ is pressed to 90°: the liquid probably wets the walls (no formulas for θ < 90°) |
 
 ## Choosing the shape
 
 `panda.compare_shapes(pore, profile, spec)` fits every shape with the same settings and sorts them by loss;
 shapes that cannot hold the data (no feasible start, no profile formula) are listed with the reason. Shapes
-whose losses differ by less than the noise of the profile cannot be told apart by the profile alone — check
-the 2D density map (`density_map`) and the stability diagram before trusting the ranking.
+whose losses differ by less than 2 % are marked with «≈» (`comparison.indistinguishable`) and a warning is
+issued: the profile alone cannot tell them apart (a roll and a perforation at the same φ give nearly the same
+profile) — check the 2D density map (`density_map`) and the stability diagram before trusting the ranking.
+
+With `normalization="mean"` the volume fraction cannot be taken from the data (that needs ρ_bulk): give
+`density_bulk_per_nm3`, fix φ or free it.

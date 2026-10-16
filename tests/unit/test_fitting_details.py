@@ -147,3 +147,27 @@ def test_volume_fraction_from_histogram_is_exact_on_a_coarse_grid() -> None:
     result = worm.fit(profile, density_bulk_per_nm3=30.0)
     assert result.volume_fraction_from_data == pytest.approx(0.3, abs=1e-4)  # синтетика: 16 точек на бин
     assert result.values["theta"] == pytest.approx(120.0, abs=0.5)
+
+
+def test_wall_layer_at_zero_is_a_physical_bound_not_a_problem() -> None:
+    """Итоговый аудит: δ = 0 (слоя нет) давало флаг «у границы delta» и код 2 у panda fit."""
+    from panda_md import SlitPore
+    from panda_md.synthetic.profiles import synthetic_profile
+
+    roll = SlitPore(width_nm=8.0, length_nm=16.0).interface("roll")
+    profile = synthetic_profile(roll, {"theta": 120.0, "delta": 0.0, "phi": 0.4}, density_bulk_per_nm3=30.0)
+    assert "delta" not in roll.fit(profile, density_bulk_per_nm3=30.0).at_bounds
+    narrowed = roll.fit(profile, density_bulk_per_nm3=30.0, bounds={"delta": (0.01, 0.1)})
+    assert "delta" in narrowed.at_bounds  # граница, суженная пользователем, — по-прежнему флаг
+
+
+def test_barrier_stays_above_feasible_loss_for_mean_normalization_and_small_phi() -> None:
+    """Итоговый аудит: нормировка mean, L2, φ = 1e−4 — допустимая ошибка 83.9 при барьере 22.9."""
+    worm = SLIT.interface("worm")
+    profile = synthetic_profile(worm, {"theta": 120.0, "delta": 0.0, "phi": 0.1}, density_bulk_per_nm3=DENSITY_BULK)
+    reduced = SLIT.reduce(profile, Normalization.MEAN, None)
+    free_spec = worm.parameters.resolve(["theta"], {"delta": 0.0, "phi": 1e-4}, {}, {}, {})
+    objective = _Objective(worm, free_spec, reduced, np.ones(reduced.coordinate.shape, dtype=bool), LossFunction.L2)
+    feasible_loss = objective(np.array([np.radians(91.0)]))
+    assert worm.is_feasible(theta=91.0, delta=0.0, phi=1e-4)
+    assert feasible_loss < objective.barrier_level

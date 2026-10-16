@@ -20,6 +20,7 @@ from panda_md.core.trajectory import Trajectory
 from panda_md.core.types import FloatArray
 
 SECOND_GAP_WARNING_NM = 1.0  # внутри подложек промежутки < 0.5 нм (графит, SOLD, кальцит); второй шире 1 нм — вакуум?
+ASPECT_RATIO_TOLERANCE = 1e-6  # рёбра основания, равные с точностью до шума float, — квадрат
 SLIT_HALF_WIDTH = 0.5  # стенки щели в безразмерной координате: z = ±0.5
 
 
@@ -140,11 +141,12 @@ class SlitPore(Pore):
         (other_axis,) = (axis for axis in AXIS_ORDER if axis not in (length_axis, normal_axis))
         length = float(box[length_axis.column])
         aspect_ratio = float(box[other_axis.column]) / length
-        if aspect_ratio > 1.0:
+        if aspect_ratio > 1.0 + ASPECT_RATIO_TOLERANCE:
             raise InvalidTrajectoryError(
                 f"ребро {other_axis.value} ({box[other_axis.column]:.3f} нм) длиннее {length_axis.value} "
                 f"({length:.3f} нм): L — длинная сторона основания, задай length_axis={other_axis.value!r}"
             )
+        aspect_ratio = min(aspect_ratio, 1.0)  # почти квадратное основание (шум NPT) — квадратное
         width = end - start - 2.0 * wall_offset_nm
         if width <= 0.0:
             raise InvalidTrajectoryError(

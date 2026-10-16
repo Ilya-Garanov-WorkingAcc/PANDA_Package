@@ -202,3 +202,31 @@ def test_only_plotting_imports_matplotlib() -> None:
         if path.parent.name != "plotting" and re.search(r"^\s*(import|from) matplotlib", path.read_text(), re.M)
     ]
     assert offenders == []
+
+
+def test_plot_labels_for_flipped_map_and_single_block() -> None:
+    """Итоговый аудит: отражённая карта не отмечалась; при одном блоке легенда «± nan»."""
+    import matplotlib.pyplot as plt
+
+    from panda_md.plotting import plot_blocks, plot_density_map
+    from panda_md.trajectory.maps import DensityMap
+
+    density = DensityMap(
+        length_edges_nm=[0.0, 1.0, 2.0], height_edges_nm=[-1.0, 0.0, 1.0], density_per_nm3=[[1.0, 2.0], [3.0, 4.0]],
+        frame="pore", axis_centered=False, flipped=True, frame_count=1, selection="liquid",
+    )  # fmt: skip
+    assert "отражена" in plot_density_map(density).get_ylabel()
+    model = SlitPore(width_nm=8.0, length_nm=16.0).interface("roll")
+    profile = synthetic_profile(model, {"theta": 120.0, "delta": 0.03, "phi": 0.4}, density_bulk_per_nm3=30.0)
+    from panda_md.core.profile import ProfileSet
+
+    one_block = ProfileSet(
+        bin_edges_nm=np.linspace(-4.0, 4.0, profile.coordinate_nm.size + 1),
+        block_densities_per_nm3=profile.density_per_nm3[np.newaxis],
+        block_start_ps=[0.0], block_stop_ps=[1000.0], block_frame_counts=(10,), block_particle_counts=[1.0],
+        frame="pore", centering="pore", selection="liquid", pore_volume_nm3=2048.0,
+    )  # fmt: skip
+    blocks = fit_blocks(model, one_block, FitSpec(density_bulk_per_nm3=30.0))
+    labels = plot_blocks(blocks).get_legend_handles_labels()[1]
+    assert not any("nan" in label for label in labels)
+    plt.close("all")

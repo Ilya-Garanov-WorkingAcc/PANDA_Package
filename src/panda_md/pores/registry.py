@@ -1,6 +1,6 @@
 """Типы пор по имени: для командной строки и файлов настроек."""
 
-from panda_md.core.errors import UnknownPoreError
+from panda_md.core.errors import PandaError, UnknownPoreError
 from panda_md.core.pore import Pore
 from panda_md.pores.slit import SlitPore
 from panda_md.pores.square import SquarePore
@@ -10,7 +10,12 @@ PORE_TYPES: tuple[type[Pore], ...] = (SlitPore, SquarePore, TrianglePore)  # н�
 
 
 def pore_types() -> dict[str, type[Pore]]:
-    return {pore_class.name: pore_class for pore_class in PORE_TYPES}
+    types: dict[str, type[Pore]] = {}
+    for pore_type in PORE_TYPES:
+        if pore_type.name in types:
+            raise PandaError(f"два типа поры с именем {pore_type.name!r}: {types[pore_type.name]} и {pore_type}")
+        types[pore_type.name] = pore_type
+    return types
 
 
 def pore_class(name: str) -> type[Pore]:

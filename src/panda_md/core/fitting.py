@@ -35,7 +35,8 @@ MIN_WINDOW_POINTS = 10  # меньше точек в окне фита — ош�
 IDENTIFIABILITY_STEP_FRACTIONS = (1e-3, 1e-2, 5e-2)
 IDENTIFIABILITY_TOLERANCE = 1e-9  # относительное изменение профиля, ниже которого параметр «не влияет»
 BOUND_PROXIMITY_FRACTION = 1e-3  # ближе этой доли ширины границ — параметр «у границы»
-BARRIER_LEVEL_FACTOR = 10.0  # уровень барьера: во столько раз выше ошибки нулевой модели (+1)
+MEAN_PHI_FLOOR = 1e-3  # нормировка mean: оценка барьера при φ не меньше этой (при φ → 0 она вырождена)
+BARRIER_LEVEL_FACTOR = 10.0  # уровень барьера: во столько раз выше верхней оценки допустимой ошибки (+1)
 BARRIER_SLOPE = 100.0  # наклон барьера по величине выхода φ за границы существования
 COVERAGE_TOLERANCE = 0.05  # данные должны доходить до стенок с точностью 5 % размера поры
 VOLUME_TOLERANCE = 0.01  # объём поры профиля и поры фита: расхождение больше 1 % — другая пора
@@ -77,8 +78,29 @@ class _Objective:
         self.frame = reduced.frame
         self.normalization = reduced.normalization
         self.loss_function = loss_function
-        self.barrier_level = BARRIER_LEVEL_FACTOR * (self.loss(np.zeros_like(self.data)) + 1.0)
+        self.barrier_level = BARRIER_LEVEL_FACTOR * (self._feasible_loss_bound() + 1.0)
         self.evaluation_count = 0
+
+    def _feasible_loss_bound(self) -> float:
+        """Верхняя оценка ошибки любой допустимой точки: |модель − данные| ≤ |модель| + |данные|.
+        Модель ρ/ρ_bulk ≤ 1; в нормировке mean она делится на φ — оценка берётся при наименьшей достижимой φ
+        (но не меньше MEAN_PHI_FLOOR: при φ → 0 нормировка mean вырождена).
+        """
+        largest_model = 1.0
+        if self.normalization is Normalization.MEAN:
+            largest_model = 1.0 / max(self._smallest_volume_fraction(), MEAN_PHI_FLOOR)
+        worst = np.abs(self.data) + largest_model
+        if self.loss_function is LossFunction.L1:
+            return float(np.mean(worst))
+        return float(np.mean(worst**2))
+
+    def _smallest_volume_fraction(self) -> float:
+        spec = self.free_spec
+        if VOLUME_FRACTION_NAME in spec.fixed_values:
+            return spec.fixed_values[VOLUME_FRACTION_NAME]
+        if VOLUME_FRACTION_NAME in spec.free_names:
+            return float(spec.lower_bounds[spec.free_names.index(VOLUME_FRACTION_NAME)])
+        return MEAN_PHI_FLOOR
 
     def loss(self, curve: FloatArray) -> float:
         residual = curve - self.data
@@ -387,7 +409,11 @@ def _boundary_flags(outcome: _RegimeOutcome) -> tuple[tuple[str, ...], bool]:
         lower, upper = free_spec.lower_bounds[index], free_spec.upper_bounds[index]
         tolerance = BOUND_PROXIMITY_FRACTION * (upper - lower)
         value = outcome.optimum.position[index]
+        parameter = free_spec.parameters[name]
+        natural_lower = parameter.to_internal(parameter.bounds[0]) if parameter.natural_lower_bound else None
         for edge in (lower, upper):
+            if edge == lower and natural_lower is not None and math.isclose(edge, natural_lower):
+                continue  # физическая граница (δ = 0): значение на ней — ответ, а не упор оптимизатора
             if abs(value - edge) <= tolerance:
                 if name == CONTACT_ANGLE_NAME and any(math.isclose(edge, regime_edge) for regime_edge in regime_edges):
                     at_regime_boundary = True

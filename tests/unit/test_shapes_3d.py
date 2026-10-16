@@ -91,7 +91,10 @@ def test_shapes_declare_their_symmetry_axes() -> None:
     assert axes["roll"] == SymmetryAxis(orientation=AxisOrientation.HORIZONTAL, locate=AxisLocator.LIQUID_CENTER)
     assert axes["doughnut"] == SymmetryAxis(orientation=AxisOrientation.VERTICAL, locate=AxisLocator.LIQUID_CENTER)
     assert axes["perforation"] == SymmetryAxis(orientation=AxisOrientation.VERTICAL, locate=AxisLocator.VOID_CENTER)
-    assert axes["droplet"] is None and axes["worm"] is None and axes["layer"] is None
+    # итоговый аудит: капля осесимметрична, как пончик, у червя горизонтальная ось, как у валика
+    assert axes["droplet"] == SymmetryAxis(orientation=AxisOrientation.VERTICAL, locate=AxisLocator.LIQUID_CENTER)
+    assert axes["worm"] == SymmetryAxis(orientation=AxisOrientation.HORIZONTAL, locate=AxisLocator.LIQUID_CENTER)
+    assert axes["layer"] is None
 
 
 def test_axis_position_through_box_boundary() -> None:
@@ -117,3 +120,31 @@ def test_polygon_shapes_have_no_3d_form_yet() -> None:
         droplet.shape.contains(
             np.zeros((1, 3)), square.geometry(), droplet.internal_values({"theta": 140.0, "delta": 0.0, "phi": 0.05})
         )
+
+
+@pytest.mark.parametrize("radius_nm", [1.0, 2.0, 2.5, 3.0, 3.5])
+def test_axis_of_a_wide_disk_is_found_within_two_bins(radius_nm: float) -> None:
+    """Итоговый аудит: у формы в половину ячейки сглаженная гистограмма — плато, и ось уходила на 0.5–1.5 нм."""
+    generator = np.random.default_rng(int(radius_nm * 10))
+    periods = np.array([8.0, 8.0])
+    vertical = SymmetryAxis(orientation=AxisOrientation.VERTICAL, locate=AxisLocator.LIQUID_CENTER)
+    errors = []
+    for _ in range(5):
+        center = generator.uniform(0.0, 8.0, size=2)
+        radius = radius_nm * np.sqrt(generator.uniform(0.0, 1.0, 20000))
+        angle = generator.uniform(0.0, 2.0 * np.pi, 20000)
+        points = np.mod(center + np.column_stack([radius * np.cos(angle), radius * np.sin(angle)]), periods)
+        found = axis_position(points, periods, vertical)
+        errors.append(float(np.max(np.abs((found - center + 4.0) % 8.0 - 4.0))))
+    assert max(errors) < 0.25  # два бина гистограммы (8 нм / 64); до исправления — 0.5–1.5 нм
+
+
+def test_axis_of_a_half_cell_band_is_found() -> None:
+    generator = np.random.default_rng(1)
+    periods = np.array([8.0, 4.0])
+    horizontal = SymmetryAxis(orientation=AxisOrientation.HORIZONTAL, locate=AxisLocator.LIQUID_CENTER)
+    for center in (1.0, 3.7, 6.2):
+        along = np.mod(center + generator.uniform(-2.0, 2.0, 20000), 8.0)  # полоса 4 нм из 8
+        points = np.column_stack([along, generator.uniform(0.0, 4.0, 20000)])
+        found = axis_position(points, periods, horizontal)[0]
+        assert abs((found - center + 4.0) % 8.0 - 4.0) < 0.15

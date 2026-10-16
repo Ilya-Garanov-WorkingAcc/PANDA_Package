@@ -11,7 +11,8 @@ from typing import ClassVar
 
 import numpy as np
 
-from panda_md.core.enums import ParameterName, Regime
+from panda_md.core.centering import SymmetryAxis
+from panda_md.core.enums import AxisLocator, AxisOrientation, ParameterName, Regime
 from panda_md.core.parameters import CONTACT_ANGLE, VOLUME_FRACTION, WALL_LAYER_THICKNESS, Parameter, ParameterValues
 from panda_md.core.shape import SurfaceTerms
 from panda_md.core.types import FloatArray
@@ -24,6 +25,9 @@ from panda_md.pores.slit.shape import CrossSection, SlitShape
 class SlitWorm(SlitShape):
     name: ClassVar[str] = "worm"
     cross_section: ClassVar[CrossSection] = CrossSection.BAND
+    symmetry_axis: ClassVar[SymmetryAxis | None] = SymmetryAxis(
+        orientation=AxisOrientation.HORIZONTAL, locate=AxisLocator.LIQUID_CENTER
+    )
     parameters: ClassVar[tuple[Parameter, ...]] = (CONTACT_ANGLE, WALL_LAYER_THICKNESS, VOLUME_FRACTION)
     regimes: ClassVar[dict[Regime, tuple[float, float]]] = {Regime.NON_WETTING: (90.0, 180.0)}
 
