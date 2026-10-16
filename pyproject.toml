@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "panda-md"
-version = "0.0.1"
+version = "0.1.0"
 description = "PANDA (Predicting Angle from Nanoscale Density Analysis): contact angle and interface shape of confined liquids from 1D density profiles of molecular simulations"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -13,7 +13,7 @@ license-files = ["LICENSE"]
 authors = [{ name = "Ilya Garanov" }]
 keywords = ["molecular dynamics", "contact angle", "wetting", "nanopores", "density profile"]
 classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
+    "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
@@ -28,10 +28,25 @@ classifiers = [
 dependencies = [
     "numpy>=1.26",
     "scipy>=1.11",
+    "pydantic>=2.6",
+    "typer>=0.27.2",  # typer.TyperException — с 0.27.2 (click встроен в typer с 0.26)
+    "tomli>=2 ; python_full_version < '3.11'",
+    "typing-extensions>=4.6",
 ]
+
+[project.scripts]
+panda = "panda_md.cli:console"
 
 [project.urls]
 Repository = "https://github.com/Ilya-Garanov-WorkingAcc/PANDA_2.0"
+
+[project.optional-dependencies]
+md = [
+    "mdanalysis>=2.7",
+]
+plot = [
+    "matplotlib>=3.8",
+]
 
 # Группы зависимостей (PEP 735) — в опубликованный пакет не попадают.
 #   uv sync: группа dev (всё для разработки)
@@ -51,16 +66,21 @@ dev = [
     { include-group = "test" },
     { include-group = "lint" },
 ]
+docs = [
+    "mkdocs>=1.6,<2",  # mkdocs-material несовместим с MkDocs 2.0
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.26",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/panda_md"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src", "tests", "README.md", "LICENSE", "pyproject.toml"]
+include = ["/src", "/tests", "/examples", "/README.md", "/CHANGELOG.md", "/CITATION.cff", "/LICENSE", "/pyproject.toml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-ra --strict-markers --strict-config"
+addopts = "-ra --strict-markers --strict-config --import-mode=importlib"
 markers = ["slow: долгие тесты (синтетическая валидация, МД)"]
 
 [tool.black]
@@ -78,8 +98,20 @@ extend-exclude = ["PANDA", "smoke", "docs", "*.md"]
 select = ["E", "F", "W", "I", "UP", "B", "SIM", "ANN", "RUF", "NPY"]
 ignore = ["RUF001", "RUF002", "RUF003"]  # кириллица в строках и комментариях
 
+[tool.ruff.lint.per-file-ignores]
+"examples/build_test_notebook.py" = ["E501"]  # таблицы markdown-ячеек ноутбука
+
 [tool.mypy]
 python_version = "3.10"
 strict = true
-files = ["src", "tests"]
+files = ["src", "tests", "validation"]
 warn_unreachable = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["MDAnalysis", "MDAnalysis.*"]  # у MDAnalysis нет аннотаций типов
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["tomli"]  # нужен только на Python 3.10; mypy проверяет ветку 3.10, а окружение разработки новее
+ignore_missing_imports = true

@@ -1,11 +1,11 @@
 .DEFAULT_GOAL := help
-.PHONY: help run push lint deps install test test-env lint-check typecheck check build wheel-check clean
+.PHONY: help run push lint deps install test test-env lint-check typecheck check build wheel-check docs clean
 
 help:  ## список команд
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
 
-run:
-	uv run -m src.main
+run:  ## командная строка panda: make run args="shapes --pore slit"
+	uv run panda $(args)
 push:
 	git add .
 	@if [ -z "$(msg)" ]; then \
@@ -21,14 +21,14 @@ lint:  ## black + ruff с автоисправлением
 deps:
 	sed -i 's/>/~/g' pyproject.toml
 
-install:  ## окружение разработки (.venv): пакет + группы test и lint
-	uv sync
+install:  ## окружение разработки (.venv): пакет с [md] + группы test и lint
+	uv sync --all-extras
 
 test:  ## тесты
 	uv run pytest
 
-test-env:  ## тесты в отдельном чистом окружении: только пакет и группа test
-	UV_PROJECT_ENVIRONMENT=.venv-test uv sync --no-default-groups --group test
+test-env:  ## тесты в отдельном чистом окружении: только пакет с [md, plot] и группа test
+	UV_PROJECT_ENVIRONMENT=.venv-test uv sync --no-default-groups --group test --extra md --extra plot
 	UV_PROJECT_ENVIRONMENT=.venv-test uv run --no-sync pytest
 
 lint-check:  ## black + ruff без изменения файлов (как в CI)
@@ -43,8 +43,12 @@ check: lint-check typecheck test  ## всё, что проверяет CI
 build: clean  ## собрать sdist и wheel в dist/
 	uv build
 
-wheel-check: build  ## установить собранный wheel в чистое окружение и импортировать
+wheel-check: build  ## установить собранный wheel в чистое окружение, импортировать и запустить panda
 	uv run --isolated --no-project --with dist/*.whl python -c "import panda_md; print('panda_md', panda_md.__version__)"
+	uv run --isolated --no-project --with dist/*.whl panda shapes --pore slit > /dev/null
+
+docs:  ## документация (mkdocs) в site/; strict — предупреждение = ошибка
+	uv run --group docs mkdocs build --strict
 
 clean:  ## удалить артефакты сборки и кэши
-	rm -rf dist build .pytest_cache .mypy_cache .ruff_cache .coverage htmlcov
+	rm -rf dist build site .pytest_cache .mypy_cache .ruff_cache .coverage htmlcov

@@ -1,0 +1,60 @@
+site_name: PANDA
+site_description: Contact angle and interface shape of confined liquids from MD density profiles
+repo_url: https://github.com/Ilya-Garanov-WorkingAcc/PANDA_2.0
+docs_dir: docs/manual  # остальное в docs/ — внутренние заметки разработки, на сайт не идут
+strict: true
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - content.code.copy
+  palette:
+    - scheme: default
+      toggle: {icon: material/brightness-7, name: Dark mode}
+    - scheme: slate
+      toggle: {icon: material/brightness-4, name: Light mode}
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc: {permalink: true}
+  - pymdownx.superfences
+  - pymdownx.arithmatex: {generic: true}
+  - pymdownx.snippets: {base_path: ["."], check_paths: true}
+
+extra_javascript:
+  - https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            show_source: false
+            show_root_heading: true
+            members_order: source
+            docstring_style: sphinx
+            show_signature_annotations: true
+            separate_signature: true
+
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - Quick start: quickstart.md
+  - Guide:
+      - Pores and shapes: guide/pores_and_shapes.md
+      - Fitting: guide/fitting.md
+      - From a trajectory: guide/trajectories.md
+      - Analysis and accuracy: guide/analysis.md
+      - Command line: guide/cli.md
+      - Adding a shape or a pore: guide/extending.md
+  - API reference:
+      - Pores and models: api/pores.md
+      - Fitting: api/fitting.md
+      - Profiles and trajectories: api/data.md
+      - Analysis: api/analysis.md
+      - Plotting: api/plotting.md
+  - Changelog: changelog.md

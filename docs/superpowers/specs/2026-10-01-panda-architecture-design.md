@@ -16,7 +16,7 @@
 
 - ядро: параметры, общий фит, центрирование, профиль, результат, проверки;
 - пора «щель» (`SlitPore`, включая прямоугольное основание, параметр k) с шестью формами;
-- треугольная (`TrianglePore`, 14 форм) и квадратная (`SquarePore`, 16 форм) поры по моделям PANDA_Polygon
+- треугольная (`TrianglePore`, 12 форм из 14 источника) и квадратная (`SquarePore`, 7 из 16) поры по моделям PANDA_Polygon
   (разбор — `docs/architecture/05_polygon_pores.md`); модели ещё могут меняться;
 - путь данных «траектория → профиль» (MDAnalysis);
 - перебор форм (`auto`), анализ по блокам;
@@ -50,6 +50,23 @@
 | D15 | Имя на PyPI — `panda-md`, импорт — `panda_md`; в примерах ниже `import panda_md as panda` |
 | D16 | Расшифровка: PANDA — Predicting Angle from Nanoscale Density Analysis |
 | D17 | Соглашения по коду (замечания руководителя, 15.10): именованные значения — только через `Enum`; у всех полей классов указан тип; имена объясняют смысл — см. §2.1 |
+| D18 | Щель с основанием L × kL: k — поле `SlitPore`; осесимметричные формы — через эквивалентную квадратную ячейку kL × kL, червь и валик — вдоль короткой стороны, от k не зависят (стадия 2) |
+| D19 | Форма может не иметь θ (слой): тогда `regimes = {}`, свои `default_optimize`; капиллярная энергия — S_LV + S_SL |
+| D20 | Многоугольные поры: общая база `PolygonGeometry`/`PolygonPore` (a, L, ly); профиль и площади у формы необязательны — форма без профиля только в диаграмме устойчивости, `fit` для неё — `NotDerivedError` до оптимизации; диаграмма устойчивости — `analysis.stability`, общий код для всех пор (стадия 3) |
+| D21 | Траектория: интерфейс `Trajectory` в ядре (кадры — время, ящик, позиции запрошенных групп; нм, пс), реализации `ArrayTrajectory` (массивы) и `MDATrajectory` (MDAnalysis, extra `md`; импорт только внутри `load_trajectory`) (стадия 4) |
+| D22 | Пора в ящике: `normal_axis`, `wall_selection`, `locate_center_nm`; щель — середина наибольшего пустого промежутка между атомами стенок через PBC, `SlitPore.from_trajectory`; у многоугольных пор центр пока задаётся явно (`pore_center_nm`) — данных МД для них нет (стадия 4) |
+| D23 | Центрирование профиля — `pore` / `liquid`; «без сдвига» = `pore` с заданным центром. Осевое центрирование (`+axis`), `per="molecule"`, `wall_offset`, статистическая неэффективность — фаза 6: на 1D-профиль не влияют (стадия 4) |
+| D24 | Анализ — функции слоя `analysis`, а не методы поры: `fit_blocks(model, profiles, spec) -> FitResultSet`, `compare_shapes(pore, profile, spec) -> ShapeComparison` (вместо `pore.fit_all` — ядро не импортирует `analysis`), `statistical_inefficiency(series)`. Настройки фита передаются одним `FitSpec` (стадия 5) |
+| D25 | `per="molecule"`: частица — центр масс выбранных атомов молекулы (молекула — номер молекулы GROMACS из .tpr, иначе остаток; связные фрагменты не годятся — у TIP4P виртуальный сайт без связей; у `ArrayTrajectory` — `molecule_ids` и `masses`), атомы молекулы собираются по ближайшему образу; `SlitPore.wall_offset_nm`: поверхность стенки отстоит от центров крайних атомов, H = промежуток − 2 · offset (стадия 5) |
+| D26 | Трёхмерная форма — `InterfaceShape.contains(points, geometry, values)` (безразмерные точки, ось формы в начале координат); у щели выводится из профиля (сечение: круг, отверстие, полоса, всё), у многоугольных пор пока нет (O9). Ось симметрии — `symmetry_axis: SymmetryAxis(orientation, locate)` в классе формы, положение — экстремум сглаженной гистограммы частиц в плоскости стенок (жидкость или пустота); валик — горизонтальная, пончик и перфорация — вертикальные (у перфорации — центр отверстия), у остальных нет. `density_map` — 2D-карта щели с осевым центрированием; `synthetic_trajectory` — облака точек (стадия 6) |
+| D27 | Графики — пакет `panda_md.plotting` (extra `plot`, matplotlib импортируется только там), функции от готовых объектов (`plot_fit(result)` вместо метода `FitResult.plot()` — ядро не импортирует `plotting`). Точность метода — `analysis.accuracy` (ошибка θ по зёрнам шума при заданных условиях) и скрипт `validation/run_accuracy.py` → `validation/REPORT.md` (стадия 7) |
+| D28 | CLI (стадия 8): пора задаётся по имени и полям модели поры (`--pore-file pore.json`, `-g поле=значение`), а не флагами `--H --L --k` — новый тип поры появляется в CLI без правки CLI; без размеров щель измеряется по атомам стенок (`SlitPore.from_trajectory`), найденная пора сохраняется `--pore-output` (JSON с `type`). Порядок аргументов `panda profile TOP TRAJ...` — как у MDAnalysis, траектория из нескольких частей. `--center-by` без `+axis` и без `--shape`: осевое центрирование нужно только 2D-картам (`density_map`), одномерный профиль от положения оси не зависит. `--shape auto` — `compare_shapes`, сохраняется лучший результат; `--blocks` — `fit_blocks` по профилям блоков; `-o` сохраняет `FitReport` {fit, blocks, comparison} — одна схема при любых флагах. Всё, что можно проверить без данных (имя формы, формат графика и matplotlib, каталоги и суффиксы выходных файлов), проверяется до прохода по траектории и фита. CSV без заголовка — столбцы по порядку (координата, плотность, ошибка). Типы пор по имени — `panda_md.pores.registry` |
+| D29 | Центрирование по умолчанию (§5, итоговый аудит): `centering=None` в `density_profile`, `density_map`, CLI и `panda run` — по поре, если стенки или центр поры известны, иначе по жидкости с `PandaWarning`; `preferred_centering` формы и `default_centering` поры не введены (профиль строится до выбора формы) |
+| D30 | Проверки до фита (итоговый аудит): φ из данных — Σρ·Δz гистограммы (трапеция по центрам бинов теряла по полбина у стенок); объём поры профиля сверяется с порой фита (1 %); нормировка `mean` без ρ_bulk и φ — `InvalidProfileError` с тем, что задать; граница δ = 0 физическая — флаг `at_bounds` не ставится (`Parameter.natural_lower_bound`); граничные углы режима сравниваются с допуском 1e−9° |
+| D31 | Оси симметрии капли (вертикальная) и червя (горизонтальная) объявлены; ось ищется по середине связной области на полувысоте вокруг экстремума сглаженной гистограммы, а если строка через экстремум не пересекает форму — по маргинальному распределению (окно ±2σ давало 0.5–1.5 нм у форм в полъячейки) |
+| D32 | Перфорация щели: диаметр отверстия у стенки d(φ) = ¼√D(φ) + c монотонно убывает и не меньше c; если c > l, отверстие не помещается в ячейку ни при какой φ — перфорации нет (интервал пуст), иначе корень формулы φ_min настоящий (O12; численный поиск не нужен — ревью исправлений). Диаграмма устойчивости: δ и φ проверяются по границам параметров; формы с θ вне диапазона своего режима выпадают молча, с невыведенным режимом — с предупреждением, если таких все — `UnsupportedRegimeError` |
+| D33 | Не выделены: `core/checks.py` (проверки там, где данные), `analysis/classifier.py` (слот `ShapeClassifier` — когда появится классификатор), `warnings` в `FitResult` (флаги — `problems()`). В `FitResult` и в сохраняемых файлах (.npz, .csv) — версия PANDA (`library_version`, `panda_version`); краёв бинов, интервала времени и выборки в `DensityProfile` нет — они в `ProfileSet` |
+| D34 | Сравнение форм: формы с ошибкой в пределах 2 % от лучшей помечаются как неразличимые по профилю (`ShapeComparison.indistinguishable`, «≈» в сводке, `PandaWarning`) — по 1D-профилю валик и перфорация при одинаковой φ почти совпадают. Модели с массивами сравниваются и хешируются по значениям; копии (deepcopy, pickle) остаются только для чтения; `model_copy(update=…)` проходит проверку |
 
 ---
 
@@ -80,14 +97,14 @@ PANDA/
 │  │  ├─ centering.py      стратегии и функции поиска центра/оси
 │  │  ├─ fitting.py        fit(), FitSpec, целевая функция, барьер, мультистарт, Optimizer
 │  │  ├─ result.py         FitResult, FitResultSet
-│  │  ├─ checks.py         проверки входа и результата
+│  │  ├─ (checks.py)       не выделен: проверки — в fitting.py, model.py, profile.py (D33)
 │  │  └─ errors.py         исключения и предупреждения
 │  ├─ pores/
 │  │  ├─ slit/             pore.py, droplet.py, doughnut.py, worm.py, roll.py, perforation.py, layer.py
 │  │  ├─ triangle/         pore.py + файлы форм по семействам: filament.py, droplet.py, capsule.py
 │  │  └─ square/           pore.py + filament.py, droplet.py, capsule.py, perforation.py
 │  ├─ trajectory/          reader.py (MDAnalysis, ArrayTrajectory), density.py
-│  ├─ analysis/            blocks.py, compare.py, stability.py, classifier.py (протокол)
+│  ├─ analysis/            blocks.py, compare.py, stability.py, accuracy.py (classifier — D33)
 │  ├─ synthetic/           profiles.py (аналитика + шум), points.py (облака точек)
 │  ├─ plotting/
 │  └─ cli/
@@ -126,6 +143,9 @@ pydantic) и ruff.
 
 ## 3. Объекты и контракты
 
+> Тело §3–§7 — исходный проект API. Где код решил иначе, решение записано в таблицу D (D20–D34) и имеет
+> приоритет; актуальный API — `docs/manual/` (страницы API reference собираются из кода).
+
 ### 3.0 Объекты-данные — модели pydantic
 
 Датаклассы в проекте не используются (D14). Всё, что хранит данные, наследуется от общей базовой модели
@@ -143,7 +163,7 @@ Array = Annotated[np.ndarray, ...]   # проверка: массив float64 н
 |--------|-----|-------------------------------------|
 | `Parameter`, `SymmetryAxis` | модель | границы `lo < hi`, умолчание внутри границ, непустое имя |
 | `SlitPore` и другие поры, `Geometry` | модель | H > 0, L > 0, 0 < k ≤ 1, стенки по возрастанию |
-| `Centering`, `FitSpec` | модель | допустимые значения перечислений, `starts ≥ 1`, `n_jobs ≥ 1`, окно `lo < hi` |
+| `Centering`, `FitSpec` | модель | допустимые значения перечислений, `starts_per_parameter ≥ 1`, `density_bulk > 0` |
 | `DensityProfile`, `ProfileSet` | модель | длины массивов согласованы, координата возрастает, ρ конечна и ≥ 0, N > 0, V > 0 |
 | `FitResult`, `FitResultSet`, `ShapeComparison` | модель | согласованность свободных и фиксированных параметров |
 | `Regime`, `Frame`, `Unit` | `Enum` | — |
@@ -153,10 +173,12 @@ Array = Annotated[np.ndarray, ...]   # проверка: массив float64 н
 Следствия:
 
 - `extra="forbid"`: опечатка в имени поля (в коде, в `config.toml`, в JSON) — ошибка сразу, а не тихий пропуск;
-- `frozen=True`: объекты неизменяемы; изменённая копия — через `model_copy(update=...)`;
+- `frozen=True`: объекты неизменяемы; изменённая копия — через `model_copy(update=...)`; поля-словари
+  (`FitSpec.fixed`, `bounds`, `initial`, `FitResult.values`) хранятся как `FrozenMapping` — тоже неизменяемы и хешируются;
 - `to_dict()` / `to_json()` / чтение `FitSpec` из конфига CLI — это `model_dump()`, `model_dump_json()`,
   `model_validate()`; отдельного кода сериализации нет;
-- ошибки проверки pydantic (`ValidationError`) оборачиваются в `PandaError` с понятным текстом;
+- ошибки проверки pydantic (`ValidationError`, наследник `ValueError`) пропускаются как есть: в них указаны поле
+  и причина; собственные ошибки библиотеки — наследники `PandaError`;
 - mypy запускается с плагином `pydantic.mypy`.
 
 ### 3.1 Параметр
@@ -166,7 +188,7 @@ class Parameter(PandaModel):
     name: str
     default: float | None            # None: значение обязано прийти из fixed, из данных или быть свободным
     bounds: tuple[float, float]      # в пользовательских единицах
-    unit: Unit = Unit.NONE           # DEG (внутри радианы), PORE_SIZE (доли характерного размера: H или a), NONE
+    unit: Unit = Unit.DIMENSIONLESS  # DEGREE (внутри радианы), PORE_SIZE (доли H или a), DIMENSIONLESS
     symbol: str = ""
     description: str = ""
 ```
@@ -192,19 +214,19 @@ class InterfaceShape(ABC):
     parameters: ClassVar[tuple[Parameter, ...]]
     regimes: ClassVar[dict[Regime, tuple[float, float]]]   # диапазон θ (град) для каждого выведенного режима
     frame: ClassVar[Frame]                                 # PORE или LIQUID — в чём записаны формулы
-    axis: ClassVar[SymmetryAxis | None] = None
-    preferred_centering: ClassVar[str | None] = None
+    default_optimize: ClassVar[tuple[str, ...]] = ("theta", "delta")  # у формы без θ — свои
+    symmetry_axis: ClassVar[SymmetryAxis | None] = None
 
     @abstractmethod
     def feasible(self, g, p) -> bool | np.ndarray: ...     # существует ли форма (векторизовано по l, φ)
 
     # необязательное — форма объявляет то, что для неё выведено
-    def profile(self, x, g, p) -> np.ndarray: raise NotDerived(...)   # ρ/ρ_bulk; x — безразм. координата
-    def phi_limits(self, g, p) -> tuple[float, float]: raise NotDerived(...)
-    def surface_terms(self, g, p) -> SurfaceTerms: raise NotDerived(...)  # S_LV и S_SL
+    def profile(self, x, g, p) -> np.ndarray: raise NotDerivedError(...)   # ρ/ρ_bulk; x — безразм. координата
+    def phi_limits(self, g, p) -> tuple[float, float]: raise NotDerivedError(...)
+    def surface_terms(self, g, p) -> SurfaceTerms: raise NotDerivedError(...)  # S_LV и S_SL
     def center_of_mass(self, g, p) -> float: ...           # по умолчанию численно из profile()
     def gradient(self, x, g, p) -> dict[str, np.ndarray] | None: return None
-    def contains(self, xyz, g, p) -> np.ndarray: raise NotDerived(...)
+    def contains(self, xyz, g, p) -> np.ndarray: raise NotDerivedError(...)
 ```
 
 - `g` — безразмерная геометрия поры (щель: `l`, `k`; треугольник и квадрат: `l`, `ly`); `p` — параметры во
@@ -214,7 +236,7 @@ class InterfaceShape(ABC):
   интервалом φ). `phi_limits` даёт форма, у которой интервал выведен (щель); тогда барьер в фите — с наклоном,
   иначе — плоский, и по умолчанию берётся оптимизатор без производных.
 - `profile` необязателен: в треугольной поре профиль выведен у 4 форм из 14. Форма без профиля участвует
-  в диаграмме устойчивости, но не в фите (`fit_all` пропускает её с пометкой, `fit` — ошибка `NotDerived`).
+  в диаграмме устойчивости, но не в фите (`compare_shapes` пропускает её с пометкой, `fit` — ошибка `NotDerivedError`).
 - `surface_terms` возвращает две площади — жидкость–жидкость S_LV и жидкость–стенка S_SL (модель pydantic
   `SurfaceTerms`). Капиллярный функционал S_LV − cos θ · S_SL и чисто геометрическую сумму считает ядро —
   одинаково для всех пор; по минимуму функционала строится диаграмма устойчивости.
@@ -230,7 +252,6 @@ class InterfaceShape(ABC):
 ```python
 class Pore(ABC):
     name: ClassVar[str]
-    default_centering: ClassVar[str]
     @classmethod
     def register(cls, shape_cls): ...                 # декоратор; ключ — shape_cls.name
     def geometry(self) -> Geometry: ...               # безразмерные величины для формул
@@ -243,9 +264,10 @@ class Pore(ABC):
     def available_interfaces(self) -> list[InterfaceModel]
 ```
 
-`SlitPore(H, L, k=1.0, walls=None, axis="z")`; `SlitPore.from_trajectory(traj, walls=<выборка>, L_axis="x"|"y"|"auto")`.
-Поверхность стенки — по центрам крайних атомов подложки, с учётом образа через PBC; `wall_offset` (нм) —
-явная поправка, по умолчанию 0.
+`SlitPore(width_nm, length_nm, base_aspect_ratio=1.0, normal_axis=Axis.Z, wall_selection=None)`; `SlitPore.from_trajectory(traj, walls=<выборка>, length_axis=Axis.X)`.
+Поверхность стенки — по центрам крайних атомов подложки, с учётом образа через PBC; если в ящике есть вакуум —
+`liquid=<выборка>` выбирает промежуток с жидкостью, а в каждом кадре берётся промежуток ширины, ближайшей к H.
+`wall_offset` (нм, явная поправка) — фаза 6 (D23).
 
 `TrianglePore(a, L, ly)` и `SquarePore(a, L, ly)`: сечение — равносторонний треугольник / квадрат со стороной a,
 длина вдоль оси L (l = L/a), `ly` — ширина слоя нормировки профиля в долях a (из ящика). Профиль — по высоте z,
@@ -265,7 +287,7 @@ bounds=None, initial=None, **настройки) → FitResult`. `fit` толь�
 | Объект | Содержимое |
 |--------|-----------|
 | `Trajectory` | итератор кадров: позиции (нм), ящик, время; топология для выборок. Реализации: `MDATrajectory`, `ArrayTrajectory` |
-| `Centering` | `profile`: `"pore"` / `"liquid"` / `"none"`; `lateral`: `"axis"` / `"none"`. Краткая запись: `"pore"`, `"liquid"`, `"pore+axis"` |
+| `ProfileCentering` | `"pore"` / `"liquid"`; `None` — по поре, если стенки известны, иначе по жидкости (D29). Осевое центрирование — `density_map(shape=…)` (D26, D28) |
 | `DensityProfile` | центры и края бинов (нм), ρ (нм⁻³), опц. std/sem; `frame`, `flipped`; геометрия поры; N, V; число кадров, интервал времени; выборка, центрирование; версия |
 | `ProfileSet` | профили блоков + времена; `.mean()`, `.std()`, `.sem()` |
 
@@ -273,13 +295,14 @@ bounds=None, initial=None, **настройки) → FitResult`. `fit` толь�
 
 ### 3.6 Фит и результат
 
-`FitSpec`: `optimize`, `fixed`, `bounds`, `initial`, `normalization` (`"auto"`/`"bulk"`/`"mean"`), `rho_bulk`,
-`loss` (`"l1"`/`"l2"`), `window`, `starts` (точек на параметр, 5), `optimizer` (`"L-BFGS-B"`), `regime`
-(`"auto"`/`"wetting"`/`"non_wetting"`), `n_jobs` (1).
+`FitSpec`: `optimize`, `fixed`, `bounds`, `initial`, `normalization` (`auto` / `bulk` / `mean`), `density_bulk_per_nm3`,
+`loss` (`l1` / `l2`), `window`, `starts_per_parameter` (5), `optimizer` (`Nelder-Mead`), `regime` (`None` — все
+объявленные формой режимы, либо `wetting` / `non_wetting`). Параллельный запуск (`n_jobs`) — вместе с фитом по
+блокам (фаза 6).
 
 `FitResult`: пора, форма, режим, система отсчёта; значения всех параметров и пометки свободный/фиксированный;
 `delta_nm`; выведенные `rho_bulk` или `phi`; `loss`, `success`, `message`, число стартов и вычислений;
-флаги `feasible`, `at_bounds`, `at_regime_boundary`, `warnings`; `alternatives` (другой режим);
+флаги `feasible`, `at_bounds`, `at_regime_boundary` (сводно — `problems()`); `alternatives` (другой режим);
 таблица стартов; координата, данные, модель, остатки; `spec`; метаданные профиля; версия.
 Методы: `summary()`, `to_dict()`, `to_json()`, `plot()`. `FitResultSet` — список результатов по блокам
 со средним, стандартным отклонением и ошибкой среднего. `ShapeComparison` — таблица форм по loss с пометкой
@@ -296,9 +319,9 @@ fit(model, profile, spec):
  3. resolve: свободные и фиксированные параметры; значения фиксированных
  4. режимы: диапазон θ ∩ объявленные режимы формы; зазор ±0.5° вокруг 90°
  5. для каждого режима:
-      стартовые точки: сетка starts^k по свободным (+ initial); при k > 3 — латинский гиперкуб
+      стартовые точки: центры ячеек сетки starts^k по свободным (+ initial)
       отбросить недопустимые (вне phi_limits); если не осталось — ошибка с диапазонами
-      из каждой точки: Optimizer.minimize(objective, x0, box)
+      из каждой точки: scipy.optimize.minimize(objective, x0, method, bounds)
       выбрать минимум
  6. лучший режим → FitResult; остальные → alternatives
  7. проверки результата (§7)
@@ -320,13 +343,21 @@ fit(model, profile, spec):
 
 Основание режима `mean`: ∫ρ_model = φ (проверено численно для шести форм щели при θ > 90°).
 
-**Оптимизатор.** Протокол `Optimizer.minimize(f, x0, bounds, jac=None)`. Реализация `ScipyLocal(method)`;
-по умолчанию `L-BFGS-B`, доступны `Powell`, `Nelder-Mead`. Градиент — от формы, если есть; иначе конечные
-разности. Пул процессов — только при `n_jobs > 1`.
+**Оптимизатор.** `scipy.optimize.minimize` с методом из `OptimizerMethod`; по умолчанию **Nelder–Mead**: на L1-ошибке
+L-BFGS-B с конечными разностями застревает (прототип, 15.10.2026, `tests/README.md`); доступны `Powell` и `L-BFGS-B`.
+Аналитический градиент формы и параллельный запуск — после прототипа, когда понадобятся по скорости.
+
+**Число стартов** — `starts_per_parameter`^k для k свободных параметров (5 → 5, 25, 125, 625): при четырёх свободных
+параметрах (θ, δ, φ, shift) фит заметно дольше (сотни локальных запусков на режим). Если понадобится — латинский
+гиперкуб вместо полной сетки. В нормировке `bulk` при свободной φ к стартам добавляется φ = ∫ρ/ρ_bulk из данных.
+
+**Формулы вне режима.** `InterfaceModel.profile`, `phi_limits`, `surface_terms`, `capillary_energy` бросают
+`UnsupportedRegimeError`, если θ вне объявленных формой режимов или в зазоре ±0.5° у 90°; `is_feasible` в этом случае
+возвращает False. Формулы там либо не выведены (O1), либо делят на ноль.
 
 **Правила разрешения параметров.**
 
-1. `optimize` не задан → `model.default_optimize` (для щели — θ, δ).
+1. `optimize` не задан → `model.default_optimize` из формы (θ, δ; у слоя — φ).
 2. Параметр — либо свободный, либо фиксированный; пересечение `optimize` и `fixed` или неизвестное имя → ошибка.
 3. Значение фиксированного: `fixed` → из данных (только φ в режиме `bulk`) → `default`; иначе ошибка.
 4. Свободный параметр обязан влиять на профиль: численная проверка в стартовой точке; иначе ошибка
@@ -348,15 +379,15 @@ Trajectory → выборка → стенки/ось поры → центри�
 |-----------|----------|-----------------|
 | `pore` | середина между стенками → 0 | PORE |
 | `liquid` | центр масс выбранной жидкости вдоль координаты профиля → 0 (среднее по окружности) | LIQUID |
-| `none` | без сдвига | задаёт пользователь |
+| `pore` + `pore_center_nm` | заданный центр → 0 (данные уже отцентрированы — 0) | PORE |
 | `+axis` | ось формы → начало координат в плоскости стенок | не меняет |
 
 - Ось: `SymmetryAxis(orientation, locate)` в классе формы. Щель: roll — горизонтальная, `liquid_center`;
-  doughnut — вертикальная, `liquid_center`; perforation — вертикальная, `void_center`; droplet, worm, layer —
-  `None`. Направление горизонтальной оси определяется автоматически (направление, вдоль которого плотность
+  doughnut и droplet — вертикальная, `liquid_center`; worm — горизонтальная, `liquid_center` (D31);
+  perforation — вертикальная, `void_center`; layer — `None`. Направление горизонтальной оси определяется автоматически (направление, вдоль которого плотность
   однородна) или задаётся. Осевое центрирование требует указать форму.
-- Выбор по умолчанию: явное указание → `shape.preferred_centering` → `pore.default_centering`.
-  Для щели: `pore`, если стенки известны, иначе `liquid` с предупреждением.
+- Выбор по умолчанию (D29): явное указание → `pore`, если стенки (`wall_selection`) или центр поры известны, иначе
+  `liquid` с предупреждением. Предпочтений формы нет: профиль строится до выбора формы.
 - Ориентация: в системе PORE профиль несимметричной формы при необходимости отражается (по знаку первого
   момента); записывается `flipped`.
 - Бины: `bins` или `bin_width`; в системе PORE края выровнены по стенкам; объём бина считается покадрово.
@@ -367,14 +398,14 @@ API:
 ```python
 import panda_md as panda
 
-traj = panda.load_trajectory("md.xtc", "md.gro")
-pore = panda.SlitPore.from_trajectory(traj, walls="resname GRA", L_axis="x")
+traj = panda.load_trajectory("md.gro", "md.xtc")   # топология, затем траектория
+pore = panda.SlitPore.from_trajectory(traj, walls="resname GRA", length_axis=panda.Axis.X)
 profiles = panda.density_profile(traj, pore, select="resname DECAN", centering="pore",
                                  bins=200, start="2 ns", block="1 ns")
 model = pore.interface("roll")
 result = model.fit(profiles.mean(), optimize=["theta", "delta"])
 blocks = panda.fit_blocks(model, profiles)
-table = pore.fit_all(profiles.mean())
+table = panda.compare_shapes(pore, profiles.mean())
 ```
 
 ---
@@ -384,7 +415,7 @@ table = pore.fit_all(profiles.mean())
 **Новая форма в существующей поре** — один файл в `pores/<пора>/`:
 
 1. класс от `InterfaceShape` (или проекции) с декоратором `@<Pore>.register`;
-2. `name`, `parameters`, `regimes`, `frame`, `axis`;
+2. `name`, `parameters`, `regimes`, `frame`, `symmetry_axis`;
 3. формулы: `feasible`; по мере вывода — `profile`, `phi_limits`, `surface_terms`, `contains`.
 
 Файлы `core/`, `cli/`, `trajectory/` не меняются. Форма появляется в `available_interfaces()`, в `panda shapes`,
@@ -392,7 +423,8 @@ table = pore.fit_all(profiles.mean())
 
 **Новая пора** — папка `pores/<имя>/`: класс от `Pore` (геометрия, координата профиля, объёмы бинов,
 приведение к безразмерным, поиск стенок/оси, центрирование по умолчанию) и файлы форм.
-Экспорт класса поры в `panda_md/__init__.py` — единственная правка вне папки.
+Вне папки — экспорт класса в `panda_md/__init__.py` и строка в `pores/registry.py:PORE_TYPES` (имя поры для CLI
+и `panda run`, D28). Пример формы из пользовательского скрипта — `examples/05_custom_shape.py`.
 
 **Проверка фундамента.** Вторая настоящая пора — квадратная (у неё профили есть у всех форм): уже в прототипе
 ядра `SquarePore` с двумя формами подключается без правок `core/`. Это заменяет игрушечную пору из обсуждения.
@@ -415,10 +447,12 @@ table = pore.fit_all(profiles.mean())
 | после | параметр у границы | `at_bounds` |
 | после | θ у зазора 90° | `at_regime_boundary` |
 | после | результат вне границ существования | `feasible = False` |
-| после | режим не поддержан формой | запись в `warnings` |
+| до фита | θ (фиксированный или все границы) вне выведенного режима формы | `UnsupportedRegimeError` |
+| до фита | объём поры профиля ≠ объём поры фита (> 1 %) | `ProfileMismatchError` (D30) |
+| до фита | нормировка `mean` без ρ_bulk и без φ | `InvalidProfileError` с объяснением (D30) |
 
-Ошибки — исключения из `core/errors.py` (наследники `PandaError`). Предупреждения — `PandaWarning` и
-запись в результат/метаданные.
+Ошибки — исключения из `core/errors.py` (наследники `PandaError`). Предупреждения — `PandaWarning` (в результат
+не записываются: флаги результата — `problems()`; D33).
 
 ---
 
@@ -426,15 +460,19 @@ table = pore.fit_all(profiles.mean())
 
 ```
 panda shapes [--pore slit]
-panda profile TRAJ TOP --pore slit --walls SEL|z1,z2 --select SEL --center-by pore|liquid|none[+axis]
-              [--shape NAME] --bins N | --bin-width W [--start T --stop T --block T] -o profile.npz
-panda fit PROFILE [--pore slit --H --L --k] --shape NAME|auto [--optimize P ...] [--fix P=V ...]
-          [--bounds P=LO:HI ...] [--rho-bulk V] [--regime auto|wetting|non_wetting] [-o result.json] [--plot F]
-panda run CONFIG.toml
+panda profile TOP TRAJ... [--pore slit] [--pore-file F | -g FIELD=V ...] --walls SEL|z1,z2 --select SEL
+              [--center-by pore|liquid] [--bins N | --bin-width W] [--start T --stop T --block T --stride N]
+              [--per atom|molecule] [--orientation auto|keep] -o profiles.npz [--pore-output pore.json]
+panda fit PROFILE [--pore slit] [--pore-file F | -g FIELD=V ...] [--shape NAME|auto] [--optimize P[,P] ...]
+          [--fix P=V ...] [--bounds P=LO:HI ...] [--rho-bulk V] [--regime auto|wetting|non_wetting]
+          [--normalization auto|bulk|mean] [--loss l1|l2] [--blocks] [-o result.json] [--plot F]
+panda run CONFIG.toml        # [pore] (type + поля), [profile] (input или topology/trajectory/select), [fit]
 ```
 
-Реализация — typer. CLI собирает те же `FitSpec` и вызовы, что и Python API; имена параметров модели берутся
-из `ParameterSet`. Код возврата: 0 — успех, 1 — ошибка входа, 2 — фит завершён с флагами проблем.
+Реализация — typer (`panda_md.cli`, точка входа `panda`, также `python -m panda_md`). CLI собирает те же `FitSpec`
+и вызовы, что и Python API; имена параметров модели берутся из `ParameterSet`. Код возврата: 0 — успех,
+1 — ошибка входа (в т. ч. ошибки разбора команды — у click это 2), 2 — фит завершён с флагами проблем
+(`FitResult.problems()`; с `--blocks` — и у любого блока). Отступления от первого наброска — D28.
 
 ---
 
@@ -448,7 +486,7 @@ panda run CONFIG.toml
 | `contract` (для каждой зарегистрированной формы и режима) | ∫ρ dz = φ · A / ly (A — площадь исходного сечения; у щели A / ly = 1); 0 ≤ ρ ≤ 1; конечность внутри области существования; центр масс согласован с профилем; облако из `contains` даёт тот же профиль; S_LV, S_SL ≥ 0 | 1e-6; 1 % для облака |
 | `regression` | профиль и границы φ = старый `alpha.py` на сетке l, θ, δ, φ (θ > 90°); профиль, `feasible` и площади треугольника и квадрата = `PANDA_Polygon` на зафиксированном коммите | 1e-12 |
 | `unit` | параметры (упаковка, единицы, ошибки); центрирование и PBC; бины; барьер; один оптимизатор при 1, 2, 3 свободных; фиксированные не меняются | точное равенство или ожидаемое исключение |
-| `synthetic` | θ=120°, δ=0.03, шум → фит в режимах φ / (δ, φ) / (θ, δ, φ) | \|Δθ\| < 1°, \|Δδ\| < 0.005 |
+| `synthetic` | θ=120°, δ=0.03, шум 0.5 % ρ_bulk на бин → фит в режимах φ / (δ, φ) / (θ, δ, φ) | \|Δθ\| < 1° в среднем по 5 зёрнам и < 1.5° в каждом; \|Δφ\| < 0.01. Точность δ ограничена шириной бина (O10), поэтому δ в синтетике проверяется только без шума |
 | `synthetic` | смещённый интерфейс: `pore` / `liquid` / `shift` | \|Δθ\| < 1° для рекомендованного способа |
 | `synthetic` | θ = 60° и 120°: выбор режима смачивания | режим верный, \|Δθ\| < 1° |
 | `synthetic` | облако точек → полный путь данных → фит | \|Δθ\| < 2° |
@@ -477,14 +515,17 @@ panda run CONFIG.toml
 | # | Пункт | Как закрывается |
 |---|-------|-----------------|
 | O1 | Формулы смачивающего режима (θ < 90°) для форм щели. Проверено: формулы старой PANDA при θ < 90° неверны (∫ρ ≠ φ, ρ > 1) — нужны отдельные | получить у руководителя или вывести; до этого формы объявляют только режим несмачивания |
-| O2 | Определяется ли φ вместе с θ, δ в нормировке `mean` | синтетический тест в прототипе |
-| O3 | Центрирование по умолчанию для droplet и worm | синтетический тест со смещённым интерфейсом |
+| O2 | ~~Определяется ли φ вместе с θ, δ в нормировке `mean`~~ — для капель и нитей да (\|Δφ\| < 0.005), для валика нет: нужна известная φ | закрыт прототипом, `tests/README.md` |
+| O3 | ~~Центрирование по умолчанию~~ — по поре; у форм на одной стенке ошибка положения стенок уходит в δ, у валика нужен свободный `shift` | закрыт прототипом, `tests/README.md` |
 | O4 | ~~Имя пакета на PyPI~~ | решено: `panda-md`, опубликована 0.0.1 |
-| O5 | Площади S для общего (θ, δ) в щели | вывести или оставить `NotDerived`; влияет только на `stability` |
+| O5 | Площади S для общего (θ, δ) в щели — выведены для капли, червя, валика и слоя (геометрия, сверено с RectCell при θ = 180°); у пончика и перфорации — нет | вывести поверхности тора; влияет только на `stability` |
 | O6 | ~~Формулы треугольной и квадратной пор~~ — получены (PANDA_Polygon, коммит `38ff491`): треугольник и квадрат. Цилиндрической поры пока нет | добавляется по §6, когда появится |
-| O8 | Расхождения в PANDA_Polygon: 7 условий существования квадрата падают; `perforation` при δ > 0 и `capsule_w4c4` не сходятся по ∫ρ = φ; у 10 форм треугольника нет профиля (`05_polygon_pores.md` §4) | сообщить автору; до исправления формы помечены «не проверено», тесты — `xfail` |
+| O8 | Расхождения в PANDA_Polygon (`05_polygon_pores.md` §4): 7 условий существования квадрата падают; `perforation` при δ > 0 и `capsule_w4c4` не сходятся по ∫ρ = φ (эти 9 форм не перенесены); у 10 форм треугольника нет профиля; площади свободной поверхности `droplet_w2c1` и `capsule_w3c3` треугольника расходятся с геометрией (не перенесены); `filament_w2c1` треугольника при θ > 120° под вопросом | сообщить автору; после исправления — поднять коммит эталона и перенести недостающие формы |
 | O9 | Модели многоугольных пор ещё меняются | эталон привязан к коммиту; при обновлении — поднять коммит и перегенерировать эталонные числа |
-| O7 | Обобщение k ≠ 1 на произвольные θ, δ (в RectCell только θ = 180°, δ = 0) | проверить контрактным тестом; иначе k ≠ 1 разрешён только в выведенной области |
+| O7 | ~~Обобщение k ≠ 1 на произвольные θ, δ~~ — сделано: осесимметричные формы через квадратную ячейку kL × kL, червь и валик от k не зависят; проверено контрактом с k = 0.4 и формулами RectCell | закрыт стадией 2 |
+| O10 | Точность δ ограничена шириной бина (δ задаётся краем профиля); при свободных θ, δ, φ разброс θ до 0.5° без шума | учесть в `validation/` (фаза 6) и в статье |
+| O12 | Формула φ_min перфорации щели (уравнение (21) статьи 2025 и Shistko et al., `alpha.py`) получена возведением в квадрат и при k·l < π/4 (θ = 180°, δ = 0) даёт посторонний корень: отверстие шире ячейки, ρ < 0. На деле перфорации там нет — интервал пуст (D32) | сообщить авторам статьи |
+| O11 | ~~θ у 180° плохо определяется при шуме~~ — оценено на синтетике, как у гистограммы МД: до 140° средняя \|Δθ\| ≤ 0.3°, при 175° — 0.9° (валик), 3.7–4.1° (капля, червь), часть фитов червя упирается в 180° (`validation/REPORT.md`) | закрыт стадией 7; в статье — приводить разброс по блокам |
 
 ---
 

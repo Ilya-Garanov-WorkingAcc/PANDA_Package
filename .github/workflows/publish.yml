@@ -14,7 +14,13 @@ permissions:
   contents: read
 
 jobs:
+  # публикация только после всего CI (lint, тесты 3.10–3.13, нижние версии, документация, сборка):
+  # тег на красном коммите не уходит на PyPI
+  ci:
+    uses: ./.github/workflows/ci.yml
+
   build:
+    needs: ci
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

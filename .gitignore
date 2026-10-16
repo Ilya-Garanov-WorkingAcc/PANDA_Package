@@ -11,6 +11,8 @@ __pycache__/
 *.egg-info/
 build/
 dist/
+site/
+panda_test_results/
 uv.lock
 
 # Старая PANDA — отдельный клон (github.com/FlufffyMelon/PANDA), только справочник
@@ -26,6 +28,7 @@ uv.lock
 smoke/out/
 *.npy
 *.npz
+!tests/*/data/*.npz
 *.xtc
 *.trr
 *.gro

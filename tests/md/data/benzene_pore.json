@@ -1,0 +1,7 @@
+{
+  "normal_axis": "z",
+  "wall_selection": "resname SOLD",
+  "width_nm": 10.313699340820314,
+  "length_nm": 47.898101806640625,
+  "base_aspect_ratio": 0.1194514980647011
+}

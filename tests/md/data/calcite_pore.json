@@ -1,0 +1,7 @@
+{
+  "normal_axis": "z",
+  "wall_selection": "resname CAL",
+  "width_nm": 9.138999542593954,
+  "length_nm": 20.004998779296876,
+  "base_aspect_ratio": 0.2408897853899431
+}

@@ -1,0 +1,34 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the method paper and the software."
+title: "PANDA: Predicting Angle from Nanoscale Density Analysis"
+type: software
+abstract: >-
+  Python library that determines the contact angle and the interface shape of liquids confined in slit,
+  triangular and square pores from one-dimensional density profiles of molecular simulations.
+authors:
+  - family-names: Garanov
+    given-names: Ilya
+license: MIT
+repository-code: "https://github.com/Ilya-Garanov-WorkingAcc/PANDA_2.0"
+keywords:
+  - molecular dynamics
+  - contact angle
+  - wetting
+  - nanopores
+  - density profile
+version: 0.1.0
+preferred-citation:
+  type: article
+  title: "PANDA: Predicting angle from nanoscale density analysis"
+  authors:
+    - family-names: Semenchuk
+      given-names: A. A.
+    - family-names: Kondratyuk
+      given-names: N. D.
+    - family-names: Kopanichuk
+      given-names: I. V.
+  journal: "Colloids and Surfaces A: Physicochemical and Engineering Aspects"
+  volume: 708
+  start: 135994
+  year: 2025
+  doi: "10.1016/j.colsurfa.2024.135994"
