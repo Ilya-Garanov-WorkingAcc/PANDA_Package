@@ -30,8 +30,8 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: ${{ matrix.python-version }}
-      # только пакет с [md] и группа test — тесты не должны зависеть от инструментов разработки
-      - run: uv sync --no-default-groups --group test --extra md
+      # только пакет с [md, plot] и группа test — тесты не должны зависеть от инструментов разработки
+      - run: uv sync --no-default-groups --group test --extra md --extra plot
       - run: uv run --no-sync pytest
 
   build:

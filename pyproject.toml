@@ -38,6 +38,9 @@ Repository = "https://github.com/Ilya-Garanov-WorkingAcc/PANDA_2.0"
 md = [
     "mdanalysis>=2.7",
 ]
+plot = [
+    "matplotlib>=3.8",
+]
 
 # Группы зависимостей (PEP 735) — в опубликованный пакет не попадают.
 #   uv sync: группа dev (всё для разработки)

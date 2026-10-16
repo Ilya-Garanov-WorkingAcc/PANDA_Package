@@ -1,10 +1,13 @@
-"""Исследование точности на синтетике."""
+"""Исследование точности на синтетике и графики (matplotlib — необязательная зависимость)."""
+
+import importlib
+import sys
 
 import numpy as np
 import pytest
 from pydantic import ValidationError
 
-from panda_md import SlitPore
+from panda_md import FitSpec, SlitPore
 from panda_md.analysis.accuracy import (
     AccuracyCase,
     AccuracyStudy,
@@ -12,6 +15,12 @@ from panda_md.analysis.accuracy import (
     angle_errors,
     effective_noise_std,
 )
+from panda_md.analysis.blocks import fit_blocks
+from panda_md.analysis.stability import stability_diagram
+from panda_md.core.errors import MissingDependencyError
+from panda_md.synthetic.points import synthetic_trajectory
+from panda_md.synthetic.profiles import synthetic_profile
+from panda_md.trajectory.maps import density_map
 
 DENSITY_BULK = 30.0
 PORE = SlitPore(width_nm=8.0, length_nm=16.0)
@@ -53,3 +62,66 @@ def test_noise_is_rescaled_with_the_bin_count() -> None:
     )
     with pytest.raises(ValidationError):
         AccuracyCase(truth=ROLL_TRUTH, noise_std=-0.1)
+
+
+@pytest.fixture
+def pyplot() -> object:
+    matplotlib = pytest.importorskip("matplotlib")
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    yield plt
+    plt.close("all")
+
+
+def test_figures_are_drawn_from_panda_objects(pyplot: object) -> None:
+    from panda_md.plotting import plot_accuracy, plot_blocks, plot_density_map, plot_fit, plot_stability
+
+    roll = PORE.interface("roll")
+    profile = synthetic_profile(roll, ROLL_TRUTH, density_bulk_per_nm3=DENSITY_BULK, noise_std=0.005, seed=0)
+    result = roll.fit(profile, density_bulk_per_nm3=DENSITY_BULK)
+    assert "θ = 1" in plot_fit(result).get_legend_handles_labels()[1][1]
+
+    trajectory = synthetic_trajectory(
+        SlitPore(width_nm=4.0, length_nm=8.0, base_aspect_ratio=0.5).interface("roll"),
+        {"theta": 120.0, "delta": 0.03, "phi": 0.3},
+        density_bulk_per_nm3=33.0,
+        frame_count=4,
+        seed=0,
+    )
+    walls = SlitPore.from_trajectory(trajectory, walls="walls")
+    assert (
+        "ось формы"
+        in plot_density_map(density_map(trajectory, walls, "liquid", shape="roll", bins=(20, 20))).get_xlabel()
+    )
+
+    from panda_md import density_profile
+
+    profiles = density_profile(trajectory, walls, "liquid", bins=40, block="10 ps")
+    blocks = fit_blocks(walls.interface("roll"), profiles, FitSpec(density_bulk_per_nm3=33.0))
+    assert plot_blocks(blocks).get_ylabel() == "theta"
+
+    diagram = stability_diagram(
+        PORE, contact_angle_deg=150.0, wall_layer=0.0, volume_fractions=(0.1, 0.4, 0.7), length_ratios=(1.0, 2.0, 4.0)
+    )
+    assert plot_stability(diagram).get_title().startswith("slit")
+
+    cases = {"0.5": (0.5, AccuracyCase(truth=ROLL_TRUTH, noise_std=0.005))}
+    study = accuracy_study(roll, "шум, %", cases, density_bulk_per_nm3=DENSITY_BULK, seeds=range(2))
+    assert plot_accuracy(study).get_xlabel() == "шум, %"
+
+
+def test_plotting_without_matplotlib_is_a_clear_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in [module for module in sys.modules if module.startswith(("matplotlib", "panda_md.plotting"))]:
+        monkeypatch.delitem(sys.modules, name)
+    monkeypatch.setitem(sys.modules, "matplotlib", None)
+    with pytest.raises(MissingDependencyError, match=r"panda-md\[plot\]"):
+        importlib.import_module("panda_md.plotting")
+
+
+def test_importing_package_does_not_import_matplotlib() -> None:
+    import subprocess
+
+    check = "import sys, panda_md; print('matplotlib' in sys.modules)"
+    output = subprocess.run([sys.executable, "-c", check], capture_output=True, text=True, check=True).stdout
+    assert output.strip() == "False"

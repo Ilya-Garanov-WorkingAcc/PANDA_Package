@@ -27,8 +27,8 @@ install:  ## окружение разработки (.venv): пакет с [md]
 test:  ## тесты
 	uv run pytest
 
-test-env:  ## тесты в отдельном чистом окружении: только пакет с [md] и группа test
-	UV_PROJECT_ENVIRONMENT=.venv-test uv sync --no-default-groups --group test --extra md
+test-env:  ## тесты в отдельном чистом окружении: только пакет с [md, plot] и группа test
+	UV_PROJECT_ENVIRONMENT=.venv-test uv sync --no-default-groups --group test --extra md --extra plot
 	UV_PROJECT_ENVIRONMENT=.venv-test uv run --no-sync pytest
 
 lint-check:  ## black + ruff без изменения файлов (как в CI)
