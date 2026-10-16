@@ -182,7 +182,7 @@ TrianglePore         Droplet / Thread / Capsule        ρ(r), площадь, г
 
 - **6а, анализ — выполнено** (план `docs/superpowers/plans/2026-10-16-stage5-analysis.md`): фит по блокам (`fit_blocks`, среднее ± ошибка), перебор форм (`compare_shapes`), статистическая неэффективность, профиль по центрам масс молекул (`per="molecule"`), `wall_offset_nm`. Диаграммы устойчивости — стадия 3.
 - **6б, трёхмерные формы — выполнено** (план `docs/superpowers/plans/2026-10-16-stage6-shapes-3d.md`): `contains` у форм щели (из профиля), оси симметрии в классах форм, осевое центрирование и 2D-карты (`density_map`), облака точек (`synthetic_trajectory`) — сквозной путь |Δθ| < 2°. У треугольника и квадрата `contains` нет — модели ещё меняются (O9).
-- **6в, графики и валидация:** `plotting/` (профиль и модель, блоки, диаграммы), `validation/`: Δθ от шума, числа бинов и θ (в том числе O11 — точность у 180°), сравнение центрирований.
+- **6в, графики и валидация — выполнено** (план `docs/superpowers/plans/2026-10-16-stage7-validation.md`): `panda_md.plotting` (extra `plot`), `analysis.accuracy`, `validation/run_accuracy.py` → `validation/REPORT.md`: Δθ от шума, числа бинов, θ (O11 закрыт) и центрирования (O3).
 
 ### Фаза 7. CLI (1 нед.)
 

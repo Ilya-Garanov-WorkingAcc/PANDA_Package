@@ -31,6 +31,9 @@ print(panda.compare_shapes(pore, profiles.mean(), spec))  # все формы п
 water_map = panda.density_map(traj, pore, "resname WATER and name OW", shape="roll")  # ось валика в x = 0
 ```
 
+Plots (`pip install 'panda-md[plot]'`): `from panda_md.plotting import plot_fit, plot_density_map` — and the
+accuracy of the method on synthetic data is in `validation/REPORT.md`.
+
 ## Method
 
 Two immiscible liquids in a pore form one of a few interface shapes (droplet, doughnut, worm, roll,
