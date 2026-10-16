@@ -2,6 +2,8 @@
 
 from importlib.metadata import PackageNotFoundError, version
 
+from panda_md.analysis.blocks import FitResultSet, StatisticalInefficiency, fit_blocks, statistical_inefficiency
+from panda_md.analysis.compare import ShapeComparison, ShapeFit, compare_shapes
 from panda_md.core.enums import (
     Axis,
     Frame,
@@ -10,6 +12,7 @@ from panda_md.core.enums import (
     OptimizerMethod,
     Orientation,
     ParameterName,
+    ParticleGrouping,
     ProfileCentering,
     Regime,
     Unit,
@@ -37,6 +40,7 @@ __all__ = [
     "Axis",
     "DensityProfile",
     "FitResult",
+    "FitResultSet",
     "FitSpec",
     "Frame",
     "InterfaceModel",
@@ -48,14 +52,21 @@ __all__ = [
     "PandaWarning",
     "Parameter",
     "ParameterName",
+    "ParticleGrouping",
     "ProfileCentering",
     "ProfileSet",
     "Regime",
+    "ShapeComparison",
+    "ShapeFit",
     "SlitPore",
     "SquarePore",
+    "StatisticalInefficiency",
     "TrianglePore",
     "Unit",
     "__version__",
+    "compare_shapes",
     "density_profile",
+    "fit_blocks",
     "load_trajectory",
+    "statistical_inefficiency",
 ]

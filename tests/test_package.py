@@ -26,3 +26,8 @@ def test_importing_package_does_not_import_mdanalysis() -> None:
 def test_data_path_is_public() -> None:
     expected = {"ArrayTrajectory", "Axis", "Orientation", "ProfileCentering", "ProfileSet", "density_profile"}
     assert expected | {"load_trajectory"} <= set(panda_md.__all__)
+
+
+def test_analysis_is_public() -> None:
+    expected = {"FitResultSet", "ParticleGrouping", "ShapeComparison", "ShapeFit", "StatisticalInefficiency"}
+    assert expected | {"compare_shapes", "fit_blocks", "statistical_inefficiency"} <= set(panda_md.__all__)
