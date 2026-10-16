@@ -60,6 +60,7 @@
 | D25 | `per="molecule"`: частица — центр масс выбранных атомов молекулы (молекула — номер молекулы GROMACS из .tpr, иначе остаток; связные фрагменты не годятся — у TIP4P виртуальный сайт без связей; у `ArrayTrajectory` — `molecule_ids` и `masses`), атомы молекулы собираются по ближайшему образу; `SlitPore.wall_offset_nm`: поверхность стенки отстоит от центров крайних атомов, H = промежуток − 2 · offset (стадия 5) |
 | D26 | Трёхмерная форма — `InterfaceShape.contains(points, geometry, values)` (безразмерные точки, ось формы в начале координат); у щели выводится из профиля (сечение: круг, отверстие, полоса, всё), у многоугольных пор пока нет (O9). Ось симметрии — `symmetry_axis: SymmetryAxis(orientation, locate)` в классе формы, положение — экстремум сглаженной гистограммы частиц в плоскости стенок (жидкость или пустота); валик — горизонтальная, пончик и перфорация — вертикальные (у перфорации — центр отверстия), у остальных нет. `density_map` — 2D-карта щели с осевым центрированием; `synthetic_trajectory` — облака точек (стадия 6) |
 | D27 | Графики — пакет `panda_md.plotting` (extra `plot`, matplotlib импортируется только там), функции от готовых объектов (`plot_fit(result)` вместо метода `FitResult.plot()` — ядро не импортирует `plotting`). Точность метода — `analysis.accuracy` (ошибка θ по зёрнам шума при заданных условиях) и скрипт `validation/run_accuracy.py` → `validation/REPORT.md` (стадия 7) |
+| D28 | CLI (стадия 8): пора задаётся по имени и полям модели поры (`--pore-file pore.json`, `-g поле=значение`), а не флагами `--H --L --k` — новый тип поры появляется в CLI без правки CLI; без размеров щель измеряется по атомам стенок (`SlitPore.from_trajectory`), найденная пора сохраняется `--pore-output` (JSON с `type`). Порядок аргументов `panda profile TOP TRAJ...` — как у MDAnalysis, траектория из нескольких частей. `--center-by` без `+axis` и без `--shape`: осевое центрирование нужно только 2D-картам (`density_map`), одномерный профиль от положения оси не зависит. `--shape auto` — `compare_shapes`, сохраняется лучший результат; `--blocks` — `fit_blocks` по профилям блоков. Типы пор по имени — `panda_md.pores.registry` |
 
 ---
 
@@ -449,15 +450,19 @@ table = pore.fit_all(profiles.mean())
 
 ```
 panda shapes [--pore slit]
-panda profile TRAJ TOP --pore slit --walls SEL|z1,z2 --select SEL --center-by pore|liquid|none[+axis]
-              [--shape NAME] --bins N | --bin-width W [--start T --stop T --block T] -o profile.npz
-panda fit PROFILE [--pore slit --H --L --k] --shape NAME|auto [--optimize P ...] [--fix P=V ...]
-          [--bounds P=LO:HI ...] [--rho-bulk V] [--regime auto|wetting|non_wetting] [-o result.json] [--plot F]
-panda run CONFIG.toml
+panda profile TOP TRAJ... [--pore slit] [--pore-file F | -g FIELD=V ...] --walls SEL|z1,z2 --select SEL
+              [--center-by pore|liquid] [--bins N | --bin-width W] [--start T --stop T --block T --stride N]
+              [--per atom|molecule] [--orientation auto|keep] -o profiles.npz [--pore-output pore.json]
+panda fit PROFILE [--pore slit] [--pore-file F | -g FIELD=V ...] [--shape NAME|auto] [--optimize P[,P] ...]
+          [--fix P=V ...] [--bounds P=LO:HI ...] [--rho-bulk V] [--regime auto|wetting|non_wetting]
+          [--normalization auto|bulk|mean] [--loss l1|l2] [--blocks] [-o result.json] [--plot F]
+panda run CONFIG.toml        # [pore] (type + поля), [profile] (input или topology/trajectory/select), [fit]
 ```
 
-Реализация — typer. CLI собирает те же `FitSpec` и вызовы, что и Python API; имена параметров модели берутся
-из `ParameterSet`. Код возврата: 0 — успех, 1 — ошибка входа, 2 — фит завершён с флагами проблем.
+Реализация — typer (`panda_md.cli`, точка входа `panda`, также `python -m panda_md`). CLI собирает те же `FitSpec`
+и вызовы, что и Python API; имена параметров модели берутся из `ParameterSet`. Код возврата: 0 — успех,
+1 — ошибка входа (в т. ч. ошибки разбора команды — у click это 2), 2 — фит завершён с флагами проблем
+(`FitResult.problems()`; с `--blocks` — и у любого блока). Отступления от первого наброска — D28.
 
 ---
 

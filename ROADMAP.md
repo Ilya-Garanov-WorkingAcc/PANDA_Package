@@ -187,6 +187,7 @@ TrianglePore         Droplet / Thread / Capsule        ρ(r), площадь, г
 ### Фаза 7. CLI (1 нед.)
 
 - `panda shapes`, `panda profile`, `panda fit`, `panda run`; typer; тонкая обёртка над API.
+- **Статус: выполнено** — план `docs/superpowers/plans/2026-10-16-stage8-cli.md`; команды дают тот же ответ, что API (`tests/cli`); на траектории графита `panda profile` + `panda fit --blocks` — θ = 171.1° по среднему профилю, 170.7 ± 3° по 8 блокам (как в задаче 1). Отступления от наброска §8 — D28.
 
 ### Фаза 8. Пакет и релиз (1–2 нед.)
 

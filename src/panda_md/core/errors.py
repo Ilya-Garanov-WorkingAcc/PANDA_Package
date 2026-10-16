@@ -9,6 +9,13 @@ class NotDerivedError(PandaError):
     """Величина для этой формы не выведена (нет формулы)."""
 
 
+class UnknownPoreError(PandaError, KeyError):
+    """Тип поры с таким именем не зарегистрирован."""
+
+    def __str__(self) -> str:  # KeyError заключает сообщение в кавычки
+        return str(self.args[0]) if self.args else ""
+
+
 class UnknownParameterError(PandaError):
     """Имя параметра не принадлежит модели."""
 

@@ -29,7 +29,12 @@ dependencies = [
     "numpy>=1.26",
     "scipy>=1.11",
     "pydantic>=2.6",
+    "typer>=0.26",  # с 0.26 click встроен в typer: ошибки разбора — typer.TyperException
+    "tomli>=2 ; python_full_version < '3.11'",
 ]
+
+[project.scripts]
+panda = "panda_md.cli:console"
 
 [project.urls]
 Repository = "https://github.com/Ilya-Garanov-WorkingAcc/PANDA_2.0"
@@ -96,4 +101,8 @@ plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
 module = ["MDAnalysis", "MDAnalysis.*"]  # у MDAnalysis нет аннотаций типов
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["tomli"]  # нужен только на Python 3.10; mypy проверяет ветку 3.10, а окружение разработки новее
 ignore_missing_imports = true

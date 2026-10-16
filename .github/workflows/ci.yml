@@ -41,6 +41,7 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - run: uv build
       - run: uv run --isolated --no-project --with dist/*.whl python -c "import panda_md; print(panda_md.__version__)"
+      - run: uv run --isolated --no-project --with dist/*.whl panda shapes --pore slit  # консольный скрипт
       # колесо без extras: графики дают понятную ошибку, а не ImportError matplotlib
       - run: |
           uv run --isolated --no-project --with dist/*.whl python -c "import importlib

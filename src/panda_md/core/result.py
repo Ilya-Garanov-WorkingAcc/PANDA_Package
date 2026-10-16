@@ -37,6 +37,11 @@ class FitResult(PandaModel):
         for name, value in self.values.items():
             marker = "свободный" if name in self.free_parameters else "фиксирован"
             lines.append(f"  {name:>6} = {value:.6g}  ({marker})")
+        lines.extend(f"  ! {problem}" for problem in self.problems())
+        return "\n".join(lines)
+
+    def problems(self) -> tuple[str, ...]:
+        """Флаги проверок: пусто — фит сошёлся внутри области существования и не упёрся в границы."""
         flags = []
         if not self.success:
             flags.append(f"оптимизатор: {self.message}")
@@ -46,8 +51,7 @@ class FitResult(PandaModel):
             flags.append(f"у границы: {', '.join(self.at_bounds)}")
         if self.at_regime_boundary:
             flags.append("θ прижат к 90° (граница режимов)")
-        lines.extend(f"  ! {flag}" for flag in flags)
-        return "\n".join(lines)
+        return tuple(flags)
 
     def __str__(self) -> str:
         return self.summary()

@@ -5,8 +5,8 @@ contact angle and the interface shape of liquids confined in pores from one-dime
 of molecular simulations.
 
 > **Status: pre-alpha.** The core (parameters, pore/shape contract, generic fit) works for the slit pore
-> (all six shapes: droplet, doughnut, worm, roll, perforation, layer; rectangular base L × kL), the triangular pore (12 shapes) and the square pore (7 shapes); stability diagrams by the capillary functional. Density profiles from MD trajectories (MDAnalysis, extra `md`) work for the slit pore. The CLI is
-> not implemented yet; the published 0.0.1 contains no code.
+> (all six shapes: droplet, doughnut, worm, roll, perforation, layer; rectangular base L × kL), the triangular pore (12 shapes) and the square pore (7 shapes); stability diagrams by the capillary functional. Density profiles from MD trajectories (MDAnalysis, extra `md`) work for the slit pore; command line
+> `panda`. The published 0.0.1 contains no code.
 ```python
 import panda_md as panda
 from panda_md.synthetic.profiles import synthetic_profile
@@ -33,6 +33,48 @@ water_map = panda.density_map(traj, pore, "resname WATER and name OW", shape="ro
 
 Plots (`pip install 'panda-md[plot]'`): `from panda_md.plotting import plot_fit, plot_density_map` — and the
 accuracy of the method on synthetic data is in `validation/REPORT.md`.
+
+## Command line
+
+The same pipeline from the shell (`panda --help`, `panda COMMAND --help`):
+
+```bash
+panda shapes --pore slit      # pore fields, shapes, their parameters, bounds, regimes, symmetry axes
+# profiles by time blocks; without -g/--pore-file the slit is measured from the wall atoms
+panda profile system.tpr system.xtc --walls "resname GRAPHITE" --select "resname WATER and name OW" \
+      --start "2 ns" --block "1 ns" -o water.npz --pore-output pore.json
+panda fit water.npz --pore-file pore.json --shape roll --rho-bulk 33.1 --blocks -o result.json --plot fit.png
+panda fit water.npz --pore-file pore.json --shape auto --rho-bulk 33.1    # every shape of the pore, best first
+panda run panda.toml          # profile + fit from one settings file
+```
+
+Model parameters are set the same way for every shape: `--optimize theta,delta`, `--fix phi=0.5`,
+`--bounds theta=100:180`. Pore dimensions: `--pore-file pore.json` or `-g width_nm=8 -g length_nm=16`.
+Exit code: 0 — success, 1 — input error, 2 — the fit finished but raised problem flags (at a bound, outside the
+shape's existence domain, θ at 90°, optimizer failure).
+
+`panda.toml` (paths are relative to the file):
+
+```toml
+[pore]
+type = "slit"
+wall_selection = "resname GRAPHITE"   # no dimensions: measured from the walls
+
+[profile]
+topology = "system.tpr"
+trajectory = ["system.xtc"]
+select = "resname WATER and name OW"
+start = "2 ns"
+block = "1 ns"
+output = "water.npz"
+pore_output = "pore.json"
+
+[fit]                                 # every FitSpec field, plus shape, blocks, output, plot
+shape = "roll"
+density_bulk_per_nm3 = 33.1
+blocks = true
+output = "result.json"
+```
 
 ## Method
 

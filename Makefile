@@ -4,8 +4,8 @@
 help:  ## список команд
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
 
-run:
-	uv run -m src.main
+run:  ## командная строка panda: make run args="shapes --pore slit"
+	uv run panda $(args)
 push:
 	git add .
 	@if [ -z "$(msg)" ]; then \
@@ -43,8 +43,9 @@ check: lint-check typecheck test  ## всё, что проверяет CI
 build: clean  ## собрать sdist и wheel в dist/
 	uv build
 
-wheel-check: build  ## установить собранный wheel в чистое окружение и импортировать
+wheel-check: build  ## установить собранный wheel в чистое окружение, импортировать и запустить panda
 	uv run --isolated --no-project --with dist/*.whl python -c "import panda_md; print('panda_md', panda_md.__version__)"
+	uv run --isolated --no-project --with dist/*.whl panda shapes --pore slit > /dev/null
 
 clean:  ## удалить артефакты сборки и кэши
 	rm -rf dist build .pytest_cache .mypy_cache .ruff_cache .coverage htmlcov
