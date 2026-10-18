@@ -18,7 +18,7 @@ SLIT = SlitPore(width_nm=8.0, length_nm=16.0)
 
 
 def test_profile_outside_declared_regime_is_an_error() -> None:
-    """The roll formulas are derived only for θ > 90°: at 60° they give ∫ρ ≠ φ (O1), so they must not be evaluated."""
+    """The roll formulas are derived only for θ > 90°: at 60° they give ∫ρ ≠ φ, so they must not be evaluated."""
     with pytest.raises(UnsupportedRegimeError, match="wetting"):
         SLIT.interface("roll").profile(np.array([0.0]), theta=60.0, phi=0.4)
 

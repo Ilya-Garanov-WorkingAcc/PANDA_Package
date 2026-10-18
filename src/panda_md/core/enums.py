@@ -49,7 +49,7 @@ class LossFunction(str, Enum):
 
 class OptimizerMethod(str, Enum):
     """Local method of scipy.optimize.minimize. Nelder–Mead by default: the L1 loss is non-smooth,
-    gradient-based L-BFGS-B gets stuck on synthetic data (comparison — tests/README.md, section 'Optimizer')."""
+    gradient-based L-BFGS-B gets stuck on synthetic profiles (compared during development)."""
 
     NELDER_MEAD = "Nelder-Mead"
     POWELL = "Powell"

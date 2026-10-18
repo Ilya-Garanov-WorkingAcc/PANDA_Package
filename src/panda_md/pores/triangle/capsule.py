@@ -3,7 +3,7 @@
 Formulas: PANDA_Polygon `docs/model/triangle.py` (commit 38ff491).
 
 capsule_w3c3 is not ported: the free end area in the source disagrees with the geometry already at δ = 0
-(docs/architecture/05_polygon_pores.md §4).
+(Monte Carlo: 0.88 / 0.92 / 1.04 at θ = 100° / 110° / 119.9°, the formula gives 0.94 / 1.25 / 3.68).
 """
 
 import math

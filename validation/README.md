@@ -1,55 +1,46 @@
-# Валидация точности метода
+# Accuracy of the method
 
-`run_accuracy.py` строит синтетические профили так, как их дала бы МД:
-- плотность в бине — среднее модели по бину (`ProfileSampling.BIN_AVERAGE`);
-- шум пуассоновский (`NoiseModel.POISSON`): σ ∝ √ρ, задаётся в долях ρ_bulk при плотности ρ_bulk; в пустых бинах шума
-  нет.
+`run_accuracy.py` builds synthetic profiles the way an MD simulation gives them:
 
-Затем профиль фитируется той же формой; модель при фите берётся в центрах бинов. Так измеряется ошибка самого
-метода — фита, дискретизации и шума. Ошибка выбора формы сюда не входит, поэтому это нижняя граница ошибки на
-реальных данных. Таблицы и рисунки — `REPORT.md` и `figures/`. Отчёт пересобирается запуском
-`uv run python validation/run_accuracy.py` (около минуты, нужен `panda-md[plot]`); выводы ниже написаны вручную, после
-перезапуска их нужно сверить с таблицами.
+- the density in a bin is the mean of the model over the bin (`ProfileSampling.BIN_AVERAGE`);
+- the noise is Poisson-like (`NoiseModel.POISSON`): σ ∝ √ρ, given as a fraction of ρ_bulk at ρ = ρ_bulk; empty bins
+  stay empty.
 
-Условия: щель 8 × 16 нм, ρ_bulk = 30 нм⁻³, 10 зёрен шума на точку. Настройки фита по умолчанию: свободны θ и δ,
-φ берётся из ∫ρ. Истинные параметры: валик θ = 120°, δ = 0.03, φ = 0.4; капля θ = 130°, φ = 0.05; червь θ = 130°,
-φ = 0.1.
+The profile is then fitted with the same shape (the model is evaluated at the bin centres). This measures the error
+of the method itself — fit, discretization and noise. The error of choosing the shape is not included, so these
+numbers are a lower bound of the error on real data. Tables and figures: `REPORT.md` and `figures/`. Rebuild with
+`uv run python validation/run_accuracy.py` (about a minute, needs `panda-md[plot]`); the conclusions below are
+written by hand and must be checked against the tables after a rerun.
 
-## Выводы (16.10.2026)
+Conditions: an 8 × 16 nm slit, ρ_bulk = 30 nm⁻³, 10 noise seeds per point. Default fit settings: θ and δ free, φ
+from ∫ρ. True parameters: roll θ = 120°, δ = 0.03, φ = 0.4; droplet θ = 130°, φ = 0.05; worm θ = 130°, φ = 0.1.
 
-1. **Шум.** Ошибка θ растёт линейно с шумом. При шуме 0.5 % ρ_bulk на бин (200 бинов) средняя |Δθ| составляет
-   0.21° у валика, 0.19° у капли и 0.17° у червя; максимальная — до 0.46°. При шуме 2 % средняя ошибка 0.6–0.85°,
-   максимальная до 1.9°. Критерий ТЗ «|Δθ| < 1° в среднем» выполняется во всём проверенном диапазоне шума.
-2. **Число бинов.** При одной статистике траектории (шум пересчитан как √(бинов / 200)) от 50 до 400 бинов ошибка
-   не меняется: средняя 0.16–0.21°, смещение не больше 0.15°. Дискретизация (данные — средние по бину, модель — в
-   центрах бинов) на угол почти не влияет.
-3. **Угол — O11.** До 140° средняя |Δθ| не больше 0.31°. Ближе к 180° профиль слабо зависит от θ, и ошибка растёт:
-   - капля: 0.9° при 160°, 2.0° при 170°, 3.7° при 175° (максимум 4.8°);
-   - червь: 0.5° при 160°, 1.9° при 170°, 4.1° при 175°; при 175° два фита из десяти упёрлись в границу 180°, поэтому
-     для червя при 175° ошибка — оценка снизу;
-   - валик держится дольше всех: 0.4° при 170°, 0.9° при 175°.
-   Вблизи 180° появляется и положительное смещение (капля +1.9°, червь +3.0° при 175°). Для статьи: углы выше
-   примерно 165° у капли и червя метод даёт с ошибкой порядка градуса и больше, и значение нужно приводить вместе
-   с разбросом по блокам (`fit_blocks`).
-4. **Центрирование — O3.** Положение стенок смещено на 5 % ширины щели:
-   - валик, центрирование по поре: 4.7° в среднем, до 7°;
-   - валик, по поре со свободным `shift`: 0.3°;
-   - валик, по жидкости при известной δ: 2.7°;
-   - у капли все три способа дают 0.2–0.25°: она стоит на одной стенке, и смещение стенок поглощает δ. Поэтому
-     «по поре» и «по поре + shift» у неё совпадают: shift вырожден с δ и остаётся на стартовом значении.
-   Рекомендация (как в `tests/README.md`): по умолчанию центрировать по поре; для форм, касающихся обеих стенок,
-   при неточных стенках добавлять `shift` к свободным параметрам.
+## Conclusions
 
-## Ограничения
+1. **Noise.** The error of θ grows linearly with the noise. At 0.5 % of ρ_bulk per bin (200 bins) the mean |Δθ| is
+   0.21° for the roll, 0.19° for the droplet and 0.17° for the worm, the maximum up to 0.46°. At 2 % the mean error
+   is 0.6–0.85°, the maximum up to 1.9°. The criterion “mean |Δθ| < 1°” holds over the whole tested range.
+2. **Number of bins.** With the same trajectory statistics (noise scaled as √(bins / 200)), 50 to 400 bins give the
+   same error: mean 0.16–0.21°, bias below 0.15°. Discretization barely affects the angle.
+3. **Angle.** Up to 140° the mean |Δθ| is at most 0.31°. Towards 180° the profile depends weakly on θ and the error
+   grows:
+   - droplet: 0.9° at 160°, 2.0° at 170°, 3.7° at 175° (maximum 4.8°);
+   - worm: 0.5° at 160°, 1.9° at 170°, 4.1° at 175°; at 175° two fits of ten stop at the bound 180°, so the worm
+     error there is a lower estimate;
+   - the roll holds longest: 0.4° at 170°, 0.9° at 175°.
+   A positive bias appears near 180° (droplet +1.9°, worm +3.0° at 175°). Angles above about 165° for droplets and
+   worms come with an error of a degree or more; report them with the spread over time blocks (`fit_blocks`).
+4. **Centering.** Wall positions off by 5 % of the slit width:
+   - roll, pore centering: 4.7° on average, up to 7°;
+   - roll, pore centering with `shift` free: 0.3°;
+   - roll, liquid centering with δ known: 2.7°;
+   - droplet: 0.2–0.25° with every method — it sits on one wall, and the shift of the walls is absorbed by δ.
+   Recommendation: centre on the pore by default; for shapes touching both walls with uncertain wall positions add
+   `shift` to the free parameters.
 
-- Синтетика и фит используют одну и ту же модель формы, поэтому ошибка выбора формы и отличие реального интерфейса от
-  модели не входят.
-- Во всех строках одного исследования используются одни и те же зёрна 0…9. Сравнение строк поэтому точнее, чем
-  разброс по 10 зёрнам; но максимум по 10 зёрнам — шумная оценка, и различия меньше примерно 0.1° (например, между
-  числами бинов) значимыми не являются.
-- Первая версия отчёта (тот же день) брала модель в центрах бинов и шум постоянной величины с обрезкой отрицательных
-  значений. Это давало ложные выводы:
-  - смещение у капли при 50 бинах — из-за неточного ∫ρ на грубой сетке;
-  - смещение +0.5° при малом шуме — обрезка шума в пустых бинах завышала φ;
-  - выброс 17.7° у капли при 160°.
-  Синтетика исправлена; в первой версии эти эффекты по ошибке были отнесены к дискретизации δ (O10).
+## Limitations
+
+- The synthetic profile and the fit use the same shape model: the error of choosing the shape and the difference
+  between a real interface and the model are not included.
+- All rows of one study use the same seeds 0…9, so rows compare better than the spread over 10 seeds suggests; the
+  maximum over 10 seeds is a noisy estimate, and differences below about 0.1° are not significant.

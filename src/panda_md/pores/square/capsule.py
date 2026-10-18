@@ -1,6 +1,6 @@
 """Capsules in a square pore. Formulas: PANDA_Polygon `square.py` (commit 38ff491).
 
-capsule_w4c4 is not ported: in the source ∫ρ dz ≠ φ (docs/architecture/05_polygon_pores.md §4).
+capsule_w4c4 is not ported: in the source ∫ρ dz ≠ φ (0.986 φ at δ = 0 and δ = 0.03).
 """
 
 import math

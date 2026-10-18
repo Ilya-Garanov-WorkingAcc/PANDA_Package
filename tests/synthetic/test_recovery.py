@@ -1,6 +1,6 @@
 """Synthetic validation: shape → noisy profile → fit → recovered parameters.
 
-Thresholds and the findings are described in tests/README.md (the synthetic data, O2 and O3 sections).
+Thresholds follow the accuracy study of the method (validation/README.md).
 """
 
 import numpy as np
@@ -86,7 +86,7 @@ def test_task_modes_recover_volume_fraction(optimize: list[str], fixed: dict[str
 @pytest.mark.slow
 @pytest.mark.parametrize("case", CASES[1:4], ids=case_id)
 def test_mean_normalization_recovers_compact_shapes(case: tuple[InterfaceModel, dict[str, float]]) -> None:
-    """O2: without ρ_bulk φ and θ are determined together — for droplets and filaments (not the roll, see README)."""
+    """Mean normalization: without ρ_bulk φ and θ are determined together — for droplets and filaments, not the roll."""
     model, truth = case
     for seed in SEEDS:
         profile = synthetic_profile(model, truth, density_bulk_per_nm3=DENSITY_BULK, noise_std=NOISE_STD, seed=seed)
@@ -97,7 +97,7 @@ def test_mean_normalization_recovers_compact_shapes(case: tuple[InterfaceModel, 
 
 
 def test_mean_normalization_with_known_phi_recovers_roll() -> None:
-    """O2: the roll in mean normalization needs a known φ (from the system construction)."""
+    """Mean normalization: the roll needs a known φ (from the system construction)."""
     model, truth = CASES[0]
     profile = synthetic_profile(model, truth, density_bulk_per_nm3=DENSITY_BULK)
     result = model.fit(profile, fixed={"phi": truth["phi"]})
@@ -110,7 +110,7 @@ WALL_OFFSET = 0.05  # wall position error: 5 % of the pore size
 
 @pytest.mark.parametrize("case", CASES[1:4], ids=case_id)
 def test_wall_offset_goes_into_wall_layer_for_one_wall_shapes(case: tuple[InterfaceModel, dict[str, float]]) -> None:
-    """O3: for shapes on one wall the wall shift is absorbed by δ, θ does not change — pore centering."""
+    """Wall error: for shapes on one wall the wall shift is absorbed by δ, θ does not change — pore centering."""
     model, truth = case
     profile = synthetic_profile(model, truth, density_bulk_per_nm3=DENSITY_BULK, offset=WALL_OFFSET)
     result = model.fit(profile, density_bulk_per_nm3=DENSITY_BULK)
@@ -118,7 +118,7 @@ def test_wall_offset_goes_into_wall_layer_for_one_wall_shapes(case: tuple[Interf
 
 
 def test_wall_offset_needs_free_shift_for_roll() -> None:
-    """O3: the roll touches both walls — the shift is absorbed only by the shift parameter."""
+    """Wall error: the roll touches both walls — the shift is absorbed only by the shift parameter."""
     model, truth = CASES[0]
     profile = synthetic_profile(model, truth, density_bulk_per_nm3=DENSITY_BULK, offset=WALL_OFFSET)
     with_shift = model.fit(profile, optimize=["theta", "delta", "shift"], density_bulk_per_nm3=DENSITY_BULK)

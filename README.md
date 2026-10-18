@@ -134,9 +134,6 @@ tests/          pytest tests (what each suite checks: tests/README.md)
 examples/       runnable scripts and a settings file for `panda run`
 validation/     accuracy of the method on synthetic data (REPORT.md, figures)
 docs/manual/    user documentation (mkdocs)
-docs/           design documents: audit of the previous version, architecture specification
-smoke/          exploratory scripts run against the previous PANDA version
-ROADMAP.md      project plan
 ```
 
 ## Previous version

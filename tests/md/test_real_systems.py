@@ -1,10 +1,10 @@
-"""Real MD: profiles computed by the new data path for three systems (`generate_md_profiles.py`).
+"""Real MD: profiles computed once by the data path of panda_md from three trajectories (not in the repository).
 
-The expectations are independent: a manual wall calculation and the results of task 1 (docs/task1_current_panda.md).
+The expectations are independent: a manual wall calculation and the previous PANDA on the same trajectories.
 - graphite: water is a non-wetting bridge (roll), θ ≈ 172° ± 7° over blocks; the 2D map shows water separated
   from graphite by a decane film, hence θ is close to 180°;
 - benzene: benzene wets the SOLD substrate (density near the walls is higher than in the middle) — θ < 90°, there
-  are no wetting regime formulas (O1), the fit must hit the regime boundary and raise the flag;
+  are no wetting regime formulas, the fit must hit the regime boundary and raise the flag;
 - calcite: the starting frame, the substrate is thick and made of different atoms — only the wall search and
   that all the liquid is in the pore are checked.
 """

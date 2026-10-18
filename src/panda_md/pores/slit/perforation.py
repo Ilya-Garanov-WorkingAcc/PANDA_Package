@@ -77,7 +77,7 @@ class SlitPerforation(AxisymmetricSlitShape):
         The hole diameter at the wall is d(φ) = ¼√D(φ) + c, D decreases linearly with φ, hence d ≥ c. If c > l,
         the hole does not fit into the cell for any φ — there is no perforation (empty interval). Otherwise the
         φ_min root is real. Formula (21) is obtained by squaring and in a narrow cell (c > l) gives a spurious root
-        with a hole wider than the cell and ρ < 0 (pre-release audit, O12).
+        with a hole wider than the cell and ρ < 0 (pre-release audit).
         """
         lower, upper = self._formula_phi_limits(square, values)
         if upper <= 0.0 or self._smallest_hole_diameter(values) > square.pore_length_ratio:

@@ -34,7 +34,7 @@ NOISE_LEVELS = (0.0025, 0.005, 0.01, 0.02)
 BIN_COUNTS = (50, 100, 200, 400)
 ANGLES = (100.0, 120.0, 140.0, 160.0, 170.0, 175.0)
 BASE_NOISE = 0.005
-WALL_ERROR = 0.05  # error of the wall positions: 5 % of the slit width (O3)
+WALL_ERROR = 0.05  # error of the wall positions: 5 % of the slit width
 
 
 def noise_study(shape: str) -> AccuracyStudy:
@@ -115,8 +115,8 @@ def main() -> None:
     studies = [
         ("Noise", "noise", noise_study, ("roll", "droplet", "worm")),
         ("Number of bins (noise 0.5 % at 200 bins)", "bins", bins_study, ("roll", "droplet")),
-        ("Angle (noise 0.5 %): accuracy near 180°, O11", "angle", angle_study, ("roll", "droplet", "worm")),
-        ("Centering with the walls off by 5 % of H, O3", "centering", centering_study, ("roll", "droplet")),
+        ("Angle (noise 0.5 %): accuracy near 180°", "angle", angle_study, ("roll", "droplet", "worm")),
+        ("Centering with the walls off by 5 % of H", "centering", centering_study, ("roll", "droplet")),
     ]
     for title, key, build, shapes in studies:
         sections.append(f"\n## {title}\n")

@@ -102,7 +102,7 @@ def _check_parameter_values(wall_layer: float, volume_fractions: Sequence[float]
 def _supported_candidates(pore: Pore, candidates: tuple[str, ...], contact_angle_deg: float) -> tuple[str, ...]:
     """Shapes that can exist at this θ and whose formulas are derived.
     A shape with θ outside the range of its regime simply does not exist (polygonal pores have narrow regimes) — it
-    is dropped silently. A shape whose regime for this θ is not derived at all (θ < 90° for slit shapes, O1) is
+    is dropped silently. A shape whose regime for this θ is not derived at all (θ < 90° for slit shapes) is
     dropped with a warning; if that holds for all shapes with an angle, the diagram is not defined — an error, not
     “a layer in the whole pore”.
     """

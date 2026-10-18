@@ -503,7 +503,7 @@ with part("B8. The command line gives the same answer as the API"):
 markdown("""
 ## C. Benzene on the SOLD substrate — a wetting liquid
 
-There are no wetting regime formulas (θ < 90°) for the slit shapes (open item O1). Expectation: there is more
+There are no wetting regime formulas (θ < 90°) for the slit shapes (not derived yet). Expectation: there is more
 benzene near the walls than in the middle of the pore; the fit hits the regime boundary and the result carries the
 `at_regime_boundary` flag — that is, the library reports “the liquid wets, the angle is not determined” instead of
 giving a false angle.

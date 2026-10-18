@@ -37,3 +37,6 @@ smoke/out/
 # Editors
 .vscode/
 .idea/
+
+# Internal development notes (design, plans, audits, reference generators): kept locally, not published
+/dev_notes/

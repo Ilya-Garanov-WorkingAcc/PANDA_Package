@@ -2,7 +2,7 @@
 
 The source derives a density profile only for droplet_w1c0; the other droplets serve the stability diagram.
 droplet_w2c1 is not ported: the S_LV area in the source disagrees with the geometry over the whole θ range
-(docs/architecture/05_polygon_pores.md §4).
+(Monte Carlo S_LV / R² = 2.66 / 3.29 / 4.67 at θ = 95° / 100° / 110°, the formula gives 1.56 / 1.07 / 0.20).
 """
 
 import math

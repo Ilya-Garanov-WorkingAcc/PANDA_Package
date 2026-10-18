@@ -61,7 +61,7 @@ class InterfaceModel:
     def supported_values(self, user_values: Mapping[str, float]) -> dict[str, float]:
         """Internal values if the shape has formulas derived for the angle θ; otherwise UnsupportedRegimeError.
 
-        Formulas outside the declared regime are not called: they are either wrong (θ < 90° for slit shapes, O1) or
+        Formulas outside the declared regime are not called: they are either wrong (θ < 90° for slit shapes) or
         divide by 0.
         """
         values = self.internal_values(user_values)
