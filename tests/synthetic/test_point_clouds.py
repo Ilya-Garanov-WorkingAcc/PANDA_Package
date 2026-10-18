@@ -235,3 +235,28 @@ def test_droplet_map_with_axial_centering_is_symmetric() -> None:
     density = density_map(trajectory, found, "liquid", shape="droplet", bins=(40, 20)).density_per_nm3
     np.testing.assert_allclose(density, density[::-1, :], atol=0.35 * DENSITY_BULK)  # symmetry x → −x
     assert float(np.max(density[18:22, :])) > 0.6 * DENSITY_BULK  # liquid at the axis, not a smeared cloud
+
+
+@pytest.mark.parametrize(
+    ("shape_name", "values"),
+    [("roll", {"theta": 120.0, "delta": 0.03, "phi": 0.4}), ("layer", {"delta": 0.03, "phi": 0.4})],
+)
+def test_bulk_density_is_estimated_from_the_map(shape_name: str, values: dict[str, float]) -> None:
+    """ρ_bulk for the fit straight from the 2D map: the core of the phase in the middle of the slit."""
+    model = PORE.interface(shape_name)
+    trajectory = synthetic_trajectory(model, values, density_bulk_per_nm3=DENSITY_BULK, frame_count=40, seed=6)
+    found = SlitPore.from_trajectory(trajectory, walls="walls")
+    axis = shape_name if model.shape.symmetry_axis is not None else None
+    density = density_map(trajectory, found, "liquid", shape=axis, bins=(40, 20))
+    assert density.bulk_density() == pytest.approx(DENSITY_BULK, rel=0.1)
+
+
+def test_bulk_density_ignores_dense_layers_at_the_walls() -> None:
+    edges = np.linspace(-2.0, 2.0, 21)
+    rows = np.full((10, 20), 3.0)  # bulk liquid 3 nm⁻³
+    rows[:, :3] = rows[:, -3:] = 16.0  # adsorbed layers, as decane on graphite
+    density = DensityMap(length_edges_nm=np.linspace(0.0, 8.0, 11), height_edges_nm=edges, density_per_nm3=rows,
+                         frame="pore", axis_centered=False, frame_count=1, selection="test")  # fmt: skip
+    assert density.bulk_density() == pytest.approx(3.0)
+    with pytest.raises(ValueError, match="core_fraction"):
+        density.bulk_density(core_fraction=0.0)

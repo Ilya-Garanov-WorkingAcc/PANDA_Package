@@ -230,3 +230,25 @@ def test_plot_labels_for_flipped_map_and_single_block() -> None:
     labels = plot_blocks(blocks).get_legend_handles_labels()[1]
     assert not any("nan" in label for label in labels)
     plt.close("all")
+
+
+def test_plot_profile_shows_blocks_with_their_error() -> None:
+    import matplotlib.pyplot as plt
+
+    from panda_md.core.profile import ProfileSet
+    from panda_md.plotting import plot_profile
+
+    model = SlitPore(width_nm=8.0, length_nm=16.0).interface("roll")
+    profile = synthetic_profile(model, {"theta": 120.0, "delta": 0.03, "phi": 0.4}, density_bulk_per_nm3=30.0)
+    axes = plot_profile(profile)
+    assert len(axes.lines) == 1 and "nm" in axes.get_xlabel()
+    two_blocks = ProfileSet(
+        bin_edges_nm=np.linspace(-4.0, 4.0, profile.coordinate_nm.size + 1),
+        block_densities_per_nm3=np.vstack([profile.density_per_nm3, 1.1 * profile.density_per_nm3]),
+        block_start_ps=[0.0, 1000.0], block_stop_ps=[1000.0, 2000.0], block_frame_counts=(10, 10),
+        block_particle_counts=[1.0, 1.0], frame="pore", centering="pore", selection="liquid", pore_volume_nm3=2048.0,
+    )  # fmt: skip
+    axes = plot_profile(two_blocks)
+    assert axes.containers  # error bars: the standard error over blocks
+    assert "2 blocks" in axes.get_legend_handles_labels()[1][0]
+    plt.close("all")

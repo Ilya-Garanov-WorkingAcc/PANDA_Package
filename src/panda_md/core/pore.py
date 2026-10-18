@@ -1,6 +1,7 @@
 """Pore type: geometry, position in the simulation box, reduction of the profile to dimensionless form, shapes."""
 
 from abc import ABC, abstractmethod
+from enum import Enum
 from typing import TYPE_CHECKING, Any, ClassVar, TypeVar
 
 from panda_md.core.enums import Axis, Normalization
@@ -23,6 +24,20 @@ class Pore(PandaModel, ABC):
     shape_registry: ClassVar[dict[str, type[InterfaceShape[Any]]]]
     normal_axis: Axis = Axis.Z  # box axis along which the profile is built
     wall_selection: str | None = None  # wall atoms: used to find the pore centre in each frame
+
+    def __str__(self) -> str:
+        """Readable form, e.g. `slit pore: width_nm = 8.269, length_nm = 17.271`; default fields are omitted."""
+        parts = []
+        for field_name, field in type(self).model_fields.items():
+            value = getattr(self, field_name)
+            if not field.is_required() and value == field.default:
+                continue
+            shown = value.value if isinstance(value, Enum) else value
+            parts.append(f"{field_name} = {shown:g}" if isinstance(shown, float) else f"{field_name} = {shown!r}")
+        return f"{self.name} pore: " + ", ".join(parts)
+
+    def __repr__(self) -> str:
+        return str(self)
 
     @classmethod
     def own_registry(cls) -> dict[str, type[InterfaceShape[Any]]]:

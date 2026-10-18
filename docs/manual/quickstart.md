@@ -36,5 +36,5 @@ panda profile system.tpr system.xtc --walls "resname GRAPHITE" --select "resname
 panda fit water.npz --pore-file pore.json --shape roll --rho-bulk 33.1 --blocks -o result.json --plot fit.png
 ```
 
-More in `examples/` of the repository: a full pipeline script, saved profiles of water in graphite, a stability
+The whole analysis of a real trajectory step by step, with figures, is `examples/demo.ipynb`. More in `examples/` of the repository: a full pipeline script, saved profiles of water in graphite, a stability
 diagram and a user-defined shape.

@@ -9,7 +9,7 @@ of molecular simulations.
 > time blocks, stability diagrams, figures (extra `plot`) and the command line `panda`. Limitations: no formulas
 > for the wetting regime θ < 90° of the slit shapes; see [CHANGELOG.md](https://github.com/Ilya-Garanov-WorkingAcc/PANDA_2.0/blob/main/CHANGELOG.md).
 
-A full test run on real trajectories: `examples/test_panda.ipynb`. Documentation: `make docs` builds it from `docs/manual/` (mkdocs); examples: [examples/](https://github.com/Ilya-Garanov-WorkingAcc/PANDA_2.0/blob/main/examples/).
+A walk-through of the whole analysis of a real trajectory: `examples/demo.ipynb`; a full test run: `examples/test_panda.ipynb`. Documentation: `make docs` builds it from `docs/manual/` (mkdocs); examples: [examples/](https://github.com/Ilya-Garanov-WorkingAcc/PANDA_2.0/blob/main/examples/).
 
 ```python
 import panda_md as panda

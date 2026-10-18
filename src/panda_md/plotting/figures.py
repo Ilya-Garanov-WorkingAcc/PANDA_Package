@@ -10,6 +10,7 @@ from panda_md.analysis.blocks import FitResultSet
 from panda_md.analysis.stability import StabilityDiagram
 from panda_md.core.enums import ParameterName
 from panda_md.core.errors import MissingDependencyError
+from panda_md.core.profile import DensityProfile, ProfileSet
 from panda_md.core.result import FitResult
 from panda_md.trajectory.maps import DensityMap
 
@@ -35,6 +36,23 @@ def _axes(ax: Axes | None) -> Axes:
         return ax
     _, created = plt.subplots()
     return created
+
+
+def plot_profile(profile: DensityProfile | ProfileSet, ax: Axes | None = None) -> Axes:
+    """Density profile in nm and nm⁻³; for a set of time blocks — the mean with the standard error as error bars."""
+    axes = _axes(ax)
+    if isinstance(profile, ProfileSet):
+        mean = profile.mean()
+        axes.errorbar(mean.coordinate_nm, mean.density_per_nm3, yerr=profile.sem(), fmt=".", markersize=3,
+                      label=f"mean of {profile.block_count} blocks ± standard error")  # fmt: skip
+        frame = profile.frame
+    else:
+        axes.plot(profile.coordinate_nm, profile.density_per_nm3, ".-", markersize=3, label="profile")
+        frame = profile.frame
+    axes.set_xlabel(f"coordinate, nm ({frame.value} frame)")
+    axes.set_ylabel("ρ, nm⁻³")
+    axes.legend()
+    return axes
 
 
 def plot_fit(result: FitResult, ax: Axes | None = None) -> Axes:

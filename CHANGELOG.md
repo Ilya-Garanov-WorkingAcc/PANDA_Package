@@ -23,7 +23,10 @@ Kopanichuk, Colloids Surf. A 708 (2025) 135994.
 - Analysis: fit of every block (mean ± error), comparison of all shapes of a pore, statistical inefficiency.
 - Synthetic profiles and point clouds for tests and validation; accuracy study of the method
   (`validation/REPORT.md`).
-- Plots (extra `plot`, matplotlib): fit, blocks, density map, stability diagram, accuracy.
+- Plots (extra `plot`, matplotlib): density profile with the error over blocks, fit, blocks, density map, stability
+  diagram, accuracy.
+- Bulk density of a liquid from its 2D map (`DensityMap.bulk_density`); pores print their dimensions readably.
+- `examples/demo.ipynb`: the whole analysis of a real trajectory, step by step, with figures.
 - Command line `panda`: `shapes`, `profile`, `fit`, `run CONFIG.toml`, `--version`; exit codes 0 / 1 / 2.
 - Reproducibility: the PANDA version is stored in every `FitResult` and in saved `.npz` / `.csv` files.
 - Shape comparison marks shapes whose losses differ by less than 2 % as indistinguishable by the profile.

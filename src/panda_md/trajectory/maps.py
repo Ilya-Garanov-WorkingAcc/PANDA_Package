@@ -36,6 +36,9 @@ from panda_md.trajectory.density import (
 DEFAULT_MAP_BINS = (100, 100)
 MIN_MAP_BINS = 2
 
+BULK_CORE_FRACTION = 0.5  # bulk density: the middle half of the map height, away from the wall layering
+BULK_LEVEL = 0.5  # and the bins denser than half the densest bin there (the core of the phase)
+
 
 class DensityMap(PandaModel):
     """ρ (nm⁻³) on a grid: along the long side × along the profile axis, averaged over frames and the short side."""
@@ -56,6 +59,27 @@ class DensityMap(PandaModel):
         if self.density_per_nm3.shape != expected:
             raise ValueError(f"map has shape {self.density_per_nm3.shape}, the bin edges give {expected}")
         return self
+
+    def bulk_density(self, core_fraction: float = BULK_CORE_FRACTION, level: float = BULK_LEVEL) -> float:
+        """Bulk density of the mapped liquid, nm⁻³: the median over the core of its phase.
+        The core is the middle `core_fraction` of the map height (away from the layering at the walls) and, in it,
+        the bins denser than `level` × the densest bin there. Gives ρ_bulk for the fit (`density_bulk_per_nm3`) of a
+        liquid that crosses the middle of the slit (a roll, a layer, the continuous phase around another liquid). A
+        droplet or a worm on one wall does not reach the middle, and the map averages it over the short side: take
+        ρ_bulk from the other phase or from a bulk simulation.
+        """
+        if not 0.0 < core_fraction <= 1.0 or not 0.0 <= level < 1.0:
+            raise ValueError(
+                f"invalid core_fraction = {core_fraction} or level = {level}; "
+                "need 0 < core_fraction ≤ 1 and 0 ≤ level < 1"
+            )
+        heights = 0.5 * (self.height_edges_nm[:-1] + self.height_edges_nm[1:])
+        middle = 0.5 * (self.height_edges_nm[0] + self.height_edges_nm[-1])
+        half_band = 0.5 * core_fraction * (self.height_edges_nm[-1] - self.height_edges_nm[0])
+        band = self.density_per_nm3[:, np.abs(heights - middle) <= half_band]
+        if band.size == 0 or float(np.max(band)) <= 0.0:
+            raise ValueError("no liquid in the middle of the map; increase core_fraction or check the selection")
+        return float(np.median(band[band > level * float(np.max(band))]))
 
     def save(self, path: str | Path) -> None:
         arrays = {name: getattr(self, name) for name in ("length_edges_nm", "height_edges_nm", "density_per_nm3")}

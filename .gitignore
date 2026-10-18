@@ -13,6 +13,7 @@ build/
 dist/
 site/
 panda_test_results/
+demo_results/
 uv.lock
 
 # The previous PANDA: a separate clone (github.com/FlufffyMelon/PANDA), reference only

@@ -78,3 +78,12 @@ def test_pore_rejects_non_positive_size() -> None:
 def test_pore_rejects_unknown_field() -> None:
     with pytest.raises(ValidationError):
         SlitPore(width_nm=8.0, length_nm=16.0, height_nm=3.0)  # type: ignore[call-arg]
+
+
+def test_pore_prints_its_dimensions_readably() -> None:
+    pore = SlitPore(width_nm=8.269, length_nm=17.271, base_aspect_ratio=0.297, wall_selection="resname GRAPHITE")
+    text = str(pore)
+    assert text.startswith("slit pore: ")
+    assert "width_nm = 8.269" in text and "length_nm = 17.271" in text and "base_aspect_ratio = 0.297" in text
+    assert "wall_selection = 'resname GRAPHITE'" in text and "<Axis" not in text
+    assert repr(pore) == text  # the notebook shows the same readable form
