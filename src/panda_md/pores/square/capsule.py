@@ -1,6 +1,6 @@
-"""Капсулы (capsule) в квадратной поре. Формулы — PANDA_Polygon `square.py` (коммит 38ff491).
+"""Capsules in a square pore. Formulas: PANDA_Polygon `square.py` (commit 38ff491).
 
-capsule_w4c4 не переносится: в источнике ∫ρ dz ≠ φ (docs/architecture/05_polygon_pores.md §4).
+capsule_w4c4 is not ported: in the source ∫ρ dz ≠ φ (docs/architecture/05_polygon_pores.md §4).
 """
 
 import math
@@ -19,7 +19,7 @@ from panda_md.pores.square.shape import NON_WETTING_ABOVE_THREE_QUARTERS_PI, THR
 
 @SquarePore.register
 class SquareCapsuleFourWalls(SquareShape):
-    """capsule_w4c0: перемычка касается четырёх стенок, углы пусты; на торцах — мениски (3π/4 ≤ θ ≤ π)."""
+    """capsule_w4c0: a bridge touching four walls, the corners are empty; menisci at the ends (3π/4 ≤ θ ≤ π)."""
 
     name: ClassVar[str] = "capsule_w4c0"
     parameters: ClassVar[tuple[Parameter, ...]] = (CONTACT_ANGLE, WALL_LAYER_THICKNESS, VOLUME_FRACTION)
@@ -30,14 +30,14 @@ class SquareCapsuleFourWalls(SquareShape):
         return self.side(values) / (2.0 * math.cos(math.pi - values[ParameterName.CONTACT_ANGLE]))
 
     def section_area(self, values: ParameterValues) -> float:
-        """S_сеч = r² (π − 4θ′ + 2 sin 2θ′) — сечение вставки (S_cross_capsule_w4c0_square)."""
+        """S_cross = r² (π − 4θ′ + 2 sin 2θ′) — cross-section of the insertion (S_cross_capsule_w4c0_square)."""
         supplementary_angle = math.pi - values[ParameterName.CONTACT_ANGLE]
         return self.meniscus_radius(values) ** 2 * (
             math.pi - 4.0 * supplementary_angle + 2.0 * math.sin(2.0 * supplementary_angle)
         )
 
     def insertion_length(self, geometry: SquareGeometry, values: ParameterValues) -> float:
-        """l̃ = (φ l + 4π r³ / 3 − 2π a′ r² + π a′³ / 6) / S_сеч (l_tilde_capsule_w4c0_square)."""
+        """l̃ = (φ l + 4π r³ / 3 − 2π a′ r² + π a′³ / 6) / S_cross (l_tilde_capsule_w4c0_square)."""
         side = self.side(values)
         radius = self.meniscus_radius(values)
         numerator = (
@@ -71,10 +71,10 @@ class SquareCapsuleFourWalls(SquareShape):
         return SurfaceTerms(liquid_liquid_area=liquid_liquid, liquid_solid_area=liquid_solid)
 
     def center_of_mass(self, geometry: SquareGeometry, values: ParameterValues) -> float:
-        return 0.0  # капсула симметрична относительно центра сечения
+        return 0.0  # the capsule is symmetric about the cross-section centre
 
     def profile(self, coordinate: FloatArray, geometry: SquareGeometry, values: ParameterValues) -> FloatArray:
-        """Сечение на высоте z — «стадион» 2 l̃ r_z + π r_z², у которого боковые стенки срезают сегменты."""
+        """The cross-section at height z is a "stadium" 2 l̃ r_z + π r_z² with segments cut off by the side walls."""
         floor = self.floor(values)
         half_side = -floor
         radius = self.meniscus_radius(values)

@@ -1,4 +1,4 @@
-"""Этапы конвейера для команд: профиль из траектории, фит профиля, вывод результата. Те же вызовы, что в API."""
+"""Pipeline stages of the commands: profile from a trajectory, profile fit, result output. Same calls as the API."""
 
 import zipfile
 from collections.abc import Callable, Mapping, Sequence
@@ -24,28 +24,28 @@ from panda_md.pores.slit import SlitPore
 from panda_md.trajectory.density import density_profile
 from panda_md.trajectory.reader import load_trajectory
 
-AUTO_SHAPE = "auto"  # --shape auto: перебор всех форм поры, берётся лучшая
-PROFILE_SET_KEY = "bin_edges_nm"  # массив, по которому .npz набора профилей отличается от одного профиля
-METADATA_KEY = "metadata"  # JSON метаданных в .npz, сохранённом PANDA
+AUTO_SHAPE = "auto"  # --shape auto: try all shapes of the pore, take the best
+PROFILE_SET_KEY = "bin_edges_nm"  # the array that tells a .npz of a profile set from a single profile
+METADATA_KEY = "metadata"  # metadata JSON in a .npz saved by PANDA
 WALL_SELECTION_FIELD = "wall_selection"
-# поля щели, которые задаются и без размеров: остальное SlitPore.from_trajectory находит сам
+# slit fields that can be set without the dimensions: SlitPore.from_trajectory finds the rest itself
 FROM_TRAJECTORY_FIELDS = (WALL_SELECTION_FIELD, "length_axis", "normal_axis", "wall_offset_nm")
 EXIT_SUCCESS = 0
 EXIT_INPUT_ERROR = 1
 EXIT_FIT_PROBLEMS = 2
-EXIT_INTERRUPTED = 130  # 128 + SIGINT, как принято в оболочке
+EXIT_INTERRUPTED = 130  # 128 + SIGINT, as is customary in the shell
 
 Echo = Callable[[str], None]
 
 
 def require_file(path: Path) -> Path:
     if not path.is_file():
-        raise CommandLineError(f"файл {path} не найден")
+        raise CommandLineError(f"file not found: {path}")
     return path
 
 
 class FitReport(PandaModel):
-    """Что сохраняет panda fit -o: фит профиля (с --blocks — среднего по блокам), фиты блоков, сравнение форм."""
+    """What panda fit -o saves: the profile fit (with --blocks — of the block mean), block fits, shape comparison."""
 
     fit: FitResult
     blocks: FitResultSet | None = None  # --blocks
@@ -53,7 +53,7 @@ class FitReport(PandaModel):
 
 
 def load_profile(path: Path) -> tuple[DensityProfile, ProfileSet | None]:
-    """Профиль для фита: из набора по блокам (.npz от panda profile) — среднее по блокам; иначе сам профиль."""
+    """Profile for the fit: for a block set (.npz from panda profile) the block mean, otherwise the profile itself."""
     require_file(path)
     if path.suffix == ".npz" and PROFILE_SET_KEY in _panda_npz_keys(path):
         profiles = ProfileSet.load(path)
@@ -62,52 +62,52 @@ def load_profile(path: Path) -> tuple[DensityProfile, ProfileSet | None]:
 
 
 def _panda_npz_keys(path: Path) -> list[str]:
-    """Имена массивов .npz, сохранённого PANDA; чужой или испорченный файл — понятная ошибка, а не KeyError."""
-    advice = "профиль сохраняют panda profile и DensityProfile.save; чужие данные передай в .csv"
+    """Array names of a .npz saved by PANDA; a foreign or corrupted file gives a clear error, not a KeyError."""
+    advice = "profiles are saved by panda profile and DensityProfile.save; pass other data as .csv"
     try:
         loaded = np.load(path)
     except (ValueError, OSError, zipfile.BadZipFile) as error:
-        raise CommandLineError(f"{path.name}: не профиль PANDA ({error}); {advice}") from None
+        raise CommandLineError(f"{path.name} is not a PANDA profile ({error}); {advice}") from None
     if not isinstance(loaded, NpzFile):
-        raise CommandLineError(f"{path.name}: не профиль PANDA — это не архив .npz; {advice}")
+        raise CommandLineError(f"{path.name} is not a PANDA profile: not an .npz archive; {advice}")
     with loaded:
         keys = list(loaded.files)
     if METADATA_KEY not in keys:
-        raise CommandLineError(f"{path.name}: не профиль PANDA — нет metadata; {advice}")
+        raise CommandLineError(f"{path.name} is not a PANDA profile: no metadata; {advice}")
     return keys
 
 
 def check_outputs(*paths: Path | None) -> None:
-    """До долгой работы: каталоги выходных файлов существуют."""
+    """Before long work: the directories of the output files exist."""
     for path in paths:
         if path is not None and not path.parent.is_dir():
-            raise CommandLineError(f"каталог {path.parent} для {path.name} не существует")
+            raise CommandLineError(f"directory {path.parent} for {path.name} does not exist")
 
 
 def check_profiles_output(path: Path | None) -> None:
     if path is not None and path.suffix != ".npz":
-        raise CommandLineError(f"профили по блокам сохраняются в .npz, а не в {path.name}")
+        raise CommandLineError(f"block profiles are saved to .npz, not to {path.name}")
     check_outputs(path)
 
 
 def check_plot(path: Path | None) -> None:
-    """До фита: без matplotlib или с неизвестным форматом график не построить — ошибка сразу."""
+    """Before the fit: without matplotlib or with an unknown format the plot cannot be built — fail at once."""
     if path is None:
         return
-    from panda_md.plotting import supported_figure_formats  # MissingDependencyError, если matplotlib нет
+    from panda_md.plotting import supported_figure_formats  # MissingDependencyError if matplotlib is absent
 
     formats = supported_figure_formats()
     if path.suffix.lstrip(".").lower() not in formats:
-        raise CommandLineError(f"график {path.name}: формат не поддерживается; доступны: {', '.join(formats)}")
+        raise CommandLineError(f"unsupported plot format: {path.name}; available: {', '.join(formats)}")
     check_outputs(path)
 
 
 def check_shape_name(pore_type: type[Pore], shape: str) -> None:
-    """До чтения данных: опечатка в имени формы — сразу ошибка со списком форм поры."""
+    """Before reading the data: a typo in the shape name is an error at once, with the list of pore shapes."""
     registry = pore_type.own_registry()
     if shape != AUTO_SHAPE and shape not in registry:
         raise UnknownShapeError(
-            f"в поре {pore_type.name} нет формы {shape}; доступны: {AUTO_SHAPE}, {', '.join(registry)}"
+            f"unknown shape '{shape}' in pore '{pore_type.name}'; available: {AUTO_SHAPE}, {', '.join(registry)}"
         )
 
 
@@ -120,7 +120,7 @@ def trajectory_pore(
     start: TimeValue,
     hint: str = OPTIONS_HINT,
 ) -> Pore:
-    """Пора с заданными размерами; без размеров — щель по атомам стенок в кадре start (как SlitPore.from_trajectory)."""
+    """Pore with the given dimensions; without them a slit from the wall atoms in frame start (from_trajectory)."""
     missing = missing_fields(pore_type, values)
     required = missing_fields(pore_type, {})
     if not missing or not issubclass(pore_type, SlitPore) or missing != required:
@@ -129,13 +129,14 @@ def trajectory_pore(
     unused = sorted(set(values) - set(FROM_TRAJECTORY_FIELDS))
     if walls is None:
         raise CommandLineError(
-            "размеры щели по траектории ищутся по атомам стенок: задай их выборку (--walls «выборка» или "
-            f"wall_selection в [pore]) — координаты стенок «z1,z2» щель не измеряют; или задай размеры: {hint}"
+            "slit dimensions are measured from the trajectory by the wall atoms: set their selection (--walls "
+            f"“selection” or wall_selection in [pore]) — wall coordinates “z1,z2” do not measure the slit; or set "
+            f"the dimensions with {hint}"
         )
     if unused:
         raise CommandLineError(
-            f"без размеров щель измеряется по траектории, и поля {', '.join(unused)} не используются: "
-            f"убери их или задай все размеры ({hint})"
+            f"without dimensions the slit is measured from the trajectory, and fields {', '.join(unused)} are unused; "
+            f"remove them or set all dimensions ({hint})"
         )
     return SlitPore.from_trajectory(
         trajectory,
@@ -170,14 +171,14 @@ def build_profiles(
     echo: Echo,
     hint: str = OPTIONS_HINT,
 ) -> tuple[Pore, ProfileSet]:
-    """Профили по блокам; пора — с заданными размерами или найденная по траектории (её JSON — в pore_output)."""
+    """Block profiles; the pore has the given dimensions or is measured from the trajectory (JSON to pore_output)."""
     for path in (topology, *trajectory_files):
         require_file(path)
     trajectory = load_trajectory(topology, *trajectory_files)
     measured = bool(missing_fields(pore_type, pore_values))
     pore = trajectory_pore(pore_type, pore_values, trajectory, select=select, start=start, hint=hint)
     if measured:
-        echo(f"пора по траектории: {pore_json(pore, indent=None)}")
+        echo(f"pore from the trajectory: {pore_json(pore, indent=None)}")
     profiles = density_profile(
         trajectory,
         pore,
@@ -194,13 +195,13 @@ def build_profiles(
         per=per,
     )
     frames = sum(profiles.block_frame_counts)
-    echo(f"профили: {profiles.block_count} блок(ов), {frames} кадров, {profiles.coordinate_nm.size} бинов")
+    echo(f"profiles: {profiles.block_count} block(s), {frames} frames, {profiles.coordinate_nm.size} bins")
     if output is not None:
         profiles.save(output)
-        echo(f"профили → {output}")
+        echo(f"profiles → {output}")
     if pore_output is not None:
         pore_output.write_text(pore_json(pore) + "\n", encoding="utf-8")
-        echo(f"пора → {pore_output}")
+        echo(f"pore → {pore_output}")
     return pore, profiles
 
 
@@ -216,9 +217,9 @@ def run_fit(
     plot: Path | None,
     echo: Echo,
 ) -> int:
-    """Фит одной формой или перебором (shape = auto); blocks — ещё и каждого блока. Код возврата 0 или 2."""
+    """Fit with one shape or by search (shape = auto); blocks — also each block. Exit code 0 or 2."""
     if blocks and profiles is None:
-        raise CommandLineError("фит по блокам: нужен набор профилей по блокам (.npz от panda profile)")
+        raise CommandLineError("fit over blocks needs a set of block profiles; pass the .npz from panda profile")
     check_plot(plot)
     check_outputs(output)
     comparison = None
@@ -226,28 +227,28 @@ def run_fit(
         comparison = compare_shapes(pore, profile, spec)
         echo(comparison.summary())
         result = comparison.best
-        echo(f"лучшая форма: {result.shape_name}")
+        echo(f"best shape: {result.shape_name}")
     else:
         result = fit(pore.interface(shape), profile, spec)
     echo(result.summary())
     problems = list(result.problems())
     result_set = None
     if blocks:
-        assert profiles is not None  # проверено выше
+        assert profiles is not None  # checked above
         result_set = fit_blocks(pore.interface(result.shape_name), profiles, spec)
         echo(result_set.summary())
         problems.extend(problem for block_result in result_set.results for problem in block_result.problems())
     if output is not None:
         report = FitReport(fit=result, blocks=result_set, comparison=comparison)
         output.write_text(report.model_dump_json(indent=2) + "\n", encoding="utf-8")
-        echo(f"результат → {output}")
+        echo(f"result → {output}")
     if plot is not None:
         _save_plot(result, plot)
-        echo(f"график → {plot}")
+        echo(f"plot → {plot}")
     return EXIT_FIT_PROBLEMS if problems else EXIT_SUCCESS
 
 
 def _save_plot(result: FitResult, path: Path) -> None:
-    from panda_md.plotting import save_fit_figure  # matplotlib — только в panda_md.plotting
+    from panda_md.plotting import save_fit_figure  # matplotlib only in panda_md.plotting
 
     save_fit_figure(result, path)

@@ -1,4 +1,4 @@
-"""Общий фит: один алгоритм для любой формы, любой поры и любого набора свободных параметров."""
+"""Generic fit: one algorithm for any shape, any pore and any set of free parameters."""
 
 import itertools
 import math
@@ -30,18 +30,18 @@ if TYPE_CHECKING:
     from panda_md.core.model import InterfaceModel
 
 
-MIN_WINDOW_POINTS = 10  # меньше точек в окне фита — ошибка EmptyWindowError
-# шаги проверки «параметр влияет», доли ширины его границ: крупные нужны параметрам, двигающим лишь край
-# профиля (φ у слоя), — малый сдвиг края не выходит за бин
+MIN_WINDOW_POINTS = 10  # fewer points in the fit window — EmptyWindowError
+# steps of the 'parameter has an effect' check, as fractions of its bounds width: large ones are needed for
+# parameters that move only the edge of the profile (φ of the layer) — a small edge shift stays within a bin
 IDENTIFIABILITY_STEP_FRACTIONS = (1e-3, 1e-2, 5e-2)
-IDENTIFIABILITY_TOLERANCE = 1e-9  # относительное изменение профиля, ниже которого параметр «не влияет»
-BOUND_PROXIMITY_FRACTION = 1e-3  # ближе этой доли ширины границ — параметр «у границы»
-MEAN_PHI_FLOOR = 1e-3  # нормировка mean: оценка барьера при φ не меньше этой (при φ → 0 она вырождена)
-BARRIER_LEVEL_FACTOR = 10.0  # уровень барьера: во столько раз выше верхней оценки допустимой ошибки (+1)
-BARRIER_SLOPE = 100.0  # наклон барьера по величине выхода φ за границы существования
-COVERAGE_TOLERANCE = 0.05  # данные должны доходить до стенок с точностью 5 % размера поры
-VOLUME_TOLERANCE = 0.01  # объём поры профиля и поры фита: расхождение больше 1 % — другая пора
-OUTSIDE_MASS_TOLERANCE = 0.05  # допустимая доля ∫ρ за пределами поры (система поры)
+IDENTIFIABILITY_TOLERANCE = 1e-9  # relative profile change below which the parameter 'has no effect'
+BOUND_PROXIMITY_FRACTION = 1e-3  # closer than this fraction of the bounds width — the parameter is 'at bound'
+MEAN_PHI_FLOOR = 1e-3  # mean normalization: the barrier estimate uses φ not below this (it degenerates as φ → 0)
+BARRIER_LEVEL_FACTOR = 10.0  # barrier level: this many times the upper estimate of the feasible loss (+1)
+BARRIER_SLOPE = 100.0  # barrier slope in the amount by which φ leaves its existence limits
+COVERAGE_TOLERANCE = 0.05  # the data must reach the walls to within 5 % of the pore size
+VOLUME_TOLERANCE = 0.01  # pore volume of the profile vs. the fitted pore: a difference above 1 % means a different pore
+OUTSIDE_MASS_TOLERANCE = 0.05  # allowed fraction of ∫ρ outside the pore (pore frame)
 
 CONTACT_ANGLE_NAME = ParameterName.CONTACT_ANGLE.value
 WALL_LAYER_NAME = ParameterName.WALL_LAYER_THICKNESS.value
@@ -50,7 +50,7 @@ PROFILE_SHIFT_NAME = ParameterName.PROFILE_SHIFT.value
 
 
 class _Objective:
-    """Целевая функция фита: модель в системе отсчёта данных, сравнение с данными, барьер."""
+    """Fit objective: the model in the frame of reference of the data, comparison with the data, barrier."""
 
     model: "InterfaceModel"
     geometry: PoreGeometry
@@ -83,9 +83,9 @@ class _Objective:
         self.evaluation_count = 0
 
     def _feasible_loss_bound(self) -> float:
-        """Верхняя оценка ошибки любой допустимой точки: |модель − данные| ≤ |модель| + |данные|.
-        Модель ρ/ρ_bulk ≤ 1; в нормировке mean она делится на φ — оценка берётся при наименьшей достижимой φ
-        (но не меньше MEAN_PHI_FLOOR: при φ → 0 нормировка mean вырождена).
+        """Upper estimate of the loss at any feasible point: |model − data| ≤ |model| + |data|.
+        The model ρ/ρ_bulk ≤ 1; with mean normalization it is divided by φ — the estimate uses the smallest
+        reachable φ (but not below MEAN_PHI_FLOOR: mean normalization degenerates as φ → 0).
         """
         largest_model = 1.0
         if self.normalization is Normalization.MEAN:
@@ -110,7 +110,7 @@ class _Objective:
         return float(np.mean(residual**2))
 
     def prediction(self, values: ParameterValues) -> FloatArray:
-        """Модельная безразмерная плотность на координатах данных."""
+        """Model dimensionless density at the data coordinates."""
         shape = self.model.shape
         position = self.coordinate - values.get(PROFILE_SHIFT_NAME, 0.0)
         if self.frame is not shape.frame:
@@ -118,8 +118,8 @@ class _Objective:
                 position = position + shape.center_of_mass(self.geometry, values)
             else:
                 raise UnsupportedFrameError(
-                    f"данные в системе {self.frame.value}, формулы формы {shape.name} — в системе "
-                    f"{shape.frame.value}: такой пересчёт не поддержан"
+                    f"data are in the {self.frame.value} frame, the formulas of shape '{shape.name}' are in the "
+                    f"{shape.frame.value} frame: this conversion is not supported"
                 )
         curve = shape.profile(position, self.geometry, values)
         if self.normalization is Normalization.MEAN:
@@ -149,7 +149,7 @@ class _Objective:
 
 
 class _LocalOptimum:
-    """Лучшая точка локальной минимизации (общий вид для любого метода scipy)."""
+    """Best point of a local minimization (a common form for any scipy method)."""
 
     position: FloatArray
     loss: float
@@ -168,7 +168,7 @@ class _RegimeOutcome:
     free_spec: FreeSpec
     optimum: _LocalOptimum
     start_count: int
-    evaluation_count: int  # вычислений целевой функции в этом режиме
+    evaluation_count: int  # objective evaluations in this regime
 
     def __init__(
         self,
@@ -192,8 +192,9 @@ def _resolve_normalization(spec: FitSpec) -> Normalization:
 
 
 def histogram_integral(centers: FloatArray, density: FloatArray) -> float:
-    """∫ρ гистограммы: Σ ρ_i · ширина бина i (края — середины между центрами, крайние — симметрично).
-    Трапеция по центрам бинов теряет по полбина у краёв: если жидкость касается стенки, φ занижается.
+    """∫ρ of a histogram: Σ ρ_i · width of bin i (edges are midpoints between centres, outer ones symmetric).
+    The trapezoid rule over bin centres loses half a bin at each edge: if the liquid touches a wall, φ is
+    underestimated.
     """
     midpoints = 0.5 * (centers[:-1] + centers[1:])
     first = centers[0] - (midpoints[0] - centers[0])
@@ -213,50 +214,51 @@ def _window_mask(reduced: ReducedProfile, geometry: PoreGeometry, window: tuple[
     point_count = int(mask.sum())
     if point_count < MIN_WINDOW_POINTS:
         raise EmptyWindowError(
-            f"в окне фита [{lower:.3g}, {upper:.3g}] {point_count} точек (нужно не меньше {MIN_WINDOW_POINTS}); "
-            f"координата данных в долях размера поры: [{float(np.min(reduced.coordinate)):.3g}, "
-            f"{float(np.max(reduced.coordinate)):.3g}] — проверь размер поры и систему отсчёта профиля"
+            f"fit window [{lower:.3g}, {upper:.3g}] has {point_count} point(s), at least {MIN_WINDOW_POINTS} needed; "
+            f"data coordinate as a fraction of the pore size: [{float(np.min(reduced.coordinate)):.3g}, "
+            f"{float(np.max(reduced.coordinate)):.3g}]; check the pore size and the frame of reference of the profile"
         )
     return mask
 
 
 def _check_pore_volume(profile: DensityProfile, pore_volume_nm3: float) -> None:
-    """Объём поры, к которому отнесены N и φ профиля, должен совпадать с объёмом поры фита."""
+    """The pore volume to which N and φ of the profile refer must match the volume of the fitted pore."""
     if profile.pore_volume_nm3 is None:
         return
     mismatch = abs(profile.pore_volume_nm3 / pore_volume_nm3 - 1.0)
     if mismatch > VOLUME_TOLERANCE:
         raise ProfileMismatchError(
-            f"профиль посчитан для поры объёмом {profile.pore_volume_nm3:.4g} нм³, а у поры фита объём "
-            f"{pore_volume_nm3:.4g} нм³ ({mismatch:.1%}): φ и нормировка будут неверны — проверь размеры поры"
+            f"profile was computed for a pore volume of {profile.pore_volume_nm3:.4g} nm³, the fitted pore has "
+            f"{pore_volume_nm3:.4g} nm³ ({mismatch:.1%}): φ and the normalization would be wrong; "
+            "check the pore dimensions"
         )
 
 
 def _check_profile_matches_pore(reduced: ReducedProfile, geometry: PoreGeometry) -> None:
-    """Профиль должен соответствовать поре по размеру: иначе фит молча вернёт неверный угол."""
+    """The profile must match the pore in size: otherwise the fit silently returns a wrong angle."""
     coordinate, density = reduced.coordinate, reduced.density
     pore_lower, pore_upper = geometry.coordinate_bounds()
     data_range = f"[{float(np.min(coordinate)):.3g}, {float(np.max(coordinate)):.3g}]"
     if reduced.frame is Frame.PORE:
         if np.min(coordinate) > pore_lower + COVERAGE_TOLERANCE or np.max(coordinate) < pore_upper - COVERAGE_TOLERANCE:
             raise ProfileMismatchError(
-                f"данные не покрывают пору: координата в долях размера поры {data_range}, стенки — "
-                f"[{pore_lower:.3g}, {pore_upper:.3g}]; проверь размер поры и единицы профиля"
+                f"data do not cover the pore: coordinate as a fraction of the pore size {data_range}, walls "
+                f"[{pore_lower:.3g}, {pore_upper:.3g}]; check the pore size and the profile units"
             )
         outside = (coordinate < pore_lower) | (coordinate > pore_upper)
         outside_fraction = float(np.sum(density[outside]) / np.sum(density))
         if outside_fraction > OUTSIDE_MASS_TOLERANCE:
             raise ProfileMismatchError(
-                f"{outside_fraction:.0%} плотности за пределами поры (координата {data_range}); проверь размер поры, "
-                f"единицы профиля и центрирование"
+                f"{outside_fraction:.0%} of the density is outside the pore (coordinate {data_range}); "
+                "check the pore size, the profile units and the centering"
             )
         return
     occupied = coordinate[density > 0.0]
     occupied_width = float(np.max(occupied) - np.min(occupied))
     if occupied_width > (pore_upper - pore_lower) * (1.0 + COVERAGE_TOLERANCE):
         raise ProfileMismatchError(
-            f"профиль шире поры: жидкость занимает {occupied_width:.3g} в долях размера поры при ширине поры "
-            f"{pore_upper - pore_lower:.3g}; проверь размер поры и единицы профиля"
+            f"profile is wider than the pore: the liquid spans {occupied_width:.3g} of the pore size, "
+            f"the pore width is {pore_upper - pore_lower:.3g}; check the pore size and the profile units"
         )
 
 
@@ -267,14 +269,14 @@ def _regime_intervals(
     if CONTACT_ANGLE_NAME not in model.parameters.names:
         if requested is not None:
             raise UnsupportedRegimeError(
-                f"у формы {shape.name} нет контактного угла — режим смачивания {requested.value} не задаётся"
+                f"shape '{shape.name}' has no contact angle; the wetting regime {requested.value} cannot be set"
             )
         return [(None, free_spec)]
     if CONTACT_ANGLE_NAME not in free_spec.free_names:
         regime = shape.require_supported_contact_angle(math.degrees(free_spec.fixed_values[CONTACT_ANGLE_NAME]))
         if requested is not None and requested is not regime:
             raise UnsupportedRegimeError(
-                f"форма {shape.name}: зафиксированный θ относится к режиму {regime.value}, а запрошен {requested.value}"
+                f"fixed θ of shape '{shape.name}' belongs to regime {regime.value}, but {requested.value} was requested"
             )
         return [(regime, free_spec)]
 
@@ -298,14 +300,14 @@ def _regime_intervals(
     if not intervals:
         declared = [regime.value for regime in shape.regimes]
         raise UnsupportedRegimeError(
-            f"форма {shape.name}: границы θ [{lower_deg:.1f}°, {upper_deg:.1f}°] не пересекаются с объявленными "
-            f"режимами {declared}"
+            f"θ bounds [{lower_deg:.1f}°, {upper_deg:.1f}°] of shape '{shape.name}' do not intersect the declared "
+            f"regimes {declared}"
         )
     return intervals
 
 
 def _start_points(free_spec: FreeSpec, starts_per_parameter: int) -> list[FloatArray]:
-    """Центры ячеек равномерной сетки по свободным параметрам + стартовая точка пользователя."""
+    """Cell centres of a uniform grid over the free parameters + the user's starting point."""
     axes = [
         lower + (np.arange(starts_per_parameter) + 0.5) / starts_per_parameter * (upper - lower)
         for lower, upper in zip(free_spec.lower_bounds, free_spec.upper_bounds, strict=True)
@@ -346,8 +348,8 @@ def _check_identifiable(objective: _Objective, free_spec: FreeSpec, start: Float
                 break
         if not changes_profile:
             raise UnidentifiableParameterError(
-                f"параметр {name} не влияет на профиль формы {objective.model.shape.name} "
-                f"в системе отсчёта {objective.frame.value}: зафиксируй его"
+                f"parameter '{name}' does not affect the profile of shape '{objective.model.shape.name}' "
+                f"in the {objective.frame.value} frame; fix it"
             )
 
 
@@ -358,7 +360,7 @@ def _fit_in_regime(
     evaluations_before = objective.evaluation_count
     if not free_spec.free_names:
         empty = np.zeros(0, dtype=np.float64)
-        optimum = _LocalOptimum(empty, objective(empty), True, "нет свободных параметров")
+        optimum = _LocalOptimum(empty, objective(empty), True, "no free parameters")
         return _RegimeOutcome(regime, free_spec, optimum, 1, objective.evaluation_count - evaluations_before)
 
     starts = [
@@ -368,9 +370,9 @@ def _fit_in_regime(
     ]
     if not starts:
         raise InfeasibleParametersError(
-            f"форма {objective.model.shape.name}, режим {regime.value if regime else '—'}: ни одна стартовая точка "
-            f"не попадает в область существования при {_describe_ranges(free_spec)}; "
-            f"проверь фиксированные значения и границы"
+            f"shape '{objective.model.shape.name}', regime {regime.value if regime else '—'}: no starting point "
+            f"lies in the existence domain at {_describe_ranges(free_spec)}; "
+            f"check the fixed values and the bounds"
         )
     _check_identifiable(objective, free_spec, starts[0])
     box: Bounds = Bounds(free_spec.lower_bounds, free_spec.upper_bounds)
@@ -381,12 +383,12 @@ def _fit_in_regime(
             best = _LocalOptimum(
                 np.asarray(local.x, dtype=np.float64), float(local.fun), bool(local.success), str(local.message)
             )
-    assert best is not None  # стартов не меньше одного
+    assert best is not None  # there is at least one start
     return _RegimeOutcome(regime, free_spec, best, len(starts), objective.evaluation_count - evaluations_before)
 
 
 def _describe_ranges(free_spec: FreeSpec) -> str:
-    """Границы свободных и значения фиксированных параметров в единицах пользователя — для сообщений об ошибках."""
+    """Bounds of the free and values of the fixed parameters in user units — for error messages."""
     parts = []
     for index, name in enumerate(free_spec.free_names):
         parameter = free_spec.parameters[name]
@@ -414,7 +416,7 @@ def _boundary_flags(outcome: _RegimeOutcome) -> tuple[tuple[str, ...], bool]:
         natural_lower = parameter.to_internal(parameter.bounds[0]) if parameter.natural_lower_bound else None
         for edge in (lower, upper):
             if edge == lower and natural_lower is not None and math.isclose(edge, natural_lower):
-                continue  # физическая граница (δ = 0): значение на ней — ответ, а не упор оптимизатора
+                continue  # physical bound (δ = 0): a value on it is the answer, not the optimizer hitting a bound
             if abs(value - edge) <= tolerance:
                 if name == CONTACT_ANGLE_NAME and any(math.isclose(edge, regime_edge) for regime_edge in regime_edges):
                     at_regime_boundary = True
@@ -437,7 +439,7 @@ def _build_result(
     user_values = free_spec.to_user(values)
     user_values.update(
         {name: value for name, value in spec.fixed.items() if name in user_values}
-    )  # как задал пользователь
+    )  # as the user gave them
     at_bounds, at_regime_boundary = _boundary_flags(outcome)
     wall_layer_nm = (
         user_values[WALL_LAYER_NAME] * model.pore.characteristic_size_nm() if WALL_LAYER_NAME in user_values else None
@@ -486,12 +488,12 @@ def _within_fit_bounds(model: "InterfaceModel", spec: FitSpec, name: str, user_v
 
 
 def fit(model: "InterfaceModel", profile: DensityProfile, spec: FitSpec) -> FitResult:
-    """Подобрать свободные параметры модели под профиль. Алгоритм — спецификация §4."""
+    """Fit the free parameters of the model to the profile. Algorithm — specification §4."""
     if not model.shape.has_profile():
         fittable = [other.shape.name for other in model.pore.available_interfaces() if other.shape.has_profile()]
         raise NotDerivedError(
-            f"фит формы {model.shape.name} невозможен: профиль плотности не выведен (форма участвует только "
-            f"в диаграмме устойчивости); формы поры {model.pore.name} с профилем: {', '.join(fittable)}"
+            f"shape '{model.shape.name}' cannot be fitted: its density profile is not derived (the shape takes part "
+            f"only in the stability diagram); shapes of pore '{model.pore.name}' with a profile: {', '.join(fittable)}"
         )
     geometry = model.pore.geometry()
     normalization = _resolve_normalization(spec)
@@ -503,15 +505,15 @@ def fit(model: "InterfaceModel", profile: DensityProfile, spec: FitSpec) -> FitR
     has_volume_fraction = VOLUME_FRACTION_NAME in model.parameters.names
     if normalization is Normalization.MEAN and not has_volume_fraction:
         raise InvalidProfileError(
-            f"нормировка mean делит модель на φ, а у формы {model.shape.name} параметра φ нет; "
-            f"задай density_bulk_per_nm3"
+            f"mean normalization divides the model by φ, but shape '{model.shape.name}' has no φ parameter; "
+            f"set density_bulk_per_nm3"
         )
 
     phi_unknown = VOLUME_FRACTION_NAME not in spec.fixed and VOLUME_FRACTION_NAME not in optimize
     if normalization is Normalization.MEAN and has_volume_fraction and phi_unknown:
         raise InvalidProfileError(
-            f"нормировка mean: φ из данных не выводится (для φ = ∫ρ/ρ_bulk нужна ρ_bulk) — задай "
-            f"density_bulk_per_nm3 (--rho-bulk), зафиксируй phi или освободи её в optimize (форма {model.shape.name})"
+            f"mean normalization cannot take φ from the data (φ = ∫ρ/ρ_bulk needs ρ_bulk); set "
+            f"density_bulk_per_nm3 (--rho-bulk), fix phi or free it in optimize (shape '{model.shape.name}')"
         )
     values_from_data: dict[str, float] = {}
     initial = dict(spec.initial)
@@ -525,8 +527,8 @@ def fit(model: "InterfaceModel", profile: DensityProfile, spec: FitSpec) -> FitR
         elif VOLUME_FRACTION_NAME not in initial and _within_fit_bounds(
             model, spec, VOLUME_FRACTION_NAME, volume_fraction_from_data
         ):
-            # ∫ρ/ρ_bulk — точная φ для любой формы; старт из неё не даёт сползти на край плато (ступенчатый
-            # профиль слоя делает ошибку кусочно-постоянной по φ)
+            # ∫ρ/ρ_bulk is the exact φ for any shape; starting from it prevents sliding to the edge of a plateau (the
+            # step profile of the layer makes the loss piecewise constant in φ)
             initial[VOLUME_FRACTION_NAME] = volume_fraction_from_data
 
     free_spec = model.parameters.resolve(optimize, spec.fixed, spec.bounds, initial, values_from_data)

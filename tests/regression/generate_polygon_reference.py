@@ -1,13 +1,13 @@
-"""Эталоны треугольной и квадратной пор из PANDA_Polygon (`docs/model/{triangle,square}.py`, коммит 38ff491).
+"""References of the triangular and square pores from PANDA_Polygon (`docs/model/{triangle,square}.py`, commit 38ff491).
 
-Запуск из корня репозитория (нужна локальная копия PANDA_Polygon/, см. ROADMAP «Фаза 4а»):
+Run from the repository root (needs a local copy of PANDA_Polygon/, see ROADMAP, phase 4a):
     uv run python tests/regression/generate_polygon_reference.py
-Результат: tests/regression/data/{triangle,square}_reference.json — коммитятся, тесты читают только их.
+Output: tests/regression/data/{triangle,square}_reference.json — committed, the tests read only them.
 
-Для каждой формы записываются условие существования, энергия S_LV − cos θ · S_SL и сумма площадей S_LV + S_SL;
-профиль — только у форм, для которых он выведен в источнике. Формы с дефектами источника — девять
-форм квадрата, droplet_w2c1 и capsule_w3c3 треугольника (docs/architecture/05_polygon_pores.md §4) — не переносятся
-и в эталон не входят; диаграммы источника строятся по тому же набору форм.
+For each shape the existence condition, the energy S_LV − cos θ · S_SL and the area sum S_LV + S_SL are written;
+the profile only for shapes whose profile is derived in the source. Shapes with defects in the source — nine
+square shapes, the triangle droplet_w2c1 and capsule_w3c3 (docs/architecture/05_polygon_pores.md §4) — are not
+ported and are not in the reference; the source diagrams are built over the same set of shapes.
 """
 
 import importlib.util
@@ -23,20 +23,20 @@ from pydantic import BaseModel, ConfigDict
 SOURCE_DIRECTORY = Path(__file__).parents[2] / "PANDA_Polygon" / "docs" / "model"
 OUTPUT_DIRECTORY = Path(__file__).parent / "data"
 SOURCE_COMMIT = "github.com/Vandyshge/PANDA_Polygon@38ff491"
-BIN_COUNT = 200  # координата — центры бинов: ни одна точка не лежит на стенке
+BIN_COUNT = 200  # the coordinate is bin centres: no point lies on a wall
 LAYER_WIDTH_RATIO = 1.0
 LENGTH_RATIOS = (1.0, 2.0, 4.0, 8.0)
 WALL_LAYERS = (0.0, 0.03)
 VOLUME_FRACTIONS = (0.02, 0.05, 0.1, 0.2, 0.3, 0.45, 0.6, 0.75, 0.9)
-UNUSED_ANGLE_RAD = math.pi  # форме без θ источник всё равно принимает угол, но не использует его
-FIXED_VOLUME_SCALES = (1.0, 1.01, 0.98)  # droplet_w3c0: φ ровно по объёму, внутри и вне допуска 1.5 %
-STABILITY_POINTS = 30  # сетка диаграммы устойчивости: φ и l — как в computePhase (docs/model-runtime.js)
+UNUSED_ANGLE_RAD = math.pi  # for a shape without θ the source still takes an angle but does not use it
+FIXED_VOLUME_SCALES = (1.0, 1.01, 0.98)  # droplet_w3c0: φ exactly by volume, inside and outside the 1.5 % tolerance
+STABILITY_POINTS = 30  # stability diagram grid: φ and l as in computePhase (docs/model-runtime.js)
 STABILITY_MAX_LENGTH_RATIO = 5.0
 STABILITY_WALL_LAYERS = (0.0, 0.03)
 
 
 class PolygonReferenceSetup(BaseModel):
-    """Что и на какой сетке снимать с одного модуля источника."""
+    """What to sample from one source module and on which grid."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -74,7 +74,7 @@ SETUPS = (
     PolygonReferenceSetup(
         pore_name="square",
         coordinate_bounds=(-0.5, 0.5),
-        # 135° не берём: у droplet_w2c1 условие источника допускает θ = 3π/4, а функция площади — нет
+        # 135° is skipped: for droplet_w2c1 the source condition allows θ = 3π/4, but the area function does not
         angles_deg=(60.0, 100.0, 120.0, 140.0, 150.0, 175.0),
         stability_angles_deg=(100.0, 120.0, 140.0, 160.0, 180.0),
         shapes=(
@@ -94,7 +94,7 @@ SETUPS = (
 def load_source(pore_name: str) -> ModuleType:
     path = SOURCE_DIRECTORY / f"{pore_name}.py"
     spec = importlib.util.spec_from_file_location(f"panda_polygon_{pore_name}", path)
-    assert spec is not None and spec.loader is not None, f"нет файла {path}"
+    assert spec is not None and spec.loader is not None, f"no file {path}"
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -107,7 +107,7 @@ def bin_centers(bounds: tuple[float, float]) -> np.ndarray:
 
 
 def fixed_volume_fractions(length_ratio: float, angle: float, wall_layer: float) -> list[float]:
-    """φ, при которых droplet_w3c0 треугольника существует: объём капли задан сечением (cond_droplet_w3c0)."""
+    """φ where the triangle droplet_w3c0 exists: the droplet volume is set by the section (cond_droplet_w3c0)."""
     side = 1.0 - 2.0 * math.sqrt(3.0) * wall_layer
     cosine = math.cos(angle)
     if cosine >= 0.0:
@@ -149,12 +149,12 @@ def shape_cases(source: ModuleType, setup: PolygonReferenceSetup, shape_name: st
 
 
 def stability_grids() -> tuple[np.ndarray, np.ndarray]:
-    """(φ, l) — те же формулы сеток, что в computePhase."""
+    """(φ, l) — the same grid formulas as in computePhase."""
     return np.linspace(0.001, 1.0, STABILITY_POINTS), np.linspace(0.001, STABILITY_MAX_LENGTH_RATIO, STABILITY_POINTS)
 
 
 def stability_cases(source: ModuleType, setup: PolygonReferenceSetup) -> list[dict[str, object]]:
-    """Диаграммы устойчивости источника: argmin энергии по формам setup.shapes (порядок важен при равенстве)."""
+    """Source stability diagrams: argmin of the energy over setup.shapes (the order matters on ties)."""
     registry = getattr(source, f"AREA_{setup.pore_name.upper()}")
     volume_fractions, length_ratios = stability_grids()
     phi_mesh, length_mesh = np.meshgrid(volume_fractions, length_ratios)
@@ -195,7 +195,7 @@ def main() -> None:
         output = OUTPUT_DIRECTORY / f"{setup.pore_name}_reference.json"
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(json.dumps(reference))
-        print(f"записано в {output}: {len(setup.shapes)} форм")
+        print(f"written to {output}: {len(setup.shapes)} shapes")
 
 
 if __name__ == "__main__":

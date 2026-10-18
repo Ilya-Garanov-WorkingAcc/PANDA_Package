@@ -1,6 +1,6 @@
-"""Синтетическая валидация: форма → профиль с шумом → фит → восстановленные параметры.
+"""Synthetic validation: shape → noisy profile → fit → recovered parameters.
 
-Пороги и найденные закономерности описаны в tests/README.md («Синтетика», «O2», «O3»).
+Thresholds and the findings are described in tests/README.md (the synthetic data, O2 and O3 sections).
 """
 
 import numpy as np
@@ -11,10 +11,10 @@ from panda_md.core.model import InterfaceModel
 from panda_md.synthetic.profiles import synthetic_profile
 
 DENSITY_BULK = 30.0
-NOISE_STD = 0.005  # шум 0.5 % ρ_bulk на бин, 200 бинов
+NOISE_STD = 0.005  # noise 0.5 % of ρ_bulk per bin, 200 bins
 SEEDS = range(5)
-MAX_ANGLE_ERROR_DEG = 1.5  # в каждом прогоне
-MEAN_ANGLE_ERROR_DEG = 1.0  # в среднем по прогонам (критерий ТЗ |Δθ| < 1°)
+MAX_ANGLE_ERROR_DEG = 1.5  # in every run
+MEAN_ANGLE_ERROR_DEG = 1.0  # mean over the runs (requirement |Δθ| < 1°)
 
 SLIT = SlitPore(width_nm=8.0, length_nm=16.0)
 SQUARE = SquarePore(side_nm=6.0, length_nm=12.0, layer_width_nm=6.0)
@@ -86,7 +86,7 @@ def test_task_modes_recover_volume_fraction(optimize: list[str], fixed: dict[str
 @pytest.mark.slow
 @pytest.mark.parametrize("case", CASES[1:4], ids=case_id)
 def test_mean_normalization_recovers_compact_shapes(case: tuple[InterfaceModel, dict[str, float]]) -> None:
-    """O2: без ρ_bulk φ и θ определяются вместе — для капель и нитей (у валика нет, см. README)."""
+    """O2: without ρ_bulk φ and θ are determined together — for droplets and filaments (not the roll, see README)."""
     model, truth = case
     for seed in SEEDS:
         profile = synthetic_profile(model, truth, density_bulk_per_nm3=DENSITY_BULK, noise_std=NOISE_STD, seed=seed)
@@ -97,7 +97,7 @@ def test_mean_normalization_recovers_compact_shapes(case: tuple[InterfaceModel, 
 
 
 def test_mean_normalization_with_known_phi_recovers_roll() -> None:
-    """O2: валику в нормировке mean нужна известная φ (из построения системы)."""
+    """O2: the roll in mean normalization needs a known φ (from the system construction)."""
     model, truth = CASES[0]
     profile = synthetic_profile(model, truth, density_bulk_per_nm3=DENSITY_BULK)
     result = model.fit(profile, fixed={"phi": truth["phi"]})
@@ -105,12 +105,12 @@ def test_mean_normalization_with_known_phi_recovers_roll() -> None:
     assert result.density_bulk_derived_per_nm3 == pytest.approx(DENSITY_BULK, rel=1e-3)
 
 
-WALL_OFFSET = 0.05  # ошибка положения стенок: 5 % размера поры
+WALL_OFFSET = 0.05  # wall position error: 5 % of the pore size
 
 
 @pytest.mark.parametrize("case", CASES[1:4], ids=case_id)
 def test_wall_offset_goes_into_wall_layer_for_one_wall_shapes(case: tuple[InterfaceModel, dict[str, float]]) -> None:
-    """O3: у форм на одной стенке сдвиг стенок поглощает δ, θ не меняется — центрирование по поре."""
+    """O3: for shapes on one wall the wall shift is absorbed by δ, θ does not change — pore centering."""
     model, truth = case
     profile = synthetic_profile(model, truth, density_bulk_per_nm3=DENSITY_BULK, offset=WALL_OFFSET)
     result = model.fit(profile, density_bulk_per_nm3=DENSITY_BULK)
@@ -118,7 +118,7 @@ def test_wall_offset_goes_into_wall_layer_for_one_wall_shapes(case: tuple[Interf
 
 
 def test_wall_offset_needs_free_shift_for_roll() -> None:
-    """O3: валик касается обеих стенок — сдвиг поглощает только параметр shift."""
+    """O3: the roll touches both walls — the shift is absorbed only by the shift parameter."""
     model, truth = CASES[0]
     profile = synthetic_profile(model, truth, density_bulk_per_nm3=DENSITY_BULK, offset=WALL_OFFSET)
     with_shift = model.fit(profile, optimize=["theta", "delta", "shift"], density_bulk_per_nm3=DENSITY_BULK)

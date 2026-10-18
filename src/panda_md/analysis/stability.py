@@ -1,7 +1,7 @@
-"""Диаграмма устойчивости: какая форма интерфейса выгоднее при данных θ, δ на сетке (l, φ).
+"""Stability diagram: which interface shape is favourable for given θ, δ on an (l, φ) grid.
 
-Устойчивой считается допустимая форма с наименьшим капиллярным функционалом S_LV − cos θ · S_SL
-(у формы без θ — S_LV). Так же строит диаграмму PANDA_Polygon (`docs/model-runtime.js`, computePhase).
+The stable shape is the feasible shape with the lowest capillary functional S_LV − cos θ · S_SL
+(S_LV for a shape without θ). PANDA_Polygon builds the diagram the same way (`docs/model-runtime.js`, computePhase).
 """
 
 import math
@@ -18,15 +18,15 @@ from panda_md.core.pore import Pore
 from panda_md.core.shape import REGIME_BOUNDARY_DEG, REGIME_GAP_DEG, regime_of
 from panda_md.core.types import PandaModel
 
-LENGTH_FIELD = "length_nm"  # поле поры, которое меняется вдоль оси l диаграммы
+LENGTH_FIELD = "length_nm"  # the pore field that varies along the l axis of the diagram
 MAX_CONTACT_ANGLE_DEG = 180.0
-RADIAN_SUSPICION_DEG = 2.0 * math.pi  # θ ≤ 2π° — скорее всего, передан угол в радианах
+RADIAN_SUSPICION_DEG = 2.0 * math.pi  # θ ≤ 2π° — most likely an angle in radians was passed
 
 
 class StabilityDiagram(PandaModel):
-    """Результат: `stable_shapes[i][j]` — устойчивая форма при `length_ratios[i]`, `volume_fractions[j]`.
+    """Result: `stable_shapes[i][j]` is the stable shape at `length_ratios[i]`, `volume_fractions[j]`.
 
-    None — ни одна форма не существует.
+    None means that no shape exists.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -35,8 +35,8 @@ class StabilityDiagram(PandaModel):
     contact_angle_deg: float
     wall_layer: float
     volume_fractions: tuple[float, ...]
-    length_ratios: tuple[float, ...]  # l = L / (характерный размер поры)
-    shape_names: tuple[str, ...]  # формы-кандидаты: у них выведены площади поверхностей
+    length_ratios: tuple[float, ...]  # l = L / (characteristic pore size)
+    shape_names: tuple[str, ...]  # candidate shapes: their surface areas are derived
     stable_shapes: tuple[tuple[str | None, ...], ...]
 
 
@@ -49,21 +49,21 @@ def stability_diagram(
     length_ratios: Sequence[float],
     shape_names: Sequence[str] | None = None,
 ) -> StabilityDiagram:
-    """Построить диаграмму для поры `pore`; длина поры берётся из `length_ratios`, остальные размеры — из `pore`."""
+    """Build the diagram for the pore `pore`; the pore length comes from `length_ratios`, other sizes from `pore`."""
     if LENGTH_FIELD not in type(pore).model_fields:
-        raise PandaError(f"у поры {pore.name} нет поля {LENGTH_FIELD}: диаграмму по длине не построить")
+        raise PandaError(f"pore '{pore.name}' has no field {LENGTH_FIELD}; a diagram over the length cannot be built")
     if any(ratio <= 0.0 for ratio in length_ratios):
-        raise PandaError(f"длина поры l должна быть положительной: {list(length_ratios)}")
+        raise PandaError(f"pore length l must be positive: {list(length_ratios)}")
     if not 0.0 <= contact_angle_deg <= MAX_CONTACT_ANGLE_DEG:
-        raise PandaError(f"угол θ = {contact_angle_deg}° вне [0°, 180°]")
+        raise PandaError(f"angle θ = {contact_angle_deg}° is outside [0°, 180°]")
     if 0.0 < contact_angle_deg <= RADIAN_SUSPICION_DEG:
         warnings.warn(
-            f"θ = {contact_angle_deg}° — проверь, что угол задан в градусах, а не в радианах",
+            f"θ = {contact_angle_deg}°; check that the angle is given in degrees, not in radians",
             PandaWarning,
             stacklevel=2,
         )
     if shape_names is not None and len(set(shape_names)) != len(shape_names):
-        raise PandaError(f"повтор в списке форм: {list(shape_names)}")
+        raise PandaError(f"duplicate in the shape list: {', '.join(shape_names)}")
     _check_parameter_values(wall_layer, volume_fractions)
     candidates = _supported_candidates(pore, _candidate_names(pore, shape_names), contact_angle_deg)
     size_nm = pore.characteristic_size_nm()
@@ -89,21 +89,22 @@ def stability_diagram(
 
 
 def _check_parameter_values(wall_layer: float, volume_fractions: Sequence[float]) -> None:
-    """δ и φ — в границах параметров модели: за ними формулы молча экстраполируются."""
+    """δ and φ must be within the model parameter bounds: beyond them the formulas silently extrapolate."""
     lower, upper = WALL_LAYER_THICKNESS.bounds
     if not lower <= wall_layer <= upper:
-        raise PandaError(f"δ = {wall_layer} вне границ параметра [{lower}, {upper}]")
+        raise PandaError(f"δ = {wall_layer} is outside the parameter bounds [{lower}, {upper}]")
     lower, upper = VOLUME_FRACTION.bounds
     outside = [value for value in volume_fractions if not lower <= value <= upper]
     if outside:
-        raise PandaError(f"φ вне [{lower}, {upper}]: {outside}")
+        raise PandaError(f"φ outside [{lower}, {upper}]: {', '.join(f'{value:g}' for value in outside)}")
 
 
 def _supported_candidates(pore: Pore, candidates: tuple[str, ...], contact_angle_deg: float) -> tuple[str, ...]:
-    """Формы, которые при этом θ могут существовать и для которых выведены формулы.
-    Форма с θ вне диапазона своего режима просто не существует (у многоугольных пор режимы узкие) — она выпадает
-    молча. Форма, у которой режим этого θ не выведен вообще (θ < 90° у форм щели, O1), выпадает с предупреждением;
-    если так у всех форм с углом, диаграмма не определена — ошибка, а не «слой во всей поре».
+    """Shapes that can exist at this θ and whose formulas are derived.
+    A shape with θ outside the range of its regime simply does not exist (polygonal pores have narrow regimes) — it
+    is dropped silently. A shape whose regime for this θ is not derived at all (θ < 90° for slit shapes, O1) is
+    dropped with a warning; if that holds for all shapes with an angle, the diagram is not defined — an error, not
+    “a layer in the whole pore”.
     """
     registry = pore.own_registry()
     supported: list[str] = []
@@ -112,7 +113,7 @@ def _supported_candidates(pore: Pore, candidates: tuple[str, ...], contact_angle
     for name in candidates:
         shape = registry[name]()
         if ParameterName.CONTACT_ANGLE.value not in {parameter.name for parameter in shape.parameters}:
-            supported.append(name)  # форма без θ (слой) от режима не зависит
+            supported.append(name)  # a shape without θ (layer) does not depend on the regime
             continue
         with_angle += 1
         try:
@@ -124,12 +125,12 @@ def _supported_candidates(pore: Pore, candidates: tuple[str, ...], contact_angle
             supported.append(name)
     if with_angle and len(not_derived) == with_angle:
         raise UnsupportedRegimeError(
-            f"при θ = {contact_angle_deg:g}° формулы не выведены ни у одной формы поры {pore.name} с углом "
-            f"({', '.join(not_derived)}): диаграмма не определена"
+            f"at θ = {contact_angle_deg:g}° the formulas are not derived for any shape with an angle in pore "
+            f"'{pore.name}' ({', '.join(not_derived)}): the diagram is not defined"
         )
     if not_derived:
         warnings.warn(
-            f"при θ = {contact_angle_deg:g}° формулы режима не выведены — в диаграмме не участвуют: "
+            f"at θ = {contact_angle_deg:g}° the regime formulas are not derived; excluded from the diagram: "
             f"{', '.join(not_derived)}",
             PandaWarning,
             stacklevel=3,
@@ -149,8 +150,8 @@ def _candidate_names(pore: Pore, shape_names: Sequence[str] | None) -> tuple[str
     unusable = [name for name in shape_names if name not in with_energy]
     if unusable:
         raise PandaError(
-            f"в поре {pore.name} нет форм с выведенными площадями поверхностей: {unusable}; "
-            f"доступны: {list(with_energy)}"
+            f"pore '{pore.name}' has no shapes with derived surface areas: {unusable}; "
+            f"available: {', '.join(with_energy)}"
         )
     return tuple(shape_names)
 
@@ -158,7 +159,7 @@ def _candidate_names(pore: Pore, shape_names: Sequence[str] | None) -> tuple[str
 def _stable_shape(
     models: Sequence[InterfaceModel], contact_angle_deg: float, wall_layer: float, volume_fraction: float
 ) -> str | None:
-    """Допустимая форма с наименьшей энергией; при равенстве — первая в списке кандидатов."""
+    """The feasible shape with the lowest energy; on a tie, the first one in the candidate list."""
     point = {
         ParameterName.CONTACT_ANGLE.value: contact_angle_deg,
         ParameterName.WALL_LAYER_THICKNESS.value: wall_layer,

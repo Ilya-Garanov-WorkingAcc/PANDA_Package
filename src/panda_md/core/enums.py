@@ -1,10 +1,10 @@
-"""Перечисления всех фиксированных вариантов. Строковые значения используются в CLI и JSON."""
+"""Enumerations of all fixed choices. The string values are used in the CLI and JSON."""
 
 from enum import Enum
 
 
 class ParameterName(str, Enum):
-    """Имена стандартных параметров модели (ключи в optimize / fixed / bounds)."""
+    """Names of the standard model parameters (keys in optimize / fixed / bounds)."""
 
     CONTACT_ANGLE = "theta"
     WALL_LAYER_THICKNESS = "delta"
@@ -13,43 +13,43 @@ class ParameterName(str, Enum):
 
 
 class Unit(str, Enum):
-    """Единицы параметра: в чём его задаёт пользователь."""
+    """Units of a parameter: what the user gives it in."""
 
-    DEGREE = "degree"  # внутри формул — радианы
-    PORE_SIZE = "pore_size"  # доли характерного размера поры: H у щели, a у многоугольников
+    DEGREE = "degree"  # radians inside the formulas
+    PORE_SIZE = "pore_size"  # fractions of the characteristic pore size: H for the slit, a for polygons
     DIMENSIONLESS = "dimensionless"
 
 
 class Regime(str, Enum):
-    """Режим смачивания анализируемой жидкости."""
+    """Wetting regime of the analysed liquid."""
 
     WETTING = "wetting"  # θ < 90°
     NON_WETTING = "non_wetting"  # θ > 90°
 
 
 class Frame(str, Enum):
-    """Система отсчёта координаты профиля."""
+    """Frame of reference of the profile coordinate."""
 
-    PORE = "pore"  # 0 — центр поры (центроид для многоугольников)
-    LIQUID = "liquid"  # 0 — центр анализируемой жидкости (среднее по выбранным атомам)
+    PORE = "pore"  # 0 — pore centre (centroid for polygons)
+    LIQUID = "liquid"  # 0 — centre of the analysed liquid (mean over the selected atoms)
 
 
 class Normalization(str, Enum):
-    """Как данные приводятся к безразмерной плотности."""
+    """How the data are brought to a dimensionless density."""
 
-    AUTO = "auto"  # BULK, если задана объёмная плотность, иначе MEAN
-    BULK = "bulk"  # ρ / ρ_bulk против ρ_model
-    MEAN = "mean"  # ρ / n̄ против ρ_model / φ, n̄ = N / V
+    AUTO = "auto"  # BULK if the bulk density is given, otherwise MEAN
+    BULK = "bulk"  # ρ / ρ_bulk versus ρ_model
+    MEAN = "mean"  # ρ / n̄ versus ρ_model / φ, n̄ = N / V
 
 
 class LossFunction(str, Enum):
-    L1 = "l1"  # среднее модуля отклонения (статьи PANDA)
-    L2 = "l2"  # среднее квадрата отклонения
+    L1 = "l1"  # mean absolute deviation (PANDA papers)
+    L2 = "l2"  # mean squared deviation
 
 
 class OptimizerMethod(str, Enum):
-    """Локальный метод scipy.optimize.minimize. По умолчанию Nelder–Mead: L1-ошибка негладкая,
-    градиентный L-BFGS-B на синтетике застревает (сравнение — tests/README.md, раздел «Оптимизатор»)."""
+    """Local method of scipy.optimize.minimize. Nelder–Mead by default: the L1 loss is non-smooth,
+    gradient-based L-BFGS-B gets stuck on synthetic data (comparison — tests/README.md, section 'Optimizer')."""
 
     NELDER_MEAD = "Nelder-Mead"
     POWELL = "Powell"
@@ -57,7 +57,7 @@ class OptimizerMethod(str, Enum):
 
 
 class Axis(str, Enum):
-    """Ось прямоугольного ящика моделирования."""
+    """Axis of the rectangular simulation box."""
 
     X = "x"
     Y = "y"
@@ -65,7 +65,7 @@ class Axis(str, Enum):
 
     @property
     def column(self) -> int:
-        """Номер столбца координаты в массиве позиций (x — 0, y — 1, z — 2)."""
+        """Column index of the coordinate in the position array (x — 0, y — 1, z — 2)."""
         return AXIS_ORDER.index(self)
 
 
@@ -73,28 +73,28 @@ AXIS_ORDER = (Axis.X, Axis.Y, Axis.Z)
 
 
 class ProfileCentering(str, Enum):
-    """Что ставится в 0 координаты профиля в каждом кадре."""
+    """What is placed at 0 of the profile coordinate in each frame."""
 
-    PORE = "pore"  # середина между стенками (или заданный центр поры) — система PORE
-    LIQUID = "liquid"  # центр выбранных атомов (без весов) с учётом PBC — система LIQUID
+    PORE = "pore"  # midpoint between the walls (or the given pore centre) — PORE frame
+    LIQUID = "liquid"  # centre of the selected atoms (unweighted) with PBC taken into account — LIQUID frame
 
 
 class ParticleGrouping(str, Enum):
-    """Что считается частицей профиля."""
+    """What counts as a profile particle."""
 
-    ATOM = "atom"  # каждый выбранный атом
-    MOLECULE = "molecule"  # центр масс молекулы (меньше молекулярной «ряби» у стенок)
+    ATOM = "atom"  # every selected atom
+    MOLECULE = "molecule"  # centre of mass of the molecule (less molecular 'ripple' near the walls)
 
 
 class Orientation(str, Enum):
-    """Отражать ли профиль z → −z в системе поры."""
+    """Whether to reflect the profile z → −z in the pore frame."""
 
-    AUTO = "auto"  # отразить, если жидкость у верхней стенки (первый момент среднего профиля > 0)
-    KEEP = "keep"  # как в траектории
+    AUTO = "auto"  # reflect if the liquid is at the upper wall (first moment of the mean profile > 0)
+    KEEP = "keep"  # as in the trajectory
 
 
 class TimeUnit(str, Enum):
-    """Единицы времени в строках вида «2 ns»; внутри всё в пикосекундах."""
+    """Time units in strings like '2 ns'; everything is in picoseconds internally."""
 
     FEMTOSECOND = "fs"
     PICOSECOND = "ps"
@@ -115,28 +115,30 @@ TIME_UNIT_PICOSECONDS = {
 
 
 class AxisOrientation(str, Enum):
-    """Направление оси симметрии формы относительно стенок."""
+    """Direction of the shape's symmetry axis relative to the walls."""
 
-    VERTICAL = "vertical"  # перпендикулярно стенкам (пончик, перфорация): центр ищется по обеим осям плоскости
-    HORIZONTAL = "horizontal"  # вдоль короткой стороны ячейки (валик): центр ищется только поперёк оси
+    VERTICAL = (
+        "vertical"  # perpendicular to the walls (doughnut, perforation): centre searched along both in-plane axes
+    )
+    HORIZONTAL = "horizontal"  # along the short side of the cell (roll): centre is searched only across the axis
 
 
 class AxisLocator(str, Enum):
-    """Как найти положение оси в кадре."""
+    """How to find the axis position in a frame."""
 
-    LIQUID_CENTER = "liquid_center"  # центр жидкости (круговое среднее с учётом PBC)
-    VOID_CENTER = "void_center"  # центр пустоты: жидкость занимает всё, кроме отверстия, — центр жидкости + L/2
+    LIQUID_CENTER = "liquid_center"  # liquid centre (circular mean with PBC taken into account)
+    VOID_CENTER = "void_center"  # void centre: the liquid fills everything except the hole — liquid centre + L/2
 
 
 class NoiseModel(str, Enum):
-    """Шум синтетического профиля."""
+    """Noise of a synthetic profile."""
 
-    CONSTANT = "constant"  # σ = noise_std · ρ_bulk в каждом бине; отрицательные значения обрезаются до 0
-    POISSON = "poisson"  # σ ∝ √ρ, как у числа частиц в бине; в пустых бинах шума нет
+    CONSTANT = "constant"  # σ = noise_std · ρ_bulk in every bin; negative values are clipped to 0
+    POISSON = "poisson"  # σ ∝ √ρ, as for the particle count in a bin; no noise in empty bins
 
 
 class ProfileSampling(str, Enum):
-    """Как синтетический профиль представляет бин."""
+    """How a synthetic profile represents a bin."""
 
-    CENTER = "center"  # значение модели в центре бина
-    BIN_AVERAGE = "bin_average"  # среднее модели по бину — как гистограмма МД
+    CENTER = "center"  # model value at the bin centre
+    BIN_AVERAGE = "bin_average"  # model average over the bin — like an MD histogram

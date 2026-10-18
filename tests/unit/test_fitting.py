@@ -1,6 +1,6 @@
-"""Общий оптимизатор: правила параметров, проверки входа, флаги результата, режимы смачивания.
+"""Common optimizer: parameter rules, input checks, result flags, wetting regimes.
 
-Профили синтетические без шума: точное восстановление — признак того, что механизм фита верен.
+The profiles are noise-free synthetic data: exact recovery shows that the fitting machinery is correct.
 """
 
 import numpy as np
@@ -43,8 +43,8 @@ def test_one_optimizer_handles_one_two_three_free_parameters(
     )
     assert result.free_parameters == tuple(name for name in ("theta", "delta", "phi") if name in optimize)
     for name, value in fixed.items():
-        assert result.values[name] == value  # фиксированные не меняются
-    # δ задаётся краем профиля и определяется с точностью до полуширины бина (1/200/2 = 0.0025),
+        assert result.values[name] == value  # fixed values do not change
+    # δ is set by the profile edge and is determined to within half a bin (1/200/2 = 0.0025),
     assert result.values["theta"] == pytest.approx(120.0, abs=0.5)
     assert result.values["delta"] == pytest.approx(0.03, abs=0.0025)
     assert result.values["phi"] == pytest.approx(0.4, abs=0.003)
@@ -73,7 +73,7 @@ def test_result_flags_regime_boundary(square_pore: SquarePore) -> None:
         filament, {"theta": 89.0, "delta": 0.02, "phi": 0.05}, density_bulk_per_nm3=DENSITY_BULK
     )
     result = filament.fit(profile, fixed={"phi": 0.05}, regime=Regime.NON_WETTING, density_bulk_per_nm3=DENSITY_BULK)
-    assert result.values["theta"] == pytest.approx(90.5, abs=0.01)  # θ ∈ (89.5°, 90.5°) не считается
+    assert result.values["theta"] == pytest.approx(90.5, abs=0.01)  # θ ∈ (89.5°, 90.5°) is not computed
     assert result.at_regime_boundary
     assert result.at_bounds == ()
 
@@ -82,7 +82,7 @@ def test_summary_mentions_flags(slit_pore: SlitPore) -> None:
     result = slit_pore.interface("roll").fit(
         roll_profile(slit_pore, theta=170.0), bounds={"theta": (100.0, 150.0)}, density_bulk_per_nm3=DENSITY_BULK
     )
-    assert "у границы: theta" in str(result)
+    assert "at bound: theta" in str(result)
 
 
 def test_result_round_trips_through_json(slit_pore: SlitPore) -> None:
@@ -93,18 +93,18 @@ def test_result_round_trips_through_json(slit_pore: SlitPore) -> None:
 
 
 def test_empty_window_is_an_error(slit_pore: SlitPore) -> None:
-    wrong_pore = SlitPore(width_nm=0.08, length_nm=0.16)  # ширина поры в 100 раз меньше, чем у данных
-    with pytest.raises(EmptyWindowError, match="размер поры"):
+    wrong_pore = SlitPore(width_nm=0.08, length_nm=0.16)  # the pore is 100 times narrower than the data
+    with pytest.raises(EmptyWindowError, match="fraction of the pore size"):
         wrong_pore.interface("roll").fit(roll_profile(slit_pore), density_bulk_per_nm3=DENSITY_BULK)
 
 
 def test_mean_normalization_requires_phi(slit_pore: SlitPore) -> None:
-    with pytest.raises(InvalidProfileError, match="ρ_bulk"):  # причина и что задать — итоговый аудит
+    with pytest.raises(InvalidProfileError, match="ρ_bulk"):  # the cause and what to set — pre-release audit
         slit_pore.interface("roll").fit(roll_profile(slit_pore))
 
 
 def test_infeasible_fixed_values_are_reported(slit_pore: SlitPore) -> None:
-    with pytest.raises(InfeasibleParametersError, match="область существования"):
+    with pytest.raises(InfeasibleParametersError, match="existence domain"):
         slit_pore.interface("roll").fit(
             roll_profile(slit_pore), fixed={"phi": 0.999}, density_bulk_per_nm3=DENSITY_BULK
         )
@@ -167,7 +167,7 @@ def test_user_initial_point_is_used(slit_pore: SlitPore) -> None:
 
 
 def test_fixed_angle_inside_regime_gap_is_an_error(slit_pore: SlitPore) -> None:
-    with pytest.raises(UnsupportedRegimeError, match="зазора"):
+    with pytest.raises(UnsupportedRegimeError, match="inside the gap"):
         slit_pore.interface("roll").fit(
             roll_profile(slit_pore), optimize=["delta"], fixed={"theta": 90.0}, density_bulk_per_nm3=DENSITY_BULK
         )
@@ -187,15 +187,15 @@ def test_volume_fraction_from_data_outside_bounds_names_likely_causes(slit_pore:
 
 def test_pore_wider_than_data_is_rejected() -> None:
     data_pore = SlitPore(width_nm=8.0, length_nm=16.0)
-    wrong_pore = SlitPore(width_nm=10.0, length_nm=20.0)  # l = L/H то же, H на 25 % больше
-    with pytest.raises(ProfileMismatchError, match="не покрывают"):
+    wrong_pore = SlitPore(width_nm=10.0, length_nm=20.0)  # the same l = L/H, H is 25 % larger
+    with pytest.raises(ProfileMismatchError, match="do not cover the pore"):
         wrong_pore.interface("roll").fit(roll_profile(data_pore), density_bulk_per_nm3=DENSITY_BULK)
 
 
 def test_profile_in_other_units_is_rejected(slit_pore: SlitPore) -> None:
     profile = roll_profile(slit_pore)
     in_angstrom = profile.model_copy(update={"coordinate_nm": profile.coordinate_nm * 10.0})
-    with pytest.raises(ProfileMismatchError, match="за пределами поры"):
+    with pytest.raises(ProfileMismatchError, match="outside the pore"):
         slit_pore.interface("roll").fit(in_angstrom, density_bulk_per_nm3=DENSITY_BULK)
 
 
@@ -204,7 +204,7 @@ def test_liquid_frame_profile_wider_than_pore_is_rejected(square_pore: SquarePor
     values = {"theta": 140.0, "delta": 0.02, "phi": 0.05}
     profile = synthetic_profile(droplet, values, density_bulk_per_nm3=DENSITY_BULK, frame=Frame.LIQUID)
     stretched = profile.model_copy(update={"coordinate_nm": profile.coordinate_nm * 3.0})
-    with pytest.raises(ProfileMismatchError, match="шире поры"):
+    with pytest.raises(ProfileMismatchError, match="wider than the pore"):
         droplet.fit(
             stretched, optimize=["theta"], fixed={"delta": 0.02, "phi": 0.05}, density_bulk_per_nm3=DENSITY_BULK
         )
@@ -216,11 +216,11 @@ def test_shape_without_contact_angle_fits_volume_fraction(slit_pore: SlitPore) -
     result = layer.fit(profile, optimize=["phi"], density_bulk_per_nm3=DENSITY_BULK)
     assert layer.default_optimize == ("phi",)
     assert result.regime is None
-    assert result.values["phi"] == pytest.approx(0.4, abs=0.006)  # край ступеньки — с точностью до бина
+    assert result.values["phi"] == pytest.approx(0.4, abs=0.006)  # the step edge — to within a bin
 
 
 def test_profile_of_a_pore_with_another_volume_is_rejected() -> None:
-    """Итоговый аудит: профиль поры 4 × 10 нм, подставленный в пору 4 × 12 нм, давал θ = 105.6° без флагов."""
+    """Pre-release audit: the profile of a 4 × 10 nm pore, fitted in a 4 × 12 nm pore, gave θ = 105.6° without flags."""
     from panda_md import SlitPore
     from panda_md.core.errors import ProfileMismatchError
     from panda_md.synthetic.profiles import synthetic_profile
@@ -230,6 +230,6 @@ def test_profile_of_a_pore_with_another_volume_is_rejected() -> None:
         measured.interface("worm"), {"theta": 120.0, "delta": 0.0, "phi": 0.3}, density_bulk_per_nm3=30.0
     )
     other = SlitPore(width_nm=4.0, length_nm=12.0)
-    with pytest.raises(ProfileMismatchError, match="объём"):
+    with pytest.raises(ProfileMismatchError, match="pore volume"):
         other.interface("worm").fit(profile, density_bulk_per_nm3=30.0)
-    measured.interface("worm").fit(profile, density_bulk_per_nm3=30.0)  # своя пора — без ошибки
+    measured.interface("worm").fit(profile, density_bulk_per_nm3=30.0)  # its own pore — no error

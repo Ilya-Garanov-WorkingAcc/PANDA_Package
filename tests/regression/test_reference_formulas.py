@@ -1,6 +1,6 @@
-"""Перенос формул: новая реализация совпадает с исходным кодом на зафиксированной сетке.
+"""Formula port: the new implementation matches the source code on a fixed grid.
 
-Эталоны — JSON в data/, генераторы — generate_*.py рядом (источник и коммит записаны в файле).
+References are JSON in data/, generators are generate_*.py alongside (source and commit are recorded in the file).
 """
 
 import json
@@ -22,7 +22,7 @@ TOLERANCE = 1e-12
 SLIT_WIDTH_NM = 1.0
 
 
-def load(name: str) -> dict[str, Any]:  # Any: структура JSON эталона описана в генераторе
+def load(name: str) -> dict[str, Any]:  # Any: the reference JSON structure is described in the generator
     reference: dict[str, Any] = json.loads((DATA / name).read_text())
     return reference
 
@@ -106,11 +106,11 @@ def test_polygon_stability_diagram_matches_panda_polygon(pore_name: str) -> None
             for j in range(len(expected[i]))
             if expected[i][j] != diagram.stable_shapes[i][j]
         ]
-        assert not mismatches, f"θ={case['theta']} δ={case['delta']}: {mismatches[:5]} (всего {len(mismatches)})"
+        assert not mismatches, f"θ={case['theta']} δ={case['delta']}: {mismatches[:5]} (total {len(mismatches)})"
 
 
 def test_density_profile_matches_old_panda() -> None:
-    """Центрирование по жидкости и бины по ящику — как utils.get_center_pbc + get_numerical_density_profile."""
+    """Liquid centering and bins over the box — as utils.get_center_pbc + get_numerical_density_profile."""
     with np.load(DATA / "density_reference.npz") as reference:
         trajectory = ArrayTrajectory(
             positions_nm=reference["positions_nm"], boxes_nm=reference["boxes_nm"], times_ps=reference["times_ps"]

@@ -1,9 +1,9 @@
 name: Publish
 
-# Публикация без токенов: PyPI Trusted Publishing (OIDC).
-# В репозитории и в настройках GitHub нет ни одного секрета PyPI.
-#   - вручную (Run workflow)  -> TestPyPI
-#   - тег vX.Y.Z              -> PyPI
+# Token-free publishing: PyPI Trusted Publishing (OIDC).
+# Neither the repository nor the GitHub settings hold any PyPI secret.
+#   - manually (Run workflow)  -> TestPyPI
+#   - tag vX.Y.Z               -> PyPI
 
 on:
   workflow_dispatch:
@@ -14,8 +14,8 @@ permissions:
   contents: read
 
 jobs:
-  # публикация только после всего CI (lint, тесты 3.10–3.13, нижние версии, документация, сборка):
-  # тег на красном коммите не уходит на PyPI
+  # publish only after the whole CI (lint, tests 3.10–3.13, lowest versions, documentation, build):
+  # a tag on a red commit never reaches PyPI
   ci:
     uses: ./.github/workflows/ci.yml
 
@@ -25,7 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
-      - name: Версия в pyproject.toml совпадает с тегом
+      - name: Version in pyproject.toml matches the tag
         if: github.ref_type == 'tag'
         run: test "v$(uv version --short)" = "${GITHUB_REF_NAME}"
       - run: uv build

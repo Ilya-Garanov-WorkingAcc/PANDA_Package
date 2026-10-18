@@ -1,9 +1,9 @@
-"""Версия установленной библиотеки: пишется в результаты и сохраняемые файлы (воспроизводимость расчёта)."""
+"""Version of the installed library: written into results and saved files (reproducibility of the computation)."""
 
 from importlib.metadata import PackageNotFoundError, version
 
 DISTRIBUTION_NAME = "panda-md"
-UNKNOWN_VERSION = "0.0.0"  # пакет не установлен (запуск из исходников без установки)
+UNKNOWN_VERSION = "0.0.0"  # package is not installed (run from sources without installation)
 
 
 def library_version() -> str:

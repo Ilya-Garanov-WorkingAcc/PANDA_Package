@@ -1,7 +1,8 @@
-"""Командная строка: команды запускаются и дают тот же ответ, что Python API; коды возврата 0 / 1 / 2."""
+"""Command line: the commands run and give the same answer as the Python API; exit codes 0 / 1 / 2."""
 
 import importlib
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -24,7 +25,7 @@ TRUTH = {"theta": 120.0, "delta": 0.03, "phi": 0.4}
 DENSITY_BULK = 30.0
 MD_DATA = Path(__file__).parents[1] / "md" / "data"
 RHO = ("--rho-bulk", str(DENSITY_BULK))
-WATER_DENSITY_BULK = 33.13  # ρ_bulk кислородов воды в графитовой системе, как в tests/md
+WATER_DENSITY_BULK = 33.13  # ρ_bulk of water oxygens in the graphite system, as in tests/md
 WATER_RHO = ("--rho-bulk", str(WATER_DENSITY_BULK))
 
 
@@ -80,10 +81,10 @@ def test_shapes_lists_every_pore_and_its_shapes(capsys: pytest.CaptureFixture[st
 def test_shapes_for_one_pore_shows_parameters_bounds_regimes_and_axis(capsys: pytest.CaptureFixture[str]) -> None:
     code, out, _ = run_cli(capsys, "shapes", "--pore", "slit")
     assert code == 0
-    assert "width_nm" in out  # поля поры — то, что задаётся через -g
+    assert "width_nm" in out  # pore fields — what is set with -g
     assert "theta" in out and "[0, 180]" in out
     assert "non_wetting" in out
-    assert "horizontal" in out  # ось валика
+    assert "horizontal" in out  # roll axis
     assert "square" not in out
 
 
@@ -158,7 +159,7 @@ def test_fit_with_problem_flags_exits_with_2(
         "theta=95:105",
     )
     assert code == 2
-    assert "у границы" in out
+    assert "at bound: theta" in out
 
 
 def test_fit_auto_compares_shapes_and_keeps_the_best(
@@ -168,11 +169,11 @@ def test_fit_auto_compares_shapes_and_keeps_the_best(
     code, out, err = run_cli(
         capsys, "fit", str(profile_file), "--pore-file", str(pore_file), "--shape", "auto", *RHO, "-o", str(output)
     )
-    with pytest.warns(PandaWarning, match="неразличимы"):  # валик и перфорация по профилю неразличимы
+    with pytest.warns(PandaWarning, match="indistinguishable"):  # the profile cannot tell roll from perforation
         comparison = compare_shapes(PORE, DensityProfile.load(profile_file), FitSpec(density_bulk_per_nm3=DENSITY_BULK))
     assert code in (0, 2)
-    assert "сравнение форм" in out
-    assert "неразличимы" in err
+    assert "shape comparison" in out
+    assert "indistinguishable" in err
     saved = json.loads(output.read_text())
     assert saved["fit"]["shape_name"] == comparison.best.shape_name == "roll"
     assert saved["fit"]["values"] == pytest.approx(comparison.best.values, abs=1e-9)
@@ -212,9 +213,9 @@ def test_fit_profile_set_uses_mean_and_blocks_fit_each_block(
     )  # fmt: skip
     expected_blocks = fit_blocks(pore.interface("roll"), profiles, spec)
     assert code in (0, 2)
-    assert "среднее ± ошибка среднего" in out
+    assert "mean ± standard error" in out
     saved = json.loads(blocks_output.read_text())
-    assert saved["fit"]["values"] == pytest.approx(expected.values, abs=1e-9)  # и фит среднего профиля
+    assert saved["fit"]["values"] == pytest.approx(expected.values, abs=1e-9)  # and the fit of the mean profile
     assert [result["values"]["theta"] for result in saved["blocks"]["results"]] == pytest.approx(
         list(expected_blocks.values("theta")), abs=1e-9
     )
@@ -274,15 +275,15 @@ def test_fit_plot_without_matplotlib_fails_before_fitting(
     )  # fmt: skip
     assert code == 1
     assert "matplotlib" in err
-    assert out == "" and not output.exists()  # фит не запускался
+    assert out == "" and not output.exists()  # the fit did not run
 
 
 @pytest.mark.parametrize(
     ("arguments", "message"),
     [
-        (["--fix", "phi"], "имя=значение"),
+        (["--fix", "phi"], "expected name=value"),
         (["--fix", "gamma=1"], "gamma"),
-        (["--bounds", "theta=100"], "имя=нижняя:верхняя"),
+        (["--bounds", "theta=100"], "expected name=lower:upper"),
         (["--fix", "phi=0.4", "--optimize", "phi"], "phi"),
         (["--shape", "spiral"], "spiral"),
         (["--regime", "sticky"], "sticky"),
@@ -314,7 +315,7 @@ def test_fit_missing_file_and_missing_pore_are_input_errors(
 
 
 def test_usage_errors_exit_with_1_not_2(capsys: pytest.CaptureFixture[str]) -> None:
-    code, _, err = run_cli(capsys, "fit")  # нет обязательного аргумента: у click это код 2, у нас 2 — флаги фита
+    code, _, err = run_cli(capsys, "fit")  # a required argument is missing: click gives code 2, ours is 2 for fit flags
     assert code == 1
     assert err
 
@@ -323,7 +324,7 @@ def test_usage_errors_exit_with_1_not_2(capsys: pytest.CaptureFixture[str]) -> N
 
 
 def write_md_files(directory: Path) -> tuple[Path, Path]:
-    """Синтетическая траектория щели в формате GROMACS (.gro + .xtc): жидкость LIQ, стенки WAL."""
+    """Synthetic slit trajectory in GROMACS format (.gro + .xtc): liquid LIQ, walls WAL."""
     mda = pytest.importorskip("MDAnalysis")
     from MDAnalysis.coordinates.memory import MemoryReader
 
@@ -341,7 +342,7 @@ def write_md_files(directory: Path) -> tuple[Path, Path]:
     resnames[walls] = "WAL"
     universe.add_TopologyAttr("resname", list(resnames))
     names = np.empty(atom_count, dtype=object)
-    names[liquid] = "O"  # известные элементы: MDAnalysis угадывает массы без предупреждений
+    names[liquid] = "O"  # known elements: MDAnalysis guesses the masses without warnings
     names[walls] = "C"
     universe.add_TopologyAttr("name", list(names))
     universe.add_TopologyAttr("resid", list(range(1, atom_count + 1)))
@@ -373,7 +374,7 @@ def test_profile_matches_python_api(capsys: pytest.CaptureFixture[str], tmp_path
     np.testing.assert_allclose(saved.block_densities_per_nm3, expected.block_densities_per_nm3)
     np.testing.assert_allclose(saved.bin_edges_nm, expected.bin_edges_nm)
     assert saved.block_count == 2
-    assert "2 блок" in out
+    assert "2 block(s)" in out
 
 
 def test_profile_walls_as_two_coordinates_fix_the_pore_center(
@@ -401,10 +402,10 @@ def test_profile_needs_walls_for_pore_centering(
     base = ["profile", str(topology), str(coordinates), "--pore-file", str(pore_file), "--select", "resname LIQ"]
     code, _, err = run_cli(capsys, *base, "--center-by", "pore", "-o", str(tmp_path / "p.npz"))
     assert code == 1
-    assert "стен" in err
-    code, _, err = run_cli(capsys, *base, "-o", str(tmp_path / "liquid.npz"))  # по умолчанию — по жидкости
+    assert "wall selection" in err
+    code, _, err = run_cli(capsys, *base, "-o", str(tmp_path / "liquid.npz"))  # by default — on the liquid
     assert code == 0
-    assert "по жидкости" in err
+    assert "centred on the liquid" in err
     assert ProfileSet.load(tmp_path / "liquid.npz").centering.value == "liquid"
 
 
@@ -425,7 +426,7 @@ def test_profile_derives_slit_from_walls_and_saves_pore_for_fit(
     pore = SlitPore.from_trajectory(trajectory, walls="resname WAL", liquid="resname LIQ")
     expected = density_profile(trajectory, pore, "resname LIQ", bins=80)
     np.testing.assert_allclose(ProfileSet.load(output).block_densities_per_nm3, expected.block_densities_per_nm3)
-    assert "width_nm" in out  # размеры, найденные по траектории, показаны пользователю
+    assert "width_nm" in out  # the dimensions found from the trajectory are shown to the user
 
     fit_output = tmp_path / "result.json"
     code, _, err = run_cli(
@@ -479,7 +480,7 @@ def test_run_config_matches_separate_commands(
         ),
     )
     assert code == 0, err
-    assert read_values(tmp_path / "result.json") == pytest.approx(expected.values, abs=1e-9)  # путь — от конфига
+    assert read_values(tmp_path / "result.json") == pytest.approx(expected.values, abs=1e-9)  # path from the config
     assert "theta" in out
 
 
@@ -533,7 +534,7 @@ def test_run_bad_config_is_input_error(
     assert "Traceback" not in err
 
 
-# --- точка входа ---
+# --- entry point ---
 
 
 def test_console_entry_point_runs() -> None:
@@ -544,7 +545,7 @@ def test_console_entry_point_runs() -> None:
     assert "roll" in completed.stdout
 
 
-# --- итоговое ревью стадии 8 ---
+# --- stage 8 final review ---
 
 
 def fit_arguments(profile_file: Path, pore_file: Path) -> list[str]:
@@ -562,7 +563,7 @@ def test_npz_that_is_not_a_panda_profile_is_input_error(
     for path in (foreign, renamed):
         code, _, err = run_cli(capsys, *fit_arguments(path, pore_file))
         assert code == 1
-        assert "не профиль PANDA" in err and path.name in err
+        assert "is not a PANDA profile" in err and path.name in err
 
 
 @pytest.mark.parametrize("header", [None, "# z,rho"])
@@ -594,7 +595,7 @@ def test_csv_with_wrong_column_count_is_input_error(
     path.write_text("1,2,3,4\n2,3,4,5\n")
     code, _, err = run_cli(capsys, *fit_arguments(path, pore_file))
     assert code == 1
-    assert "столбц" in err
+    assert "column(s), expected 2 or 3" in err
 
 
 def test_bad_outputs_are_rejected_before_any_work(
@@ -623,8 +624,8 @@ def test_profile_output_must_be_npz_before_reading_trajectory(
     [
         (["--bins", "80", "--bin-width", "0.1"], "--bins"),
         (["--bin-width", "-1"], "--bin-width"),
-        (["-g", "base_aspect_ratio=0.5"], "base_aspect_ratio"),  # без размеров, но с полем, которое не используется
-        (["--walls", "1.0,9.0"], "координаты стенок"),  # координаты стенок щель не измеряют
+        (["-g", "base_aspect_ratio=0.5"], "base_aspect_ratio"),  # no dimensions, but with a field that is not used
+        (["--walls", "1.0,9.0"], "wall coordinates"),  # wall coordinates do not measure the slit
     ],
 )
 def test_profile_contradictory_options_are_input_errors(
@@ -657,13 +658,13 @@ def test_no_arguments_prints_help_without_error(capsys: pytest.CaptureFixture[st
     code, out, err = run_cli(capsys)
     assert code == 0
     assert "fit" in out
-    assert "ошибка" not in err
+    assert "error" not in err
 
 
 def test_help_keeps_square_brackets(capsys: pytest.CaptureFixture[str]) -> None:
     code, out, _ = run_cli(capsys, "profile", "--help")
     assert code == 0
-    assert "panda-md[md]" in out
+    assert "panda-md[md]" in re.sub(r"-\s+", "-", out)  # the help formatter may wrap the line after "panda-"
 
 
 def test_shapes_lists_the_profile_shift(capsys: pytest.CaptureFixture[str]) -> None:
@@ -674,7 +675,7 @@ def test_shapes_lists_the_profile_shift(capsys: pytest.CaptureFixture[str]) -> N
 def test_interrupt_exits_with_130(
     capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, profile_file: Path, pore_file: Path
 ) -> None:
-    cli_app = sys.modules["panda_md.cli.app"]  # имя panda_md.cli.app занято объектом Typer
+    cli_app = sys.modules["panda_md.cli.app"]  # the name panda_md.cli.app is taken by the Typer object
 
     def interrupt(*_: object, **__: object) -> None:
         raise KeyboardInterrupt
@@ -685,7 +686,7 @@ def test_interrupt_exits_with_130(
 
 
 def test_importing_main_module_does_not_run_the_command() -> None:
-    importlib.import_module("panda_md.__main__")  # без SystemExit
+    importlib.import_module("panda_md.__main__")  # no SystemExit
 
 
 def write_config(directory: Path, pore: str, profile: str, fit_section: str | None) -> Path:
@@ -715,7 +716,7 @@ def test_run_readme_variant_measures_slit_and_resolves_every_path(
     try:
         import os
 
-        os.chdir(elsewhere)  # пути — от файла настроек, а не от текущего каталога
+        os.chdir(elsewhere)  # paths are relative to the settings file, not to the current directory
         code, _, err = run_cli(capsys, "run", str(config))
     finally:
         os.chdir(previous)
@@ -751,8 +752,8 @@ def test_run_checks_shape_and_plot_before_reading_trajectory(
 @pytest.mark.parametrize(
     ("profile", "fit_section", "message"),
     [
-        ('input = "p.npz"', 'shape = "roll"', "[pore]"),  # подсказка — раздел файла, а не опции команды
-        ('input = "p.npz"', None, "[fit]"),  # готовый профиль и нет фита — нечего делать
+        ('input = "p.npz"', 'shape = "roll"', "[pore]"),  # the hint is the file section, not the command options
+        ('input = "p.npz"', None, "[fit]"),  # a ready profile and no fit — nothing to do
         ('input = "p.npz"\nbins = 80\nbin_width_nm = 0.1', 'shape = "roll"', "bin_width_nm"),
     ],
 )

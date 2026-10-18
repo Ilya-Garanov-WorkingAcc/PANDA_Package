@@ -1,4 +1,4 @@
-"""Профиль плотности и его приведение к безразмерному виду."""
+"""Density profile and its reduction to dimensionless form."""
 
 from pathlib import Path
 
@@ -26,7 +26,7 @@ def make_profile(**changes: object) -> DensityProfile:
 
 
 def test_profile_rejects_length_mismatch() -> None:
-    with pytest.raises(ValidationError, match="длины"):
+    with pytest.raises(ValidationError, match="different lengths"):
         make_profile(density_per_nm3=np.ones(49))
 
 
@@ -38,12 +38,12 @@ def test_profile_rejects_nan() -> None:
 
 
 def test_profile_rejects_decreasing_coordinate() -> None:
-    with pytest.raises(ValidationError, match="возрастает"):
+    with pytest.raises(ValidationError, match="not increasing"):
         make_profile(coordinate_nm=np.linspace(4.0, -4.0, 50))
 
 
 def test_profile_rejects_negative_density() -> None:
-    with pytest.raises(ValidationError, match="отрицательна"):
+    with pytest.raises(ValidationError, match="density is negative"):
         make_profile(density_per_nm3=np.full(50, -1.0))
 
 
@@ -82,12 +82,12 @@ def test_mean_normalization_needs_particle_count() -> None:
 
 
 def test_profile_rejects_all_zero_density() -> None:
-    with pytest.raises(ValidationError, match="профиль пуст"):
+    with pytest.raises(ValidationError, match="profile is empty"):
         make_profile(density_per_nm3=np.zeros(50))
 
 
 def test_saved_files_and_results_record_the_library_version(tmp_path: Path) -> None:
-    """Итоговый аудит: ни в результате, ни в файлах не было версии PANDA — для статьи это воспроизводимость."""
+    """Pre-release audit: neither the result nor the files recorded the PANDA version — needed for reproducibility."""
     import json
 
     import panda_md
@@ -110,5 +110,5 @@ def test_csv_metadata_without_space_and_column_mismatch(tmp_path: Path) -> None:
     path.write_text('#frame: "liquid"\n#coordinate_nm,density_per_nm3\n-1,1\n0,2\n1,1\n')
     assert DensityProfile.load(path).frame.value == "liquid"
     path.write_text("# coordinate_nm,density_per_nm3\n-1,1,0.1\n0,2,0.1\n1,1,0.1\n")
-    with pytest.raises(InvalidProfileError, match="столбц"):
+    with pytest.raises(InvalidProfileError, match="column"):
         DensityProfile.load(path)

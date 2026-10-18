@@ -1,4 +1,4 @@
-"""Профиль по центрам масс молекул и поправка положения поверхности стенки (wall_offset)."""
+"""Profile by molecular centres of mass and the wall surface position correction (wall_offset)."""
 
 import warnings
 from typing import Any
@@ -23,14 +23,14 @@ def test_renumber_keeps_order_of_first_appearance() -> None:
 def test_molecule_cut_by_box_boundary_has_its_center_at_the_boundary() -> None:
     positions = np.array([[1.0, 1.0, 9.9], [1.0, 1.0, 0.1], [2.0, 2.0, 5.0], [2.0, 2.0, 5.4]])
     centers = molecule_centers(positions, BOX_NM, np.array([0, 0, 1, 1]), np.array([1.0, 1.0, 16.0, 1.0]))
-    assert min(centers[0, 2], BOX_NM[2] - centers[0, 2]) == pytest.approx(0.0, abs=1e-12)  # а не 5.0
+    assert min(centers[0, 2], BOX_NM[2] - centers[0, 2]) == pytest.approx(0.0, abs=1e-12)  # not 5.0
     assert centers[1, 2] == pytest.approx((16.0 * 5.0 + 5.4) / 17.0)
-    with pytest.raises(InvalidTrajectoryError, match="масса"):
+    with pytest.raises(InvalidTrajectoryError, match="zero mass"):
         molecule_centers(positions, BOX_NM, np.array([0, 0, 1, 1]), np.zeros(4))
 
 
 def water_like_trajectory() -> ArrayTrajectory:
-    """Молекулы из трёх атомов (16 + 1 + 1) в слое |z| < 1 нм вокруг центра поры z = 5; подложка 7.5–12.5 ≡ 2.5."""
+    """Three-atom molecules (16 + 1 + 1) in a layer |z| < 1 nm about the pore centre z = 5; substrate 7.5–12.5 ≡ 2.5."""
     generator = np.random.default_rng(5)
     count = 300
     centers = np.column_stack([generator.uniform(0.0, 4.0, (count, 2)), generator.uniform(4.0, 6.0, count)])
@@ -81,7 +81,7 @@ def test_wall_offset_moves_surfaces_inward() -> None:
     assert offset.wall_offset_nm == pytest.approx(0.17)
     assert offset.expected_wall_gap_nm() == pytest.approx(5.0)
     with warnings.catch_warnings():
-        warnings.simplefilter("error")  # промежуток стенок = H + 2 · offset — без предупреждения
+        warnings.simplefilter("error")  # wall gap = H + 2 · offset — no warning
         profiles = density_profile(trajectory, offset, "water", bins=50)
     np.testing.assert_allclose(profiles.bin_edges_nm[[0, -1]], [-(5.0 - 0.34) / 2, (5.0 - 0.34) / 2])
     with pytest.raises(InvalidTrajectoryError, match="wall_offset_nm"):
@@ -100,21 +100,21 @@ def test_mdanalysis_molecules_are_residues() -> None:
 
 def test_molecule_numbering_must_have_no_gaps_and_long_molecules_are_reported() -> None:
     positions = np.array([[1.0, 1.0, 1.0], [1.0, 1.0, 1.2]])
-    with pytest.raises(InvalidTrajectoryError, match="номера молекул"):
+    with pytest.raises(InvalidTrajectoryError, match="molecule indices"):
         molecule_centers(positions, BOX_NM, np.array([0, 2]), np.ones(2))
-    stretched = np.array([[1.0, 1.0, 0.5], [1.0, 1.0, 3.0], [1.0, 1.0, 5.5]])  # цепочка длиннее L/2 по z
-    with pytest.warns(PandaWarning, match="половины ящика"):
+    stretched = np.array([[1.0, 1.0, 0.5], [1.0, 1.0, 3.0], [1.0, 1.0, 5.5]])  # a chain longer than L/2 along z
+    with pytest.warns(PandaWarning, match="half the box"):
         molecule_centers(stretched, BOX_NM, np.array([0, 0, 0]), np.ones(3))
 
 
 def test_mdanalysis_molecules_follow_gromacs_molecule_numbers() -> None:
-    """В .tpr есть номера молекул GROMACS: они точнее остатков и не ломаются на виртуальных сайтах TIP4P."""
+    """A .tpr has GROMACS molecule numbers: more precise than residues, they do not break on TIP4P virtual sites."""
     mdanalysis = pytest.importorskip("MDAnalysis")
     universe: Any = mdanalysis.Universe.empty(4, n_residues=3, atom_resindex=[0, 0, 1, 2], trajectory=True)
     universe.add_TopologyAttr("masses", [16.0, 1.0, 12.0, 12.0])
-    try:  # MDAnalysis ≥ 2.10 — номер на атом
+    try:  # MDAnalysis ≥ 2.10 — a number per atom
         universe.add_TopologyAttr("molnums", [0, 0, 0, 1])
-    except ValueError:  # MDAnalysis 2.9 — номер на остаток
+    except ValueError:  # MDAnalysis 2.9 — a number per residue
         universe.add_TopologyAttr("molnums", [0, 0, 1])
     molecule_indices, _ = MDATrajectory(universe).molecules(np.arange(4))
     assert molecule_indices.tolist() == [0, 0, 0, 1]

@@ -1,79 +1,79 @@
-"""Исключения и предупреждения библиотеки. Все исключения наследуют PandaError."""
+"""Library exceptions and warnings. All exceptions inherit from PandaError."""
 
 
 class PandaError(Exception):
-    """Базовое исключение PANDA."""
+    """Base PANDA exception."""
 
 
 class NotDerivedError(PandaError):
-    """Величина для этой формы не выведена (нет формулы)."""
+    """The quantity is not derived for this shape (no formula)."""
 
 
 class UnknownPoreError(PandaError, KeyError):
-    """Тип поры с таким именем не зарегистрирован."""
+    """No pore type is registered under this name."""
 
-    def __str__(self) -> str:  # KeyError заключает сообщение в кавычки
+    def __str__(self) -> str:  # KeyError wraps the message in quotes
         return str(self.args[0]) if self.args else ""
 
 
 class UnknownParameterError(PandaError):
-    """Имя параметра не принадлежит модели."""
+    """The parameter name does not belong to the model."""
 
 
 class UnknownShapeError(PandaError, KeyError):
-    """В поре нет формы с таким именем (наследует KeyError: поиск по реестру)."""
+    """The pore has no shape with this name (inherits KeyError: registry lookup)."""
 
     def __str__(self) -> str:
         return str(self.args[0]) if self.args else ""
 
 
 class ParameterConflictError(PandaError):
-    """Параметр одновременно свободный и фиксированный."""
+    """A parameter is both free and fixed."""
 
 
 class InvalidBoundsError(PandaError):
-    """Границы, заданные на фит, не пересекаются с допустимыми границами параметра."""
+    """Bounds given for the fit do not intersect the parameter's feasible bounds."""
 
 
 class MissingParameterValueError(PandaError):
-    """У фиксированного параметра нет значения."""
+    """A fixed parameter has no value."""
 
 
 class UnidentifiableParameterError(PandaError):
-    """Свободный параметр не влияет на модельный профиль."""
+    """A free parameter does not affect the model profile."""
 
 
 class InfeasibleParametersError(PandaError):
-    """Ни одна стартовая точка не попадает в область существования формы."""
+    """No starting point lies in the existence domain of the shape."""
 
 
 class EmptyWindowError(PandaError):
-    """В окне фита слишком мало точек профиля."""
+    """The fit window contains too few profile points."""
 
 
 class UnsupportedRegimeError(PandaError):
-    """Режим смачивания не объявлен формой (формулы не выведены)."""
+    """The wetting regime is not declared by the shape (formulas are not derived)."""
 
 
 class UnsupportedFrameError(PandaError):
-    """Данные в системе отсчёта, в которую формулы формы не пересчитываются."""
+    """The data are in a frame of reference into which the shape formulas are not converted."""
 
 
 class InvalidProfileError(PandaError):
-    """Профиль плотности не подходит для анализа."""
+    """The density profile is not suitable for analysis."""
 
 
 class ProfileMismatchError(InvalidProfileError):
-    """Профиль не согласуется с порой: другой размер, другие единицы или другая система отсчёта."""
+    """The profile does not match the pore: different size, different units or a different frame of reference."""
 
 
 class InvalidTrajectoryError(PandaError):
-    """Траектория или выборка не подходят: пустая выборка, нет стенок, неверный ящик, пустой интервал времени."""
+    """The trajectory or selection is unsuitable: empty selection, no walls, invalid box, empty time interval."""
 
 
 class MissingDependencyError(PandaError, ImportError):
-    """Нужен необязательный пакет (например, MDAnalysis из panda-md[md])."""
+    """An optional package is required (for example, MDAnalysis from panda-md[md])."""
 
 
 class PandaWarning(UserWarning):
-    """Предупреждение PANDA: расчёт выполнен, но результату стоит не доверять без проверки."""
+    """PANDA warning: the computation finished, but the result should not be trusted without a check."""

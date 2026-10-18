@@ -1,5 +1,5 @@
-"""Команды `panda`: shapes, profile, fit, run. Тонкая обёртка над API; коды возврата: 0 — успех, 1 — ошибка
-входа, 2 — фит завершён с флагами проблем."""
+"""The `panda` commands: shapes, profile, fit, run. A thin wrapper over the API; exit codes: 0 — success, 1 — input
+error, 2 — the fit finished with problem flags."""
 
 import sys
 import warnings
@@ -59,16 +59,16 @@ from panda_md.trajectory.density import DEFAULT_BIN_COUNT
 
 app = typer.Typer(
     name="panda",
-    help="PANDA: краевой угол и форма интерфейса жидкости в поре по профилю плотности МД.",
+    help="PANDA: contact angle and interface shape of a liquid in a pore from an MD density profile.",
     no_args_is_help=True,
     add_completion=False,
     pretty_exceptions_enable=False,
-    rich_markup_mode=None,  # иначе rich съедает «[md]» в «panda-md[md]»
+    rich_markup_mode=None,  # otherwise rich eats “[md]” in “panda-md[md]”
 )
 
 
 class RegimeChoice(str, Enum):
-    AUTO = "auto"  # все режимы, объявленные формой
+    AUTO = "auto"  # all regimes declared by the shape
     WETTING = Regime.WETTING.value
     NON_WETTING = Regime.NON_WETTING.value
 
@@ -77,11 +77,11 @@ class RegimeChoice(str, Enum):
 
 
 PoreNameOption = Annotated[
-    str | None, typer.Option("--pore", help="тип поры (panda shapes); по умолчанию slit или type из --pore-file")
+    str | None, typer.Option("--pore", help="pore type (panda shapes); default: slit or type from --pore-file")
 ]
-PoreFileOption = Annotated[Path | None, typer.Option("--pore-file", help="JSON с полями поры")]
+PoreFileOption = Annotated[Path | None, typer.Option("--pore-file", help="JSON with the pore fields")]
 GeometryOption = Annotated[
-    list[str] | None, typer.Option("-g", "--geometry", help="поле поры: имя=значение (width_nm=8), можно несколько")
+    list[str] | None, typer.Option("-g", "--geometry", help="pore field: name=value (width_nm=8), may be repeated")
 ]
 
 
@@ -98,15 +98,15 @@ def _print_version(value: bool) -> None:
 @app.callback()
 def _options(
     version: Annotated[
-        bool, typer.Option("--version", callback=_print_version, is_eager=True, help="версия panda-md")
+        bool, typer.Option("--version", callback=_print_version, is_eager=True, help="Show the version and exit.")
     ] = False,
 ) -> None:
-    """PANDA: краевой угол и форма интерфейса жидкости в поре по профилю плотности МД."""
+    """PANDA: contact angle and interface shape of a liquid in a pore from an MD density profile."""
 
 
 @app.command()
-def shapes(pore: Annotated[str | None, typer.Option("--pore", help="показать только этот тип поры")] = None) -> int:
-    """Типы пор, их поля и формы интерфейса: параметры, границы, режимы, ось симметрии."""
+def shapes(pore: Annotated[str | None, typer.Option("--pore", help="show only this pore type")] = None) -> int:
+    """Pore types, their fields and interface shapes: parameters, bounds, regimes, symmetry axis."""
     selected = {pore: pore_class(pore)} if pore is not None else pore_types()
     for name, pore_type in selected.items():
         _echo(_describe_pore(name, pore_type))
@@ -115,47 +115,47 @@ def shapes(pore: Annotated[str | None, typer.Option("--pore", help="показа
 
 @app.command()
 def profile(
-    topology: Annotated[Path, typer.Argument(help="топология (.gro, .tpr, .pdb, …)")],
-    trajectory: Annotated[list[Path], typer.Argument(help="файлы траектории (.xtc, .trr, …), по порядку")],
-    select: Annotated[str, typer.Option("--select", help="выборка атомов жидкости (синтаксис MDAnalysis)")],
-    output: Annotated[Path, typer.Option("-o", "--output", help="профили по блокам (.npz)")],
+    topology: Annotated[Path, typer.Argument(help="topology (.gro, .tpr, .pdb, …)")],
+    trajectory: Annotated[list[Path], typer.Argument(help="trajectory files (.xtc, .trr, …), in order")],
+    select: Annotated[str, typer.Option("--select", help="selection of the liquid atoms (MDAnalysis syntax)")],
+    output: Annotated[Path, typer.Option("-o", "--output", help="block profiles (.npz)")],
     pore_name: PoreNameOption = None,
     pore_file: PoreFileOption = None,
     geometry: GeometryOption = None,
     walls: Annotated[
-        str | None, typer.Option("--walls", help="выборка атомов стенок или координаты стенок «z1,z2» (нм)")
+        str | None, typer.Option("--walls", help="selection of the wall atoms or wall coordinates “z1,z2” (nm)")
     ] = None,
     center_by: Annotated[
         ProfileCentering | None,
-        typer.Option("--center-by", help="что поставить в 0; по умолчанию pore, если стенки известны, иначе liquid"),
+        typer.Option("--center-by", help="what to put at 0; default: pore if the walls are known, otherwise liquid"),
     ] = None,
     bins: Annotated[
-        int | None, typer.Option("--bins", min=1, help=f"число бинов (по умолчанию {DEFAULT_BIN_COUNT})")
+        int | None, typer.Option("--bins", min=1, help=f"number of bins (default {DEFAULT_BIN_COUNT})")
     ] = None,
-    bin_width: Annotated[float | None, typer.Option("--bin-width", help="ширина бина, нм (вместо --bins)")] = None,
-    start: Annotated[str, typer.Option("--start", help="начало: пс или «2 ns»")] = "0",
-    stop: Annotated[str | None, typer.Option("--stop", help="конец: пс или «10 ns»")] = None,
-    block: Annotated[str | None, typer.Option("--block", help="длина блока: пс или «1 ns»")] = None,
-    stride: Annotated[int, typer.Option("--stride", min=1, help="каждый n-й кадр")] = 1,
-    per: Annotated[ParticleGrouping, typer.Option("--per", help="частица: атом или центр масс молекулы")] = (
+    bin_width: Annotated[float | None, typer.Option("--bin-width", help="bin width, nm (instead of --bins)")] = None,
+    start: Annotated[str, typer.Option("--start", help="start: ps or “2 ns”")] = "0",
+    stop: Annotated[str | None, typer.Option("--stop", help="stop: ps or “10 ns”")] = None,
+    block: Annotated[str | None, typer.Option("--block", help="block length: ps or “1 ns”")] = None,
+    stride: Annotated[int, typer.Option("--stride", min=1, help="every n-th frame")] = 1,
+    per: Annotated[ParticleGrouping, typer.Option("--per", help="particle: atom or molecular centre of mass")] = (
         ParticleGrouping.ATOM
     ),
-    orientation: Annotated[Orientation, typer.Option("--orientation", help="отражать ли профиль z → −z")] = (
+    orientation: Annotated[Orientation, typer.Option("--orientation", help="whether to mirror the profile z → −z")] = (
         Orientation.AUTO
     ),
     pore_output: Annotated[
-        Path | None, typer.Option("--pore-output", help="сохранить пору в JSON (для panda fit --pore-file)")
+        Path | None, typer.Option("--pore-output", help="save the pore to JSON (for panda fit --pore-file)")
     ] = None,
 ) -> int:
-    """Профили плотности по блокам времени из траектории МД (нужен panda-md[md]).
+    """Density profiles over time blocks from an MD trajectory (needs panda-md[md]).
 
-    Без размеров поры (--pore-file, -g) щель измеряется по атомам стенок (--walls «выборка») в кадре --start;
-    найденную пору сохраняет --pore-output — её JSON потом передаётся в panda fit --pore-file.
+    Without pore dimensions (--pore-file, -g) the slit is measured from the wall atoms (--walls “selection”) in the
+    --start frame; --pore-output saves the measured pore — its JSON is then passed to panda fit --pore-file.
     """
     if bins is not None and bin_width is not None:
-        raise CommandLineError("--bins и --bin-width взаимоисключающие")
+        raise CommandLineError("--bins and --bin-width are mutually exclusive; set only one")
     if bin_width is not None and bin_width <= 0.0:
-        raise CommandLineError(f"--bin-width {bin_width:g}: ширина бина должна быть положительной")
+        raise CommandLineError(f"--bin-width must be positive: {bin_width:g}")
     check_profiles_output(output)
     check_outputs(pore_output)
     pore_type, pore_values = pore_request(pore_name, pore_file, geometry or [])
@@ -189,35 +189,33 @@ def profile(
 
 @app.command("fit")
 def fit_command(
-    profile_path: Annotated[Path, typer.Argument(metavar="PROFILE", help="профиль .npz/.csv или профили по блокам")],
+    profile_path: Annotated[Path, typer.Argument(metavar="PROFILE", help="profile .npz/.csv or block profiles")],
     pore_name: PoreNameOption = None,
     pore_file: PoreFileOption = None,
     geometry: GeometryOption = None,
-    shape: Annotated[str, typer.Option("--shape", help="форма (panda shapes) или auto — перебор всех")] = AUTO_SHAPE,
+    shape: Annotated[str, typer.Option("--shape", help="shape (panda shapes) or auto — try all")] = AUTO_SHAPE,
     optimize: Annotated[
-        list[str] | None, typer.Option("--optimize", help="свободные параметры: theta,delta или несколько раз")
+        list[str] | None, typer.Option("--optimize", help="free parameters: theta,delta or repeated")
     ] = None,
-    fix: Annotated[list[str] | None, typer.Option("--fix", help="фиксированный параметр: имя=значение")] = None,
-    bounds: Annotated[
-        list[str] | None, typer.Option("--bounds", help="границы на этот фит: имя=нижняя:верхняя")
-    ] = None,
+    fix: Annotated[list[str] | None, typer.Option("--fix", help="fixed parameter: name=value")] = None,
+    bounds: Annotated[list[str] | None, typer.Option("--bounds", help="bounds for this fit: name=lower:upper")] = None,
     rho_bulk: Annotated[
-        float | None, typer.Option("--rho-bulk", help="объёмная плотность жидкости, частиц/нм³")
+        float | None, typer.Option("--rho-bulk", help="bulk density of the liquid, particles/nm³")
     ] = None,
-    regime: Annotated[RegimeChoice, typer.Option("--regime", help="режим смачивания")] = RegimeChoice.AUTO,
-    normalization: Annotated[Normalization, typer.Option("--normalization", help="нормировка данных")] = (
+    regime: Annotated[RegimeChoice, typer.Option("--regime", help="wetting regime")] = RegimeChoice.AUTO,
+    normalization: Annotated[Normalization, typer.Option("--normalization", help="data normalization")] = (
         Normalization.AUTO
     ),
-    loss: Annotated[LossFunction, typer.Option("--loss", help="функция ошибки")] = LossFunction.L1,
-    blocks: Annotated[bool, typer.Option("--blocks", help="ещё и фит каждого блока (разброс по блокам)")] = False,
-    output: Annotated[Path | None, typer.Option("-o", "--output", help="результат (.json)")] = None,
-    plot: Annotated[Path | None, typer.Option("--plot", help="график фита (.png, .pdf; нужен panda-md[plot])")] = None,
+    loss: Annotated[LossFunction, typer.Option("--loss", help="loss function")] = LossFunction.L1,
+    blocks: Annotated[bool, typer.Option("--blocks", help="also fit each block (spread over blocks)")] = False,
+    output: Annotated[Path | None, typer.Option("-o", "--output", help="result (.json)")] = None,
+    plot: Annotated[Path | None, typer.Option("--plot", help="fit plot (.png, .pdf; needs panda-md[plot])")] = None,
 ) -> int:
-    """Фит профиля формой интерфейса; сводка в терминал, результат в JSON."""
+    """Fit the profile with an interface shape; summary to the terminal, result to JSON."""
     pore = load_pore(pore_name, pore_file, geometry or [])
     free = split_names(optimize) if optimize else None
     if free is not None and not free:
-        raise CommandLineError("--optimize: не назван ни один параметр")
+        raise CommandLineError("--optimize names no parameter; give at least one")
     spec = FitSpec(
         optimize=free,
         fixed=parse_numbers(fix or [], "--fix"),
@@ -235,16 +233,18 @@ def fit_command(
 
 
 @app.command()
-def run(config: Annotated[Path, typer.Argument(help="файл настроек .toml: [pore], [profile], [fit]")]) -> int:
-    """Профиль и фит одним прогоном по файлу настроек."""
+def run(config: Annotated[Path, typer.Argument(help="settings file .toml: [pore], [profile], [fit]")]) -> int:
+    """Profile and fit in one run from a settings file."""
     settings = load_config(config)
     pore_values = dict(settings.pore)
     pore_type = pore_class(str(pore_values.pop(PORE_TYPE_KEY, DEFAULT_PORE)))
     source = settings.profile
     fit_settings = settings.fit
     if fit_settings is None and source.input is not None:
-        raise CommandLineError(f"{config.name}: профиль готов (input), а раздела [fit] нет — нечего делать")
-    if fit_settings is not None:  # всё, что можно проверить, — до долгого прохода по траектории
+        raise CommandLineError(
+            f"{config.name}: nothing to do: the profile is ready (input) and there is no [fit] section; add [fit]"
+        )
+    if fit_settings is not None:  # check all that can be checked before the long pass over the trajectory
         check_shape_name(pore_type, fit_settings.shape)
         check_plot(fit_settings.plot)
         check_outputs(fit_settings.output)
@@ -252,7 +252,7 @@ def run(config: Annotated[Path, typer.Argument(help="файл настроек .
         pore = require_dimensions(pore_type, pore_values, CONFIG_HINT)
         density, profiles = load_profile(require_file(source.input))
     else:
-        assert source.topology is not None and source.select is not None  # проверено в ProfileConfig
+        assert source.topology is not None and source.select is not None  # checked in ProfileConfig
         check_profiles_output(source.output)
         check_outputs(source.pore_output)
         pore, profiles = build_profiles(
@@ -300,27 +300,27 @@ def _describe_pore(name: str, pore_type: type[Pore]) -> str:
         else:
             default = field.default.value if isinstance(field.default, Enum) else field.default
             fields.append(f"{field_name}={default}")
-    lines = [f"пора {name}", f"  поля (-g): {', '.join(fields)}"]
+    lines = [f"pore {name}", f"  fields (-g): {', '.join(fields)}"]
     for shape_name, shape_class in pore_type.own_registry().items():
         regimes = ", ".join(
             f"{regime.value} θ {lower:g}–{upper:g}°" for regime, (lower, upper) in shape_class.regimes.items()
         )
         axis = shape_class.symmetry_axis
-        axis_text = f"  ось: {axis.orientation.value} ({axis.locate.value})" if axis is not None else ""
-        lines.append(f"  {shape_name}  [{regimes or 'без θ'}]{axis_text}")
-        lines.append(f"    свободны по умолчанию: {', '.join(shape_class.default_optimize)}")
-        for parameter in (*shape_class.parameters, PROFILE_SHIFT):  # shift есть у каждой модели
-            default = "из данных" if parameter.default is None else f"{parameter.default:g}"
+        axis_text = f"  axis: {axis.orientation.value} ({axis.locate.value})" if axis is not None else ""
+        lines.append(f"  {shape_name}  [{regimes or 'no θ'}]{axis_text}")
+        lines.append(f"    free by default: {', '.join(shape_class.default_optimize)}")
+        for parameter in (*shape_class.parameters, PROFILE_SHIFT):  # every model has shift
+            default = "from data" if parameter.default is None else f"{parameter.default:g}"
             lower, upper = parameter.bounds
             lines.append(
-                f"    {parameter.name:>6}  по умолчанию {default:<9} [{lower:g}, {upper:g}]  {parameter.unit.value}"
+                f"    {parameter.name:>6}  default {default:<9} [{lower:g}, {upper:g}]  {parameter.unit.value}"
             )
     return "\n".join(lines)
 
 
 @contextmanager
 def _readable_warnings() -> Iterator[None]:
-    """Предупреждения PANDA — одной строкой в stderr, без пути к файлу библиотеки."""
+    """PANDA warnings as one line to stderr, without the path to the library file."""
 
     def show(
         message: Warning | str,
@@ -330,7 +330,7 @@ def _readable_warnings() -> Iterator[None]:
         file: TextIO | None = None,
         line: str | None = None,
     ) -> None:
-        typer.echo(f"предупреждение: {message}", err=True)
+        typer.echo(f"warning: {message}", err=True)
 
     with warnings.catch_warnings():
         warnings.showwarning = show
@@ -338,22 +338,24 @@ def _readable_warnings() -> Iterator[None]:
 
 
 def main(arguments: Sequence[str] | None = None) -> int:
-    """Запуск команды; возвращает код возврата (0 — успех, 1 — ошибка входа, 2 — фит с флагами проблем)."""
+    """Run a command; return the exit code (0 — success, 1 — input error, 2 — fit with problem flags)."""
     command_line = list(sys.argv[1:] if arguments is None else arguments)
     try:
         with _readable_warnings():
             code = app(args=command_line or ["--help"], prog_name="panda", standalone_mode=False)
-    except typer.TyperException as error:  # ошибки разбора команды: у click код 2, но 2 у нас — флаги фита
-        typer.echo(f"ошибка: {error.format_message()}", err=True)
+    except typer.TyperException as error:  # command parsing errors: click uses code 2, but 2 here means fit flags
+        typer.echo(f"error: {_strict(error.format_message())}", err=True)
         return EXIT_INPUT_ERROR
     except (typer.Abort, KeyboardInterrupt):
-        typer.echo("прервано", err=True)
+        typer.echo("interrupted", err=True)
         return EXIT_INTERRUPTED
-    except ValidationError as error:  # до ValueError: коротко, с именем поля, без ссылок на документацию pydantic
-        typer.echo(f"ошибка: {_validation_message(error)}", err=True)
+    except (
+        ValidationError
+    ) as error:  # before ValueError: short, with the field name, without links to the pydantic docs
+        typer.echo(f"error: {_validation_message(error)}", err=True)
         return EXIT_INPUT_ERROR
     except (PandaError, ValueError, OSError) as error:
-        typer.echo(f"ошибка: {error}", err=True)
+        typer.echo(f"error: {error}", err=True)
         return EXIT_INPUT_ERROR
     return code if isinstance(code, int) else EXIT_SUCCESS
 
@@ -367,6 +369,12 @@ def _validation_message(error: ValidationError) -> str:
     return f"{error.title}: " + "; ".join(parts)
 
 
+def _strict(message: str) -> str:
+    """click messages ('Missing argument ...') in the form of the library messages: lower-case, no final period."""
+    message = message.strip().rstrip(".")
+    return message[:1].lower() + message[1:]
+
+
 def console() -> None:
-    """Точка входа консольного скрипта `panda`."""
+    """Entry point of the `panda` console script."""
     raise SystemExit(main())

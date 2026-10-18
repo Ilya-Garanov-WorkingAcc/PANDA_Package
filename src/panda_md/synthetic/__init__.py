@@ -1,1 +1,1 @@
-"""Синтетические данные из аналитических моделей — для тестов и валидации."""
+"""Synthetic data from analytical models, for tests and validation."""

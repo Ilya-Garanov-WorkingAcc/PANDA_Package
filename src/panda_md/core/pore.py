@@ -1,4 +1,4 @@
-"""Тип поры: геометрия, положение в ящике моделирования, приведение профиля к безразмерному виду, реестр форм."""
+"""Pore type: geometry, position in the simulation box, reduction of the profile to dimensionless form, shapes."""
 
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, ClassVar, TypeVar
@@ -12,31 +12,31 @@ from panda_md.core.types import FloatArray, PandaModel
 if TYPE_CHECKING:
     from panda_md.core.model import InterfaceModel
 
-# Any: реестр хранит формы с разными подклассами геометрии; конкретный тип известен только самой поре.
+# Any: the registry holds shapes with different geometry subclasses; the concrete type is known only to the pore.
 ShapeClassT = TypeVar("ShapeClassT", bound=type[InterfaceShape[Any]])
 
 
 class Pore(PandaModel, ABC):
-    """Конкретная пора с размерами. Каждый подкласс имеет свой реестр форм."""
+    """A concrete pore with dimensions. Each subclass has its own shape registry."""
 
     name: ClassVar[str]
     shape_registry: ClassVar[dict[str, type[InterfaceShape[Any]]]]
-    normal_axis: Axis = Axis.Z  # ось ящика, вдоль которой строится профиль
-    wall_selection: str | None = None  # атомы стенок: по ним в каждом кадре ищется центр поры
+    normal_axis: Axis = Axis.Z  # box axis along which the profile is built
+    wall_selection: str | None = None  # wall atoms: used to find the pore centre in each frame
 
     @classmethod
     def own_registry(cls) -> dict[str, type[InterfaceShape[Any]]]:
-        """Реестр именно этого класса поры: подклассы не делят реестр с родителем."""
+        """Registry of exactly this pore class: subclasses do not share the registry with the parent."""
         if "shape_registry" not in cls.__dict__:
             cls.shape_registry = {}
         return cls.shape_registry
 
     @classmethod
     def register(cls, shape_class: ShapeClassT) -> ShapeClassT:
-        """Декоратор: подключить форму к этому типу поры."""
+        """Decorator: attach a shape to this pore type."""
         registry = cls.own_registry()
         if shape_class.name in registry:
-            raise ValueError(f"форма {shape_class.name} уже зарегистрирована в поре {cls.name}")
+            raise ValueError(f"shape '{shape_class.name}' is already registered in pore '{cls.name}'")
         registry[shape_class.name] = shape_class
         return shape_class
 
@@ -46,39 +46,40 @@ class Pore(PandaModel, ABC):
 
     @abstractmethod
     def geometry(self) -> PoreGeometry:
-        """Безразмерная геометрия для формул форм."""
+        """Dimensionless geometry for the shape formulas."""
 
     @abstractmethod
     def characteristic_size_nm(self) -> float:
-        """Размер, к которому приводятся координата и δ: H у щели, a у многоугольников."""
+        """Size to which the coordinate and δ are reduced: H for the slit, a for polygons."""
 
     @abstractmethod
     def volume_nm3(self) -> float:
-        """Объём поры, относительно которого задана φ."""
+        """Pore volume relative to which φ is defined."""
 
     @abstractmethod
     def bin_cross_section_nm2(self, box_nm: FloatArray) -> float:
-        """Площадь сечения слоя-бина (бин — слой толщиной dz вдоль оси профиля)."""
+        """Cross-section area of a bin layer (a bin is a layer of thickness dz along the profile axis)."""
 
     def base_area_nm2(self) -> float | None:
-        """Площадь основания ящика, которую ожидает пора (для проверки размеров); None — от ящика не зависит."""
+        """Box base area the pore expects (for checking dimensions); None — does not depend on the box."""
         return None
 
     def coordinate_bounds_nm(self) -> tuple[float, float]:
-        """Стенки поры вдоль оси профиля в системе поры, нм."""
+        """Pore walls along the profile axis in the pore frame, nm."""
         lower, upper = self.geometry().coordinate_bounds()
         size = self.characteristic_size_nm()
         return lower * size, upper * size
 
     def expected_wall_gap_nm(self) -> float:
-        """Пустой промежуток между центрами крайних атомов стенок, который ожидает пора."""
+        """Empty gap between the centres of the outermost wall atoms that the pore expects."""
         lower, upper = self.coordinate_bounds_nm()
         return upper - lower
 
     def locate_center_nm(self, wall_coordinates_nm: FloatArray, period_nm: float) -> float:
-        """Положение центра поры вдоль оси профиля по координатам атомов стенок (с учётом PBC)."""
+        """Position of the pore centre along the profile axis from the wall atom coordinates (with PBC)."""
         raise NotDerivedError(
-            f"поиск центра поры {self.name} по атомам стенок не реализован: задай центр явно (pore_center_nm)"
+            f"locating the centre of pore '{self.name}' from wall atoms is not implemented; "
+            "give the centre explicitly (pore_center_nm)"
         )
 
     def reduce(
@@ -91,7 +92,9 @@ class Pore(PandaModel, ABC):
 
         registry = self.own_registry()
         if shape_name not in registry:
-            raise UnknownShapeError(f"в поре {self.name} нет формы {shape_name}; доступны: {list(registry)}")
+            raise UnknownShapeError(
+                f"unknown shape '{shape_name}' in pore '{self.name}'; available: {', '.join(registry)}"
+            )
         return InterfaceModel(self, registry[shape_name]())
 
     def available_interfaces(self) -> list["InterfaceModel"]:

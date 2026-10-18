@@ -1,13 +1,13 @@
-"""Эталон профиля плотности по траектории из старой PANDA (`utils.py`, `density_profile.py`, коммит 93c6dbb).
+"""Reference trajectory density profile from old PANDA (`utils.py`, `density_profile.py`, commit 93c6dbb).
 
-Старый путь: центр жидкости по круговому среднему (`get_center_pbc`), сдвиг в середину ящика и заворот
-(`apply_pbc`), бины по всему ящику (`get_numerical_density_profile`). Новый аналог — центрирование по жидкости
-(система LIQUID). Вход — случайное облако точек с фиксированным зерном: плотная полоса, пересекающая границу
-ящика, и разреженный пар.
+Old path: liquid centre by the circular mean (`get_center_pbc`), shift to the box middle and wrapping
+(`apply_pbc`), bins over the whole box (`get_numerical_density_profile`). The new counterpart is liquid centering
+(LIQUID frame). Input: a random point cloud with a fixed seed: a dense slab crossing the box boundary and a
+sparse vapour.
 
-Запуск (нужно окружение со старой PANDA, см. ROADMAP «Фаза 0»):
+Run (needs an environment with old PANDA, see ROADMAP, phase 0):
     .venv-legacy/bin/python tests/regression/generate_density_reference.py
-Результат: tests/regression/data/density_reference.npz — коммитится, тесты читают только его.
+Output: tests/regression/data/density_reference.npz — committed, the tests read only it.
 """
 
 import importlib
@@ -30,10 +30,10 @@ TIME_STEP_PS = 2.0
 
 
 def make_positions(generator: np.random.Generator) -> np.ndarray:
-    """Кадры: полоса жидкости вокруг z ≈ 9.5 нм (пересекает верхнюю границу ящика) и пар по всему ящику."""
+    """Frames: a liquid slab around z ≈ 9.5 nm (crosses the upper box boundary) and vapour over the whole box."""
     frames = []
     for frame_index in range(FRAME_COUNT):
-        slab_center = 9.5 + 0.1 * frame_index  # жидкость дрейфует — центр в каждом кадре свой
+        slab_center = 9.5 + 0.1 * frame_index  # the liquid drifts — each frame has its own centre
         liquid = generator.uniform(0.0, 1.0, size=(LIQUID_PARTICLES, 3)) * BOX_NM
         liquid[:, 2] = np.mod(
             slab_center + generator.uniform(-1.0, 1.0, LIQUID_PARTICLES) * SLAB_HALF_WIDTH_NM, BOX_NM[2]
@@ -62,7 +62,7 @@ def main() -> None:
         density_per_nm3=np.mean(profiles, axis=0),
         source="github.com/FlufffyMelon/PANDA@93c6dbb panda/utils.py, panda/density_profile.py",
     )
-    print(f"записано в {OUTPUT}")
+    print(f"written to {OUTPUT}")
 
 
 if __name__ == "__main__":

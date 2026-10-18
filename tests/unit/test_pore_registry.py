@@ -1,4 +1,4 @@
-"""Реестр форм поры: форма подключается без правки ядра, у каждого типа поры свой реестр."""
+"""Pore shape registry: a shape is plugged in without editing the core, each pore type has its own registry."""
 
 from collections.abc import Iterator
 from typing import ClassVar
@@ -16,7 +16,7 @@ SLIT = SlitPore(width_nm=8.0, length_nm=16.0)
 
 
 class FlatLayer(InterfaceShape[SlitGeometry]):
-    """Форма, объявленная прямо в тесте: так же её мог бы объявить пользователь в своём скрипте."""
+    """A shape declared right in the test: a user could declare it the same way in a script."""
 
     name: ClassVar[str] = "test_layer"
     parameters: ClassVar[tuple[Parameter, ...]] = (CONTACT_ANGLE,)
@@ -56,7 +56,7 @@ def test_new_shape_registers_without_core_changes(registered_layer: type[FlatLay
 
 
 def test_duplicate_registration_is_rejected(registered_layer: type[FlatLayer]) -> None:
-    with pytest.raises(ValueError, match="уже зарегистрирована"):
+    with pytest.raises(ValueError, match="already registered"):
         SlitPore.register(registered_layer)
 
 
@@ -66,7 +66,7 @@ def test_registry_belongs_to_pore_type(registered_layer: type[FlatLayer]) -> Non
 
 
 def test_unknown_shape_lists_available() -> None:
-    with pytest.raises(KeyError, match="доступны"):
+    with pytest.raises(KeyError, match="available:"):
         SLIT.interface("no_such_shape")
 
 

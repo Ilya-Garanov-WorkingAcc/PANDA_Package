@@ -1,4 +1,4 @@
-"""Фаза 1: являются ли модули theta/delta/pi частными случаями alpha?
+"""Phase 1: are the modules theta/delta/pi special cases of alpha?
 theta == alpha(delta=0), delta == alpha(theta=pi), pi == alpha(theta=pi, delta=0)."""
 import warnings
 import numpy as np

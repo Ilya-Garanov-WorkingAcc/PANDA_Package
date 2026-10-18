@@ -1,7 +1,7 @@
-"""Валик (roll) в щели: перемычка между стенками, однородная вдоль одной оси.
+"""Roll in a slit: a bridge between the walls, uniform along one axis.
 
-Формулы: Semenchuk et al., Colloids Surf. A 725 (2025) 137586, уравнения (1)–(4);
-при δ = 0 совпадают с Semenchuk et al., Colloids Surf. A 708 (2025) 135994, уравнения (15)–(18).
+Formulas: Semenchuk et al., Colloids Surf. A 725 (2025) 137586, equations (1)–(4);
+at δ = 0 they coincide with Semenchuk et al., Colloids Surf. A 708 (2025) 135994, equations (15)–(18).
 """
 
 import math
@@ -29,7 +29,7 @@ class SlitRoll(SlitShape):
     regimes: ClassVar[dict[Regime, tuple[float, float]]] = {Regime.NON_WETTING: (90.0, 180.0)}
 
     def contact_spot_width(self, geometry: SlitGeometry, values: ParameterValues) -> float:
-        """d_roll — ширина пятна контакта, уравнение (1)."""
+        """d_roll — contact patch width, equation (1)."""
         contact_angle = values[ParameterName.CONTACT_ANGLE]
         accessible_width = self.accessible_width(values)
         length_ratio = geometry.pore_length_ratio
@@ -40,7 +40,7 @@ class SlitRoll(SlitShape):
         )
 
     def phi_limits(self, geometry: SlitGeometry, values: ParameterValues) -> tuple[float, float]:
-        """φ_min и φ_max, уравнения (3) и (4)."""
+        """φ_min and φ_max, equations (3) and (4)."""
         contact_angle = values[ParameterName.CONTACT_ANGLE]
         accessible_width = self.accessible_width(values)
         length_ratio = geometry.pore_length_ratio
@@ -58,11 +58,11 @@ class SlitRoll(SlitShape):
         return lower, upper
 
     def center_of_mass(self, geometry: SlitGeometry, values: ParameterValues) -> float:
-        return 0.0  # валик симметричен относительно середины щели
+        return 0.0  # the roll is symmetric about the middle of the slit
 
     def surface_terms(self, geometry: SlitGeometry, values: ParameterValues) -> SurfaceTerms:
-        """Две дуги мениска R(2θ − π) · 2 = (1−2δ)(π − 2θ)/cos θ и два пятна контакта 2d — на длину валика k l.
-        При θ = 180°, δ = 0 сумма — kl (2d + π), уравнение (21) Shistko et al. (2025).
+        """Two meniscus arcs R(2θ − π) · 2 = (1−2δ)(π − 2θ)/cos θ and two contact patches 2d, times the roll length k l.
+        At θ = 180°, δ = 0 the sum is kl (2d + π), equation (21) of Shistko et al. (2025).
         """
         contact_angle = values[ParameterName.CONTACT_ANGLE]
         accessible_width = self.accessible_width(values)
@@ -73,7 +73,7 @@ class SlitRoll(SlitShape):
         )
 
     def profile(self, coordinate: FloatArray, geometry: SlitGeometry, values: ParameterValues) -> FloatArray:
-        """ρ/ρ_bulk, уравнение (2): (d + √((1−2δ)²/cos²θ − 4z²) + (1−2δ) tan θ) / l при |z| < 1/2 − δ."""
+        """ρ/ρ_bulk, equation (2): (d + √((1−2δ)²/cos²θ − 4z²) + (1−2δ) tan θ) / l for |z| < 1/2 − δ."""
         contact_angle = values[ParameterName.CONTACT_ANGLE]
         wall_layer = values[ParameterName.WALL_LAYER_THICKNESS]
         accessible_width = self.accessible_width(values)

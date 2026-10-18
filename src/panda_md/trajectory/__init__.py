@@ -1,1 +1,1 @@
-"""Источники кадров: массивы numpy и файлы МД (MDAnalysis), профили плотности по траектории."""
+"""Frame sources: numpy arrays and MD files (MDAnalysis), density profiles over a trajectory."""

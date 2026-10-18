@@ -1,6 +1,6 @@
-"""Облака точек: форма в щели → траектория с блуждающей формой → стенки, центрирование, профиль, фит и 2D-карты.
+"""Point clouds: shape in a slit → trajectory with a wandering shape → walls, centering, profile, fit and 2D maps.
 
-Критерий спецификации (§9): «облако точек → полный путь данных → фит» — |Δθ| < 2°.
+Specification criterion (§9): “point cloud → full data path → fit” — |Δθ| < 2°.
 """
 
 from pathlib import Path
@@ -41,12 +41,12 @@ def test_angle_recovered_from_point_clouds(shape_name: str, truth: dict[str, flo
 
 
 def mirror_agreement(density: np.ndarray) -> float:
-    """Корреляция карты с её отражением x → −x: 1 — форма симметрична относительно оси в x = 0."""
+    """Correlation of the map with its mirror x → −x: 1 means the shape is symmetric about the axis at x = 0."""
     return float(np.corrcoef(density.ravel(), density[::-1].ravel())[0, 1])
 
 
 def region_mean(density_map_: DensityMap, length_window: tuple[float, float], height_limit: float) -> float:
-    """Средняя плотность карты в полосе |z| < height_limit и length_window[0] ≤ |x| < length_window[1] (нм)."""
+    """Mean map density in the band |z| < height_limit and length_window[0] ≤ |x| < length_window[1] (nm)."""
     along = 0.5 * (density_map_.length_edges_nm[:-1] + density_map_.length_edges_nm[1:])
     height = 0.5 * (density_map_.height_edges_nm[:-1] + density_map_.height_edges_nm[1:])
     rows = (np.abs(along) >= length_window[0]) & (np.abs(along) < length_window[1])
@@ -64,8 +64,8 @@ def test_axis_centering_sharpens_the_map_of_a_wandering_roll() -> None:
     smeared = density_map(trajectory, found, "liquid", bins=(40, 40))
     assert centered.axis_centered and not smeared.axis_centered
     assert mirror_agreement(centered.density_per_nm3) > 0.95
-    assert region_mean(centered, (0.0, 0.5), 1.0) == pytest.approx(DENSITY_BULK, rel=0.1)  # сердцевина валика
-    assert region_mean(centered, (3.5, 4.0), 1.0) == pytest.approx(0.0, abs=1.0)  # на краю ячейки жидкости нет
+    assert region_mean(centered, (0.0, 0.5), 1.0) == pytest.approx(DENSITY_BULK, rel=0.1)  # roll core
+    assert region_mean(centered, (3.5, 4.0), 1.0) == pytest.approx(0.0, abs=1.0)  # no liquid at the cell edge
     assert np.max(smeared.density_per_nm3) < 0.8 * np.max(centered.density_per_nm3)
 
 
@@ -92,7 +92,7 @@ def test_map_needs_a_shape_with_an_axis_and_survives_saving(tmp_path: Path) -> N
         roll, {"theta": 120.0, "delta": 0.03, "phi": 0.3}, density_bulk_per_nm3=DENSITY_BULK, frame_count=2, seed=4
     )
     found = SlitPore.from_trajectory(trajectory, walls="walls")
-    with pytest.raises(NotDerivedError, match="оси симметрии"):
+    with pytest.raises(NotDerivedError, match="no symmetry axis"):
         density_map(trajectory, found, "liquid", shape="layer")
     density = density_map(trajectory, found, "liquid", shape="roll", bins=(10, 12))
     density.save(tmp_path / "map.npz")
@@ -101,7 +101,7 @@ def test_map_needs_a_shape_with_an_axis_and_survives_saving(tmp_path: Path) -> N
 
 def test_point_clouds_exist_only_for_slit_shapes() -> None:
     square = SquarePore(side_nm=6.0, length_nm=12.0, layer_width_nm=6.0)
-    with pytest.raises(NotDerivedError, match="щели"):
+    with pytest.raises(NotDerivedError, match="only for slit shapes"):
         synthetic_trajectory(
             square.interface("droplet_w1c0"), {"theta": 140.0, "delta": 0.0, "phi": 0.05}, density_bulk_per_nm3=30.0
         )
@@ -110,8 +110,8 @@ def test_point_clouds_exist_only_for_slit_shapes() -> None:
 @pytest.mark.parametrize(
     ("shape_name", "values"),
     [
-        ("perforation", {"theta": 130.0, "delta": 0.03, "phi": 0.92}),  # маленькое отверстие (φ_max = 0.932)
-        ("roll", {"theta": 120.0, "delta": 0.03, "phi": 0.85}),  # валик почти заполняет ячейку
+        ("perforation", {"theta": 130.0, "delta": 0.03, "phi": 0.92}),  # small hole (φ_max = 0.932)
+        ("roll", {"theta": 120.0, "delta": 0.03, "phi": 0.85}),  # the roll almost fills the cell
     ],
 )
 def test_axis_is_found_when_the_liquid_almost_fills_the_cell(shape_name: str, values: dict[str, float]) -> None:
@@ -140,7 +140,7 @@ def trajectory_axes(trajectory: ArrayTrajectory) -> FloatArray:
 
 
 def test_roll_lying_along_the_long_side_is_reported() -> None:
-    square = SlitPore(width_nm=4.0, length_nm=6.0)  # k = 1: валик может лечь вдоль любой стороны
+    square = SlitPore(width_nm=4.0, length_nm=6.0)  # k = 1: the roll may lie along either side
     roll = square.interface("roll")
     trajectory = synthetic_trajectory(
         roll, {"theta": 120.0, "delta": 0.03, "phi": 0.4}, density_bulk_per_nm3=DENSITY_BULK, frame_count=2, seed=5
@@ -152,9 +152,9 @@ def test_roll_lying_along_the_long_side_is_reported() -> None:
         groups=trajectory.groups,
     )
     found = SlitPore.from_trajectory(rotated, walls="walls")
-    with pytest.warns(PandaWarning) as caught:  # вдоль длинной стороны валик однороден — и это тоже сообщается
+    with pytest.warns(PandaWarning) as caught:  # the roll is uniform along the long side — this is reported too
         density_map(rotated, found, "liquid", shape="roll", bins=(20, 20))
-    assert any("вдоль длинной стороны" in str(warning.message) for warning in caught)
+    assert any("axis seems to lie along the long side" in str(warning.message) for warning in caught)
 
 
 def test_map_reports_a_changing_box_and_wrong_bins() -> None:
@@ -168,12 +168,12 @@ def test_map_reports_a_changing_box_and_wrong_bins() -> None:
         positions_nm=trajectory.positions_nm, boxes_nm=boxes, times_ps=trajectory.times_ps(), groups=trajectory.groups
     )
     found = SlitPore.from_trajectory(trajectory, walls="walls")
-    with pytest.warns(PandaWarning) as caught:  # меняется и площадь основания — тоже предупреждение
+    with pytest.warns(PandaWarning) as caught:  # the base area changes too — also a warning
         density_map(grown, found, "liquid", bins=(20, 20))
     messages = [str(warning.message) for warning in caught]
-    assert any("ящик вдоль длинной стороны" in message for message in messages)
-    assert not any("вне поры" in message for message in messages)  # по высоте все частицы в поре
-    with pytest.raises(ValueError, match="бинов"):
+    assert any("the box along the long side" in message for message in messages)
+    assert not any("outside the pore" in message for message in messages)  # all particles are inside the pore in height
+    with pytest.raises(ValueError, match="too few bins"):
         density_map(trajectory, found, "liquid", bins=(0, 20))
 
 
@@ -185,7 +185,7 @@ def test_map_integral_is_the_particle_count_and_follows_profile_orientation() ->
     flipped_positions = trajectory.positions_nm.copy()
     flipped_positions[:, :, 2] = np.mod(
         -flipped_positions[:, :, 2], trajectory.boxes_nm[0, 2]
-    )  # червь — на верхней стенке
+    )  # worm — on the upper wall
     upside_down = ArrayTrajectory(
         positions_nm=flipped_positions,
         boxes_nm=trajectory.boxes_nm,
@@ -220,18 +220,18 @@ def test_map_with_liquid_centering_per_molecule_and_axis_window() -> None:
     assert liquid_frame.frame.value == "liquid"
     whole = density_map(molecular, found, "liquid", shape="doughnut", bins=(40, 40))
     sliced = density_map(molecular, found, "liquid", shape="doughnut", bins=(40, 40), width_window_nm=0.8)
-    assert sliced.density_per_nm3[20, 20] > 1.3 * whole.density_per_nm3[20, 20]  # срез через ось — без усреднения
-    with pytest.raises(NotDerivedError, match="оси"):
+    assert sliced.density_per_nm3[20, 20] > 1.3 * whole.density_per_nm3[20, 20]  # slice through the axis, no averaging
+    with pytest.raises(NotDerivedError, match="no symmetry axis"):
         density_map(molecular, found, "liquid", shape="layer", bins=(10, 10))
 
 
 def test_droplet_map_with_axial_centering_is_symmetric() -> None:
-    """Итоговый аудит: у капли не было оси — карту капли нельзя было совместить по кадрам."""
+    """Pre-release audit: the droplet had no axis — a droplet map could not be aligned across frames."""
     droplet = PORE.interface("droplet")
     trajectory = synthetic_trajectory(
         droplet, {"theta": 130.0, "delta": 0.03, "phi": 0.05}, density_bulk_per_nm3=DENSITY_BULK, frame_count=20, seed=5
     )
     found = SlitPore.from_trajectory(trajectory, walls="walls")
     density = density_map(trajectory, found, "liquid", shape="droplet", bins=(40, 20)).density_per_nm3
-    np.testing.assert_allclose(density, density[::-1, :], atol=0.35 * DENSITY_BULK)  # симметрия x → −x
-    assert float(np.max(density[18:22, :])) > 0.6 * DENSITY_BULK  # у оси — жидкость, а не размазанное облако
+    np.testing.assert_allclose(density, density[::-1, :], atol=0.35 * DENSITY_BULK)  # symmetry x → −x
+    assert float(np.max(density[18:22, :])) > 0.6 * DENSITY_BULK  # liquid at the axis, not a smeared cloud

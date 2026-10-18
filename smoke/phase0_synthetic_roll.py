@@ -1,4 +1,4 @@
-"""Фаза 0: smoke-проверка установленной PANDA на синтетическом профиле (roll, alpha)."""
+"""Phase 0: smoke check of the installed previous PANDA on a synthetic profile (roll, alpha)."""
 import numpy as np
 import panda
 from panda import interface

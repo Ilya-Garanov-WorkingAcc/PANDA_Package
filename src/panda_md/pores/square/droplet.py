@@ -1,4 +1,4 @@
-"""Капли (droplet) в квадратной поре. Формулы — PANDA_Polygon `square.py` (коммит 38ff491)."""
+"""Droplets in a square pore. Formulas: PANDA_Polygon `square.py` (commit 38ff491)."""
 
 import math
 from abc import abstractmethod
@@ -22,14 +22,14 @@ from panda_md.pores.square.shape import (
 
 @SquarePore.register
 class SquareDropletOneWall(SquareShape):
-    """droplet_w1c0: сферический сегмент на нижней стенке, не касается других стенок и углов."""
+    """droplet_w1c0: a spherical cap on the lower wall that touches no other walls or corners."""
 
     name: ClassVar[str] = "droplet_w1c0"
     parameters: ClassVar[tuple[Parameter, ...]] = (CONTACT_ANGLE, WALL_LAYER_THICKNESS, VOLUME_FRACTION)
     regimes: ClassVar[dict[Regime, tuple[float, float]]] = {Regime.NON_WETTING: (90.0, 180.0)}
 
     def sphere_radius(self, geometry: SquareGeometry, values: ParameterValues) -> float:
-        """R из π R³ (2 − 3 cos θ + cos³ θ) / 3 = φ l (r_droplet_w1c0_square)."""
+        """R from π R³ (2 − 3 cos θ + cos³ θ) / 3 = φ l (r_droplet_w1c0_square)."""
         volume = values[ParameterName.VOLUME_FRACTION] * geometry.pore_length_ratio
         return float(
             np.cbrt(3.0 * volume / (math.pi * spherical_cap_volume_factor(values[ParameterName.CONTACT_ANGLE])))
@@ -76,10 +76,10 @@ class SquareDropletOneWall(SquareShape):
 
 
 class SquareCornerDroplet(SquareShape):
-    """Капля в двугранном угле между нижней и боковой стенками: общий профиль droplet_w2c0 и droplet_w2c1.
+    """Droplet in the dihedral corner between the lower and a side wall: profile shared by droplet_w2c0 and w2c1.
 
-    Сечение на высоте z — круг радиуса r_z, у которого боковая стенка срезает сегмент, пока
-    z лежит между точками контакта L1 и L2 (rho_droplet_w2c0_square, rho_droplet_w2c1_square).
+    The cross-section at height z is a disk of radius r_z with a segment cut off by the side wall while
+    z lies between the contact points L1 and L2 (rho_droplet_w2c0_square, rho_droplet_w2c1_square).
     """
 
     parameters: ClassVar[tuple[Parameter, ...]] = (CONTACT_ANGLE, WALL_LAYER_THICKNESS, VOLUME_FRACTION)
@@ -87,7 +87,7 @@ class SquareCornerDroplet(SquareShape):
     @staticmethod
     @abstractmethod
     def volume_factor(contact_angle: float) -> float:
-        """F(θ): объём капли = 2 R³ F(θ) / 3."""
+        """F(θ): droplet volume = 2 R³ F(θ) / 3."""
 
     def sphere_radius(self, geometry: SquareGeometry, values: ParameterValues) -> float:
         """R = (3 φ l / (2 F(θ)))^(1/3)."""
@@ -95,7 +95,7 @@ class SquareCornerDroplet(SquareShape):
         return float(np.cbrt(3.0 * volume / (2.0 * self.volume_factor(values[ParameterName.CONTACT_ANGLE]))))
 
     def fits(self, geometry: SquareGeometry, values: ParameterValues) -> bool:
-        """φ > 0, 2R ≤ l и R (1 − cos θ) ≤ a′ — общие условия обеих капель в углу."""
+        """φ > 0, 2R ≤ l and R (1 − cos θ) ≤ a′ — conditions shared by both corner droplets."""
         if values[ParameterName.VOLUME_FRACTION] <= 0.0:
             return False
         radius = self.sphere_radius(geometry, values)
@@ -106,7 +106,7 @@ class SquareCornerDroplet(SquareShape):
         contact_angle = values[ParameterName.CONTACT_ANGLE]
         radius = self.sphere_radius(geometry, values)
         floor = self.floor(values)
-        wall_distance = -radius * math.cos(contact_angle)  # от центра сферы до каждой из двух стенок
+        wall_distance = -radius * math.cos(contact_angle)  # from the sphere centre to each of the two walls
         center = floor + wall_distance
         cut_start = floor - math.sqrt(2.0) * radius * math.sin(contact_angle + math.pi / 4.0)  # L1_square
         cut_end = floor + math.sqrt(2.0) * radius * math.sin(contact_angle - math.pi / 4.0)  # L2_square
@@ -120,7 +120,7 @@ class SquareCornerDroplet(SquareShape):
 
 @SquarePore.register
 class SquareDropletTwoWalls(SquareCornerDroplet):
-    """droplet_w2c0: капля касается двух соседних стенок, угол между ними не заполнен (θ > 3π/4)."""
+    """droplet_w2c0: the droplet touches two adjacent walls, the corner between them is not filled (θ > 3π/4)."""
 
     name: ClassVar[str] = "droplet_w2c0"
     regimes: ClassVar[dict[Regime, tuple[float, float]]] = {Regime.NON_WETTING: NON_WETTING_ABOVE_THREE_QUARTERS_PI}
@@ -150,9 +150,10 @@ class SquareDropletTwoWalls(SquareCornerDroplet):
 
 @SquarePore.register
 class SquareDropletTwoWallsOneCorner(SquareCornerDroplet):
-    """droplet_w2c1: капля заполняет угол между двумя соседними стенками (π/2 < θ < 3π/4).
+    """droplet_w2c1: the droplet fills the corner between two adjacent walls (π/2 < θ < 3π/4).
 
-    В источнике условие допускает θ = 3π/4, а функция площади при θ ≥ 3π/4 форму уже не считает; здесь граница строгая.
+    In the source the condition allows θ = 3π/4, but the area function no longer handles the shape at θ ≥ 3π/4;
+    here the bound is strict.
     """
 
     name: ClassVar[str] = "droplet_w2c1"

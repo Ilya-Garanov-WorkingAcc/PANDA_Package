@@ -1,4 +1,4 @@
-"""Квадратная пора и её формы. Импорт модулей форм регистрирует их в SquarePore."""
+"""Square pore and its shapes. Importing the shape modules registers them in SquarePore."""
 
 from panda_md.pores.square import capsule, droplet, filament
 from panda_md.pores.square.pore import SquareGeometry, SquarePore

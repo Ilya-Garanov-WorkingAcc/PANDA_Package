@@ -1,8 +1,8 @@
-"""Сквозной путь: частицы из модели → траектория → центрирование и бины → профиль по блокам → фит.
+"""End-to-end path: particles from the model → trajectory → centering and bins → block profiles → fit.
 
-Координата z частиц разыгрывается по профилю модели (одномерное распределение — всё, что видит профиль плотности),
-x и y — равномерно. Подложка — три слоя атомов (1 нм), пора пересекает границу ящика и дрейфует между кадрами.
-Проверяется путь данных, а не трёхмерная геометрия формы (облака точек по `contains` — фаза 6).
+The z coordinate of the particles is drawn from the model profile (a 1D distribution is all the density profile
+sees), x and y uniformly. The substrate is three atom layers (1 nm); the pore crosses the box boundary and drifts
+between frames. The data path is checked, not the 3D shape geometry (point clouds from `contains` — phase 6).
 """
 
 import numpy as np
@@ -14,7 +14,7 @@ DENSITY_BULK = 33.0
 WIDTH_NM = 4.0
 LENGTH_NM = 8.0
 ASPECT_RATIO = 0.5
-BOX_NM = np.array([LENGTH_NM, ASPECT_RATIO * LENGTH_NM, 5.0])  # подложка — 1 нм
+BOX_NM = np.array([LENGTH_NM, ASPECT_RATIO * LENGTH_NM, 5.0])  # substrate — 1 nm
 LOWER_WALL_NM = 3.2
 FRAME_COUNT = 40
 TIME_STEP_PS = 5.0
@@ -26,7 +26,7 @@ MAX_ANGLE_ERROR_DEG = 1.5
 def sample_heights(
     model: InterfaceModel, values: dict[str, float], count: int, generator: np.random.Generator
 ) -> np.ndarray:
-    """z в системе поры (нм) с плотностью ∝ ρ_model(z): обратная функция распределения на мелкой сетке."""
+    """z in the pore frame (nm) with density ∝ ρ_model(z): inverse distribution function on a fine grid."""
     lower, upper = model.pore.geometry().coordinate_bounds()
     grid = np.linspace(lower, upper, SAMPLING_POINTS)
     density = model.profile(grid, **values)
@@ -42,13 +42,13 @@ def particle_trajectory(model: InterfaceModel, values: dict[str, float]) -> Arra
     grid = np.array([[x, y] for x in np.arange(0.0, BOX_NM[0], 0.4) for y in np.arange(0.0, BOX_NM[1], 0.4)])
     frames = []
     for frame_index in range(FRAME_COUNT):
-        drift = 0.02 * frame_index  # стенки и жидкость вместе дрейфуют вдоль z
+        drift = 0.02 * frame_index  # walls and liquid drift together along z
         lower = LOWER_WALL_NM + drift
         walls = np.vstack(
             [
                 np.column_stack([grid, np.full(len(grid), lower)]),
                 np.column_stack([grid, np.full(len(grid), lower + WIDTH_NM)]),
-                np.column_stack([grid, np.full(len(grid), lower - 0.5)]),  # середина подложки толщиной 1 нм
+                np.column_stack([grid, np.full(len(grid), lower - 0.5)]),  # middle of the 1 nm thick substrate
             ]
         )
         lateral = generator.uniform(0.0, 1.0, size=(count, 2)) * BOX_NM[:2]

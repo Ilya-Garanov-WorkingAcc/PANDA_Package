@@ -1,6 +1,6 @@
-"""Профиль плотности по траектории: выборка → центр в каждом кадре → координата и бины поры → средние по блокам.
+"""Density profile over a trajectory: selection → centre in each frame → pore coordinate and bins → block averages.
 
-Чтение потоковое: в памяти только текущий кадр и суммы по блокам.
+Reading is streamed: only the current frame and the block sums are kept in memory.
 """
 
 import math
@@ -19,14 +19,14 @@ from panda_md.core.trajectory import Trajectory, TrajectoryFrame, check_box
 from panda_md.core.types import FloatArray, IndexArray
 
 DEFAULT_BIN_COUNT = 200
-WALL_GAP_TOLERANCE = 0.02  # промежуток между стенками в кадре отличается от H поры больше чем на 2 % — предупреждение
-BOX_AREA_TOLERANCE = 0.01  # площадь основания ящика отличается от основания поры больше чем на 1 % — предупреждение
-OUTSIDE_FRACTION_WARNING = 0.01  # больше 1 % выбранных частиц вне поры — предупреждение
-BOX_CHANGE_TOLERANCE = 0.01  # в системе жидкости бины — по ящику первого кадра; изменение больше 1 % — предупреждение
+WALL_GAP_TOLERANCE = 0.02  # the gap between the walls in a frame differs from the pore H by more than 2 % — warning
+BOX_AREA_TOLERANCE = 0.01  # the box base area differs from the pore base by more than 1 % — warning
+OUTSIDE_FRACTION_WARNING = 0.01  # more than 1 % of the selected particles outside the pore — warning
+BOX_CHANGE_TOLERANCE = 0.01  # in the liquid frame the bins follow the first frame box; a change over 1 % — warning
 
 
 class _BlockAccumulator:
-    """Суммы по кадрам текущего блока."""
+    """Sums over the frames of the current block."""
 
     def __init__(self, bin_count: int) -> None:
         self.density_sum: FloatArray = np.zeros(bin_count)
@@ -60,15 +60,15 @@ def density_profile(
     orientation: Orientation | str = Orientation.AUTO,
     per: ParticleGrouping | str = ParticleGrouping.ATOM,
 ) -> ProfileSet:
-    """Профили плотности выбранных частиц вдоль оси поры, усреднённые по блокам времени длины `block`.
+    """Density profiles of the selected particles along the pore axis, averaged over time blocks of length `block`.
 
-    centering=None: по поре, если известны стенки (`pore.wall_selection`) или `pore_center_nm`, иначе по жидкости
-    с предупреждением. centering=PORE: 0 — центр поры; он берётся из `pore_center_nm` или в каждом кадре из атомов
-    стенок
-    (`pore.wall_selection`); бины выровнены по стенкам поры. centering=LIQUID: 0 — центр выборки (среднее
-    по атомам без весов) с учётом PBC; бины покрывают весь ящик вдоль оси профиля. Неполный последний блок
-    отбрасывается. per=MOLECULE: частица — центр масс выбранных атомов молекулы (с учётом PBC; «name OW» даст
-    кислород, а не центр масс воды), N — число молекул.
+    centering=None: pore centering if the walls (`pore.wall_selection`) or `pore_center_nm` are known, otherwise
+    liquid centering with a warning. centering=PORE: 0 is the pore centre; it is taken from `pore_center_nm` or, in
+    each frame, from the wall atoms
+    (`pore.wall_selection`); the bins are aligned with the pore walls. centering=LIQUID: 0 is the centre of the
+    selection (unweighted mean over atoms) with PBC; the bins cover the whole box along the profile axis. An
+    incomplete last block is dropped. per=MOLECULE: a particle is the centre of mass of the selected atoms of a
+    molecule (with PBC; “name OW” gives the oxygen, not the centre of mass of water), N is the number of molecules.
     """
     centering = resolve_centering(centering, pore, pore_center_nm)
     orientation = Orientation(orientation)
@@ -80,7 +80,8 @@ def density_profile(
     if use_walls:
         if pore.wall_selection is None:
             raise InvalidTrajectoryError(
-                "центрирование по поре: задай pore_center_nm или выборку стенок (wall_selection у поры)"
+                "pore centering needs the pore centre; set pore_center_nm or a wall selection "
+                "(wall_selection of the pore)"
             )
         groups.append(trajectory.select(pore.wall_selection))
     frame_indices = trajectory.frame_indices(start=start, stop=stop, stride=stride)
@@ -119,17 +120,18 @@ def density_profile(
             if outside_fraction > OUTSIDE_FRACTION_WARNING:
                 warned.add("outside")
                 warnings.warn(
-                    f"{outside_fraction:.1%} выбранных частиц вне поры — проверь выборку и стенки",
+                    f"{outside_fraction:.1%} of the selected particles are outside the pore; check the selection "
+                    f"and the walls",
                     PandaWarning,
                     stacklevel=2,
                 )
         blocks[block_index].add(density, inside, frame.time_ps)
 
-    assert edges is not None  # frame_indices не пуст
+    assert edges is not None  # frame_indices is not empty
     empty = sum(1 for accumulator in blocks if accumulator.frame_count == 0)
     if empty:
         warnings.warn(
-            f"{empty} блоков без кадров (разрыв во времени траектории) — пропущены", PandaWarning, stacklevel=2
+            f"{empty} block(s) without frames (a time gap in the trajectory); skipped", PandaWarning, stacklevel=2
         )
         blocks = [accumulator for accumulator in blocks if accumulator.frame_count > 0]
     densities = np.array([accumulator.density_sum / accumulator.frame_count for accumulator in blocks])
@@ -149,7 +151,7 @@ def density_profile(
         block_particle_counts=np.array([accumulator.particle_sum / accumulator.frame_count for accumulator in blocks]),
         frame=frame_reference,
         centering=centering,
-        selection=select if isinstance(select, str) else f"{len(liquid)} индексов",
+        selection=select if isinstance(select, str) else f"{len(liquid)} indices",
         pore_volume_nm3=pore.volume_nm3(),
         flipped=flipped,
     )
@@ -158,14 +160,14 @@ def density_profile(
 def resolve_centering(
     centering: ProfileCentering | str | None, pore: Pore, pore_center_nm: float | None
 ) -> ProfileCentering:
-    """Явное центрирование — как задано; без него — по поре, если её центр можно найти, иначе по жидкости."""
+    """Explicit centering is used as given; without it — pore centering if the pore centre can be found, else liquid."""
     if centering is not None:
         return ProfileCentering(centering)
     if pore.wall_selection is not None or pore_center_nm is not None:
         return ProfileCentering.PORE
     warnings.warn(
-        "стенки поры не заданы (wall_selection) и центр поры не известен (pore_center_nm): профиль центрирован по "
-        "жидкости — для форм, касающихся обеих стенок, задай стенки",
+        "pore walls are not set (wall_selection) and the pore centre is unknown (pore_center_nm): the profile is "
+        "centred on the liquid; set the walls for shapes that touch both walls",
         PandaWarning,
         stacklevel=3,
     )
@@ -173,14 +175,14 @@ def resolve_centering(
 
 
 def _assign_blocks(times: FloatArray, block_ps: float | None) -> tuple[list[int], int]:
-    """Номер блока каждого кадра (−1 — кадр неполного последнего блока) и число полных блоков."""
+    """Block number of each frame (−1 for a frame of the incomplete last block) and the number of complete blocks."""
     if block_ps is None:
         return [0] * times.size, 1
     if block_ps <= 0.0:
-        raise ValueError(f"длина блока {block_ps} пс должна быть положительной")
+        raise ValueError(f"block length must be positive: {block_ps} ps")
     if times.size == 1:
         warnings.warn(
-            f"один кадр: длину блока {block_ps:g} пс проверить не по чему — профиль из одного блока",
+            f"a single frame: nothing to check the block length {block_ps:g} ps against; the profile has one block",
             PandaWarning,
             stacklevel=3,
         )
@@ -190,19 +192,21 @@ def _assign_blocks(times: FloatArray, block_ps: float | None) -> tuple[list[int]
     block_count = math.floor((elapsed[-1] + spacing) / block_ps + 1e-9)
     if block_count == 0:
         raise InvalidTrajectoryError(
-            f"интервал {elapsed[-1] + spacing:g} пс короче одного блока {block_ps:g} пс — уменьши block"
+            f"interval {elapsed[-1] + spacing:g} ps is shorter than one block of {block_ps:g} ps; reduce block"
         )
     assignment = [math.floor(value / block_ps + 1e-9) for value in elapsed]
     dropped = sum(1 for index in assignment if index >= block_count)
-    if dropped > 1:  # один кадр ровно на границе — начало следующего блока, а не неполный блок
-        warnings.warn(f"{dropped} последних кадров не составляют полного блока и не учтены", PandaWarning, stacklevel=3)
+    if dropped > 1:  # a single frame exactly on the boundary starts the next block, it is not an incomplete block
+        warnings.warn(
+            f"{dropped} last frame(s) do not make a complete block and are ignored", PandaWarning, stacklevel=3
+        )
     return [index if index < block_count else -1 for index in assignment], block_count
 
 
 def particle_positions(
     positions: FloatArray, box: FloatArray, molecules: tuple[IndexArray, FloatArray] | None
 ) -> FloatArray:
-    """Позиции частиц (n × 3): атомы или центры масс молекул (molecules — номер молекулы и масса каждого атома)."""
+    """Particle positions (n × 3): atoms or molecular centres of mass (molecules: molecule number, mass per atom)."""
     if molecules is None:
         return positions
     molecule_indices, masses = molecules
@@ -231,8 +235,8 @@ def profile_frame_center(
     if abs(gap - expected) > WALL_GAP_TOLERANCE * expected and "gap" not in warned:
         warned.add("gap")
         warnings.warn(
-            f"кадр {frame.index}: промежуток между стенками {gap:.3f} нм, а размер поры {expected:.3f} нм — "
-            f"стенки сместились или пора задана неверно",
+            f"frame {frame.index}: the gap between the walls is {gap:.3f} nm, the pore size is {expected:.3f} nm; "
+            f"the walls have moved or the pore is set incorrectly",
             PandaWarning,
             stacklevel=3,
         )
@@ -240,11 +244,11 @@ def profile_frame_center(
 
 
 def _wall_gap(walls: FloatArray, period: float, center: float) -> float:
-    """Ширина пустого промежутка вокруг center: ближайшие атомы стенок снизу и сверху."""
+    """Width of the empty gap around center: the nearest wall atoms below and above."""
     offsets = wrap_centered(walls - center, period)
     above, below = offsets[offsets > 0], offsets[offsets <= 0]
     if above.size == 0 or below.size == 0:
-        return period  # стенки в одной плоскости: пора — весь ящик
+        return period  # walls in one plane: the pore is the whole box
     return float(np.min(above) - np.max(below))
 
 
@@ -255,29 +259,34 @@ def profile_bin_edges(
         lower, upper = pore.coordinate_bounds_nm()
         if upper - lower > period:
             raise InvalidTrajectoryError(
-                f"пора ({upper - lower:.3f} нм) шире ящика вдоль оси профиля ({period:.3f} нм)"
+                f"the pore ({upper - lower:.3f} nm) is wider than the box along the profile axis ({period:.3f} nm)"
             )
     else:
         lower, upper = -0.5 * period, 0.5 * period
     count = bins if bin_width_nm is None else max(1, round((upper - lower) / bin_width_nm))
     if count < 2:
-        raise ValueError(f"бинов {count}: нужно хотя бы 2")
+        raise ValueError(f"too few bins: {count}; at least 2 are needed")
     edges: FloatArray = np.linspace(lower, upper, count + 1)
     return edges
 
 
 def check_box_change(
-    frame_index: int, period: float, first_period: float, lost: bool, warned: set[str], what: str = "вдоль оси профиля"
+    frame_index: int,
+    period: float,
+    first_period: float,
+    lost: bool,
+    warned: set[str],
+    what: str = "along the profile axis",
 ) -> None:
-    """Бины построены по ящику первого кадра: ящик заметно изменился — предупредить один раз."""
+    """The bins are built from the first frame box: if the box changed noticeably, warn once."""
     key = f"box {what}"
     if key in warned:
         return
     if abs(period - first_period) > BOX_CHANGE_TOLERANCE * first_period or lost:
         warned.add(key)
         warnings.warn(
-            f"кадр {frame_index}: ящик {what} {period:.3f} нм, а бины построены по первому кадру "
-            f"({first_period:.3f} нм) — часть частиц вне бинов или крайние бины недозаполнены",
+            f"frame {frame_index}: the box {what} is {period:.3f} nm, but the bins follow the first frame "
+            f"({first_period:.3f} nm); some particles are outside the bins or the edge bins are underfilled",
             PandaWarning,
             stacklevel=3,
         )
@@ -290,7 +299,7 @@ def check_area(pore: Pore, area: float, warned: set[str]) -> None:
     if abs(area - base) > BOX_AREA_TOLERANCE * base and "area" not in warned:
         warned.add("area")
         warnings.warn(
-            f"площадь бина {area:.3f} нм² отличается от основания поры {base:.3f} нм² — проверь размеры поры",
+            f"bin area {area:.3f} nm² differs from the pore base {base:.3f} nm²; check the pore dimensions",
             PandaWarning,
             stacklevel=3,
         )

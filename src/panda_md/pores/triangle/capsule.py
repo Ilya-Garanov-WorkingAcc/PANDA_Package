@@ -1,8 +1,8 @@
-"""Капсулы (capsule) в треугольной поре: перемычка через сечение с двумя менисками на торцах.
+"""Capsules in a triangular pore: a bridge across the cross-section with two menisci at the ends.
 
-Формулы — PANDA_Polygon `docs/model/triangle.py` (коммит 38ff491).
+Formulas: PANDA_Polygon `docs/model/triangle.py` (commit 38ff491).
 
-capsule_w3c3 не переносится: площадь свободных торцов в источнике расходится с геометрией уже при δ = 0
+capsule_w3c3 is not ported: the free end area in the source disagrees with the geometry already at δ = 0
 (docs/architecture/05_polygon_pores.md §4).
 """
 
@@ -34,13 +34,13 @@ CAPSULE_PARAMETERS = (CONTACT_ANGLE, WALL_LAYER_THICKNESS, VOLUME_FRACTION)
 
 
 def meniscus_radius(side: float, contact_angle: float) -> float:
-    """r = −a′ / (2√3 cos θ) — мениск, опирающийся на три стенки под углом θ."""
+    """r = −a′ / (2√3 cos θ) — a meniscus resting on three walls at angle θ."""
     return -side / (2.0 * SQRT3 * math.cos(contact_angle))
 
 
 @TrianglePore.register
 class TriangleCapsuleThreeWalls(TriangleShape):
-    """capsule_w3c0: вставка касается трёх стенок, углы пусты (θ > 2π/3)."""
+    """capsule_w3c0: the insertion touches three walls, the corners are empty (θ > 2π/3)."""
 
     name: ClassVar[str] = "capsule_w3c0"
     parameters: ClassVar[tuple[Parameter, ...]] = CAPSULE_PARAMETERS
@@ -48,14 +48,14 @@ class TriangleCapsuleThreeWalls(TriangleShape):
 
     @staticmethod
     def section_factor(contact_angle: float) -> float:
-        """A / a′² = (3θ − 2π − 3 sin θ cos θ) / (12 cos² θ) — сечение вставки (три сегмента срезаны стенками)."""
+        """A / a′² = (3θ − 2π − 3 sin θ cos θ) / (12 cos² θ) — insertion cross-section (three segments cut by walls)."""
         cosine = math.cos(contact_angle)
         return (3.0 * contact_angle - 2.0 * math.pi - 3.0 * math.sin(contact_angle) * cosine) / (12.0 * cosine**2)
 
     def insertion_length(self, geometry: TriangleGeometry, values: ParameterValues) -> float:
-        """l̃ = (√3/4 φ l − V_торцов) / A, V_торцов = π a′³ (2 + 9 cos θ − 3 cos³ θ) / (72√3 cos³ θ).
+        """l̃ = (√3/4 φ l − V_ends) / A, V_ends = π a′³ (2 + 9 cos θ − 3 cos³ θ) / (72√3 cos³ θ).
 
-        В источнике l̃ записана трижды разными выражениями (условие, площади, профиль); они тождественны.
+        The source writes l̃ three times with different expressions (condition, areas, profile); they are identical.
         """
         contact_angle = values[ParameterName.CONTACT_ANGLE]
         side = self.side(values)
@@ -79,7 +79,7 @@ class TriangleCapsuleThreeWalls(TriangleShape):
     def surface_terms(self, geometry: TriangleGeometry, values: ParameterValues) -> SurfaceTerms:
         """S_LV = 2π r (3h − r) + 2 r (π − 3 arccos(h/r)) l̃, S_SL = 6 l̃ √(r² − h²) + 3π (r² − h²).
 
-        h = a′ / (2√3) — расстояние от центроида до доступной стенки.
+        h = a′ / (2√3) — distance from the centroid to the accessible wall.
         """
         side = self.side(values)
         wall_distance = side / (2.0 * SQRT3)
@@ -92,7 +92,7 @@ class TriangleCapsuleThreeWalls(TriangleShape):
         return SurfaceTerms(liquid_liquid_area=liquid_liquid, liquid_solid_area=liquid_solid)
 
     def profile(self, coordinate: FloatArray, geometry: TriangleGeometry, values: ParameterValues) -> FloatArray:
-        """Сечение на высоте z — «стадион» 2 l̃ r_z + π r_z², у которого наклонные стенки срезают сегменты."""
+        """The cross-section at height z is a "stadium" 2 l̃ r_z + π r_z² with segments cut off by the inclined walls."""
         wall_layer = values[ParameterName.WALL_LAYER_THICKNESS]
         side = self.side(values)
         radius = meniscus_radius(side, values[ParameterName.CONTACT_ANGLE])

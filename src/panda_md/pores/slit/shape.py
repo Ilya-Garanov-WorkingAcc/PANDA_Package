@@ -1,9 +1,10 @@
-"""Общая база форм щели: система отсчёта поры, доступная ширина 1 − 2δ, существование по интервалу φ,
-трёхмерная форма по профилю.
+"""Common base of the slit shapes: pore frame of reference, accessible width 1 − 2δ, existence by a φ interval,
+three-dimensional shape from the profile.
 
-Профиль щели — доля площади сечения ячейки, занятая жидкостью на высоте z. Поэтому сечение восстанавливается
-по профилю: круг (капля, пончик) площади ρ · S, круглое отверстие (перфорация) площади (1 − ρ) · S, полоса
-вдоль короткой стороны (валик, червь) ширины ρ · l, всё сечение (слой); S = k l² — основание ячейки.
+The slit profile is the fraction of the cell cross-section area occupied by the liquid at height z. Hence the
+cross-section is recovered from the profile: a disk (droplet, doughnut) of area ρ · S, a circular hole (perforation)
+of area (1 − ρ) · S, a band along the short side (roll, worm) of width ρ · l, the whole cross-section (layer);
+S = k l² is the cell base.
 """
 
 import math
@@ -18,32 +19,32 @@ from panda_md.core.shape import InterfaceShape
 from panda_md.core.types import BoolArray, FloatArray
 from panda_md.pores.slit.pore import SlitGeometry
 
-FULL_DENSITY_THRESHOLD = 0.5  # профиль слоя — ступенька 0/1
+FULL_DENSITY_THRESHOLD = 0.5  # the layer profile is a 0/1 step
 
 
 class CrossSection(str, Enum):
-    """Сечение формы щели плоскостью z = const."""
+    """Cross-section of a slit shape by the plane z = const."""
 
-    DISK = "disk"  # круг с центром на вертикальной оси
-    HOLE = "hole"  # всё доступное сечение, кроме круга на вертикальной оси
-    BAND = "band"  # полоса вдоль короткой стороны, симметричная относительно x = 0
-    FULL = "full"  # всё сечение
+    DISK = "disk"  # disk centred on the vertical axis
+    HOLE = "hole"  # the whole accessible cross-section except a disk on the vertical axis
+    BAND = "band"  # band along the short side, symmetric about x = 0
+    FULL = "full"  # the whole cross-section
 
 
 class SlitShape(InterfaceShape[SlitGeometry]):
-    """Форма щели. Существует, если доступная ширина положительна и φ строго внутри (φ_min, φ_max)."""
+    """Slit shape. Exists if the accessible width is positive and φ lies strictly inside (φ_min, φ_max)."""
 
     frame: ClassVar[Frame] = Frame.PORE
     cross_section: ClassVar[CrossSection]
 
     @staticmethod
     def accessible_width(values: ParameterValues) -> float:
-        """1 − 2δ — ширина щели, доступная анализируемой жидкости."""
+        """1 − 2δ — slit width accessible to the analysed liquid."""
         return 1.0 - 2.0 * values[ParameterName.WALL_LAYER_THICKNESS]
 
     @staticmethod
     def inside_accessible(coordinate: FloatArray, values: ParameterValues) -> BoolArray:
-        """|z| < 1/2 − δ — точки, доступные анализируемой жидкости."""
+        """|z| < 1/2 − δ — points accessible to the analysed liquid."""
         half = 0.5 * SlitShape.accessible_width(values)
         return np.abs(coordinate) < half
 
@@ -54,7 +55,7 @@ class SlitShape(InterfaceShape[SlitGeometry]):
         return bool(lower < values[ParameterName.VOLUME_FRACTION] < upper)
 
     def contains(self, points: FloatArray, geometry: SlitGeometry, values: ParameterValues) -> BoolArray:
-        """Точка в жидкости, если она внутри сечения на своей высоте (сечение — по профилю, см. модуль)."""
+        """A point is in the liquid if it is inside the cross-section at its height (see the module docstring)."""
         length = geometry.pore_length_ratio
         width = geometry.short_side_ratio()
         along_length = points[:, 0] - length * np.round(points[:, 0] / length)

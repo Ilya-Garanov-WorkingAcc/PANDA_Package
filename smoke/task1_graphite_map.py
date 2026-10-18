@@ -1,11 +1,11 @@
-"""Морфология: 2D-карты плотности x–z (усреднение по y) для DECAN и WATER, каждый 10-й кадр 2–10 нс."""
+"""Morphology: x–z density maps (averaged over y) of DECAN and WATER, every 10th frame of 2–10 ns."""
 import numpy as np
 import mdtraj as md
 D = "/mnt/c/Phystech/Computing_Physics_Center/Projects/PANDA_Reborn/graphite_decane_tip4p_1.0"
 OUT = "/home/igaranov/projects/PANDA_Dev/smoke/out"
 top = md.load_topology(f"{D}/graphite_decane_tip4p.gro")
 sel = {r: top.select(f"resname {r}") for r in ("DECAN", "WATER")}
-sel["WATER"] = top.select("resname WATER and name OW")          # вода — по кислороду
+sel["WATER"] = top.select("resname WATER and name OW")          # water: oxygens
 Lx, Ly, Lz = 17.27104, 5.12817, 11.0
 nx, nz = 70, 44
 maps = {r: np.zeros((nx, nz)) for r in sel}
@@ -23,7 +23,7 @@ for r in maps:
 print("frames used:", nfr)
 for r in maps:
     m = maps[r] / maps[r].max()
-    print(f"\n{r}: x -> (0..{Lx}), z вверх (0..{Lz}); ' .:-=+*#' по доле от максимума")
+    print(f"\n{r}: x -> (0..{Lx}), z up (0..{Lz}); ' .:-=+*#' by fraction of the maximum")
     chars = " .:-=+*#"
     for j in range(nz - 1, -1, -2):
         print(f"{(j + 0.5) * Lz / nz:5.2f} |" + "".join(chars[min(int(v * 8), 7)] for v in m[:, j]))

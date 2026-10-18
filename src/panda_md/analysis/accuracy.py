@@ -1,10 +1,10 @@
-"""Точность метода на синтетике: ошибка восстановленного θ при заданных шуме, числе бинов, угле и центрировании.
+"""Accuracy of the method on synthetic data: error of the recovered θ for given noise, bin count, angle and centering.
 
-Профиль строится по модели (`synthetic_profile`) как гистограмма МД — плотность усреднена по бину, шум пуассоновский
-(σ ∝ √ρ, в долях ρ_bulk при плотности ρ_bulk), — и фитируется той же формой, модель которой берётся в центрах бинов.
-Ошибка зависит только от метода (фит, дискретизация, шум), а не от адекватности формы — это нижняя граница ошибки на
-реальных данных. Шум задаётся для 200 бинов; при другом числе бинов он пересчитывается как √(бинов / 200):
-та же траектория, разбитая мельче, даёт меньше частиц на бин.
+The profile is built from the model (`synthetic_profile`) like an MD histogram — the density is averaged over a bin,
+the noise is Poisson (σ ∝ √ρ, in fractions of ρ_bulk at density ρ_bulk) — and fitted with the same shape, whose model
+is taken at the bin centres. The error depends only on the method (fit, discretization, noise), not on whether the
+shape is adequate — it is a lower bound of the error on real data. The noise is given for 200 bins; for another bin
+count it is rescaled as √(bins / 200): the same trajectory split more finely gives fewer particles per bin.
 """
 
 import math
@@ -18,16 +18,16 @@ from panda_md.core.model import InterfaceModel
 from panda_md.core.types import Array1D, Array2D, FloatArray, PandaModel
 from panda_md.synthetic.profiles import synthetic_profile
 
-REFERENCE_BIN_COUNT = 200  # шум задаётся для этого числа бинов
+REFERENCE_BIN_COUNT = 200  # the noise is given for this bin count
 
 
 class AccuracyCase(PandaModel):
-    """Одна точка исследования: истинные параметры и условия синтетики."""
+    """One point of the study: the true parameters and the synthetic data conditions."""
 
-    truth: dict[str, float]  # единицы пользователя
-    noise_std: float = Field(ge=0.0)  # доля ρ_bulk на бин при REFERENCE_BIN_COUNT бинах
+    truth: dict[str, float]  # user units
+    noise_std: float = Field(ge=0.0)  # fraction of ρ_bulk per bin at REFERENCE_BIN_COUNT bins
     bin_count: int = Field(default=REFERENCE_BIN_COUNT, ge=10)
-    offset: float = 0.0  # сдвиг интерфейса вдоль оси профиля в долях размера поры (ошибка положения стенок)
+    offset: float = 0.0  # interface shift along the profile axis in fractions of the pore size (wall position error)
     frame: Frame = Frame.PORE
     optimize: tuple[str, ...] | None = None
     fixed: dict[str, float] = Field(default_factory=dict)
@@ -36,27 +36,27 @@ class AccuracyCase(PandaModel):
 
 
 class AngleErrors(PandaModel):
-    """θ_фит − θ_истинный (градусы) по зёрнам и флаг «θ у границы фита» (тогда ошибка ограничена границей)."""
+    """θ_fit − θ_true (degrees) per seed and the “θ at the fit bound” flag (then the error is limited by the bound)."""
 
     errors_deg: Array1D
     at_bound: tuple[bool, ...]
 
 
 class AccuracyStudy(PandaModel):
-    """Ошибки θ (градусы, восстановленное − истинное) по зёрнам шума для ряда значений одного условия."""
+    """θ errors (degrees, recovered − true) per noise seed for a series of values of one condition."""
 
     shape_name: str
-    varied: str  # что меняется: «шум, % ρ_bulk», «бинов», «θ, °», «центрирование»
-    labels: tuple[str, ...]  # подпись каждого значения
-    values: Array1D  # численное значение условия (у категориальных условий — порядковый номер)
-    errors_deg: Array2D  # значения × зёрна
-    at_bound_counts: tuple[int, ...]  # сколько фитов в строке упёрлись в границу θ
+    varied: str  # what varies: “noise, % ρ_bulk”, “bins”, “θ, °”, “centering”
+    labels: tuple[str, ...]  # label of each value
+    values: Array1D  # numeric value of the condition (ordinal number for categorical conditions)
+    errors_deg: Array2D  # values × seeds
+    at_bound_counts: tuple[int, ...]  # how many fits in the row hit the θ bound
 
     @model_validator(mode="after")
     def _check_shapes(self) -> "AccuracyStudy":
         rows = self.values.size
         if self.errors_deg.shape[0] != rows or len(self.labels) != rows or len(self.at_bound_counts) != rows:
-            raise ValueError("по строке ошибок и подписи на каждое значение условия")
+            raise ValueError("expected one row of errors and one label per value of the condition")
         return self
 
     def mean_absolute(self) -> FloatArray:
@@ -68,15 +68,15 @@ class AccuracyStudy(PandaModel):
         return maximum
 
     def bias(self) -> FloatArray:
-        """Систематический сдвиг: среднее (восстановленное − истинное)."""
+        """Systematic shift: the mean of (recovered − true)."""
         bias: FloatArray = np.mean(self.errors_deg, axis=1)
         return bias
 
     def table(self) -> str:
-        """Таблица markdown: условие, средняя и максимальная |Δθ|, смещение."""
+        """Markdown table: condition, mean and maximum |Δθ|, bias."""
         seeds = self.errors_deg.shape[1]
         lines = [
-            f"| {self.varied} | среднее \\|Δθ\\|, ° | максимум \\|Δθ\\|, ° | смещение, ° | у границы θ, из {seeds} |",
+            f"| {self.varied} | mean \\|Δθ\\|, ° | max \\|Δθ\\|, ° | bias, ° | at θ bound, of {seeds} |",
             "|---|---|---|---|---|",
         ]
         for label, mean, maximum, bias, at_bound in zip(
@@ -87,14 +87,14 @@ class AccuracyStudy(PandaModel):
 
 
 def effective_noise_std(case: AccuracyCase) -> float:
-    """Шум на бин при case.bin_count бинах: та же статистика, разбитая мельче, — σ · √(бинов / 200)."""
+    """Noise per bin at case.bin_count bins: the same statistics split more finely — σ · √(bins / 200)."""
     return case.noise_std * math.sqrt(case.bin_count / REFERENCE_BIN_COUNT)
 
 
 def angle_errors(
     model: InterfaceModel, case: AccuracyCase, *, density_bulk_per_nm3: float, seeds: Sequence[int]
 ) -> AngleErrors:
-    """θ_фит − θ_истинный (градусы) и флаг «у границы θ» для каждого зерна шума."""
+    """θ_fit − θ_true (degrees) and the “at the θ bound” flag for each noise seed."""
     noise = effective_noise_std(case)
     errors: list[float] = []
     at_bound: list[bool] = []
@@ -126,9 +126,9 @@ def accuracy_study(
     density_bulk_per_nm3: float,
     seeds: Sequence[int],
 ) -> AccuracyStudy:
-    """Исследование: для каждой подписи — (значение условия, условия синтетики)."""
+    """Run the study: for each label — (value of the condition, synthetic data conditions)."""
     if not list(seeds):
-        raise ValueError("нужно хотя бы одно зерно шума")
+        raise ValueError("no noise seeds; at least one is needed")
     errors = [
         angle_errors(model, case, density_bulk_per_nm3=density_bulk_per_nm3, seeds=seeds) for _, case in cases.values()
     ]

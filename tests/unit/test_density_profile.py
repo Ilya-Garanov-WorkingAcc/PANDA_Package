@@ -1,4 +1,4 @@
-"""Профиль плотности по траектории: центрирование, бины, блоки, ориентация, проверки, сохранение."""
+"""Density profile from a trajectory: centering, bins, blocks, orientation, checks, saving."""
 
 import warnings
 from pathlib import Path
@@ -17,7 +17,7 @@ WIDTH_NM = 4.0
 LENGTH_NM = 6.0
 ASPECT_RATIO = 0.5
 BOX_NM = np.array([LENGTH_NM, ASPECT_RATIO * LENGTH_NM, 5.0])
-LOWER_WALL_NM = 3.5  # стенки при z = 3.5 и z = 7.5 ≡ 2.5 (подложка — 1 нм): пора пересекает границу ящика
+LOWER_WALL_NM = 3.5  # walls at z = 3.5 and z = 7.5 ≡ 2.5 (substrate 1 nm): the pore crosses the box boundary
 PORE_CENTER_NM = LOWER_WALL_NM + WIDTH_NM / 2.0
 TIME_STEP_PS = 10.0
 SEED = 7
@@ -33,7 +33,7 @@ def walls(frame_shift_nm: float = 0.0) -> np.ndarray:
 def trajectory_from(
     liquid_z_per_frame: list[np.ndarray], frame_shifts_nm: list[float] | None = None
 ) -> ArrayTrajectory:
-    """Жидкость — заданные z (в системе поры), x и y — равномерно; стенки — двойная решётка."""
+    """Liquid at the given z (pore frame), uniform in x and y; the walls are a double grid."""
     generator = np.random.default_rng(SEED)
     shifts = frame_shifts_nm or [0.0] * len(liquid_z_per_frame)
     frames = []
@@ -76,7 +76,7 @@ def test_uniform_slab_gives_flat_density_aligned_to_walls() -> None:
 
 
 def test_walls_found_in_every_frame_follow_a_drifting_pore() -> None:
-    slabs = uniform_slab(-1.9, -1.0, 5000, 3)  # слой у нижней стенки
+    slabs = uniform_slab(-1.9, -1.0, 5000, 3)  # a layer at the lower wall
     shifts = [0.0, 0.3, 0.6]
     by_walls = density_profile(trajectory_from(slabs, shifts), pore(), "liquid", bins=40, orientation=Orientation.KEEP)
     fixed = density_profile(
@@ -99,7 +99,7 @@ def test_liquid_centering_puts_center_of_mass_at_zero_across_boundary() -> None:
 def test_blocks_by_time_and_partial_block_is_dropped() -> None:
     trajectory = trajectory_from(uniform_slab(-1.0, 1.0, 500, 7))
     with warnings.catch_warnings():
-        warnings.simplefilter("error")  # один кадр на границе последнего блока — не неполный блок
+        warnings.simplefilter("error")  # one frame at the edge of the last block is not an incomplete block
         profiles = density_profile(trajectory, pore(), "liquid", bins=20, block="20 ps")
     assert profiles.block_count == 3
     assert profiles.block_frame_counts == (2, 2, 2)
@@ -110,7 +110,7 @@ def test_blocks_by_time_and_partial_block_is_dropped() -> None:
     assert profiles.mean().density_sem_per_nm3 is not None
     window = density_profile(trajectory, pore(), "liquid", bins=20, start="0.02 ns", stop=40.0, stride=2)
     assert window.block_frame_counts == (2,)
-    with pytest.raises(InvalidTrajectoryError, match="короче одного блока"):
+    with pytest.raises(InvalidTrajectoryError, match="shorter than one block"):
         density_profile(trajectory, pore(), "liquid", bins=20, block="1 ns")
 
 
@@ -131,28 +131,30 @@ def test_bin_width_sets_bin_count() -> None:
 def test_problems_with_pore_and_selection_are_reported() -> None:
     trajectory = trajectory_from(uniform_slab(-1.0, 1.0, 100, 1))
     no_walls = SlitPore(width_nm=WIDTH_NM, length_nm=LENGTH_NM, base_aspect_ratio=ASPECT_RATIO)
-    with pytest.raises(InvalidTrajectoryError, match="pore_center_nm"):  # явное центрирование по поре без стенок
+    with pytest.raises(InvalidTrajectoryError, match="pore_center_nm"):  # explicit pore centering without walls
         density_profile(trajectory, no_walls, "liquid", centering="pore")
     too_wide = SlitPore(width_nm=12.0, length_nm=LENGTH_NM, base_aspect_ratio=ASPECT_RATIO)
-    with pytest.raises(InvalidTrajectoryError, match="шире ящика"):
+    with pytest.raises(InvalidTrajectoryError, match="wider than the box"):
         density_profile(trajectory, too_wide, "liquid", pore_center_nm=PORE_CENTER_NM)
     triangle = TrianglePore(side_nm=4.0, length_nm=6.0, layer_width_nm=4.0, wall_selection="walls")
     with pytest.raises(NotDerivedError, match="pore_center_nm"):
         density_profile(trajectory, triangle, "liquid")
-    with pytest.raises(InvalidTrajectoryError, match="пуста"):
+    with pytest.raises(InvalidTrajectoryError, match="is empty"):
         density_profile(trajectory, pore(), [])
 
 
 def test_suspicious_geometry_gives_warnings() -> None:
-    trajectory = trajectory_from(uniform_slab(-1.0, 3.0, 1000, 1))  # четверть частиц — за верхней стенкой
-    with pytest.warns(PandaWarning, match="вне поры"):
+    trajectory = trajectory_from(
+        uniform_slab(-1.0, 3.0, 1000, 1)
+    )  # a quarter of the particles is beyond the upper wall
+    with pytest.warns(PandaWarning, match="outside the pore"):
         density_profile(trajectory, pore(), "liquid", bins=20)
     inside = trajectory_from(uniform_slab(-1.0, 1.0, 1000, 1))
     narrow = SlitPore(width_nm=3.5, length_nm=LENGTH_NM, base_aspect_ratio=ASPECT_RATIO, wall_selection="walls")
-    with pytest.warns(PandaWarning, match="промежуток между стенками"):
+    with pytest.warns(PandaWarning, match="gap between the walls"):
         density_profile(inside, narrow, "liquid", bins=20)
     other_base = SlitPore(width_nm=WIDTH_NM, length_nm=LENGTH_NM, wall_selection="walls")
-    with pytest.warns(PandaWarning, match="площадь бина"):
+    with pytest.warns(PandaWarning, match="bin area"):
         density_profile(inside, other_base, "liquid", bins=20)
 
 
@@ -168,7 +170,7 @@ def test_profiles_survive_saving(tmp_path: Path) -> None:
         assert loaded.model_dump(exclude={"coordinate_nm", "density_per_nm3", "density_sem_per_nm3"}) == (
             mean.model_dump(exclude={"coordinate_nm", "density_per_nm3", "density_sem_per_nm3"})
         )
-    with pytest.raises(ValueError, match="формат"):
+    with pytest.raises(ValueError, match="unsupported format"):
         mean.save(tmp_path / "mean.txt")
 
 
@@ -184,8 +186,10 @@ def test_centering_and_orientation_accept_strings() -> None:
 
 
 def test_partial_block_of_several_frames_is_reported() -> None:
-    trajectory = trajectory_from(uniform_slab(-1.0, 1.0, 200, 8))  # 0…70 пс, блоки по 30 пс: 60 и 70 пс — лишние
-    with pytest.warns(PandaWarning, match="2 последних кадров"):
+    trajectory = trajectory_from(
+        uniform_slab(-1.0, 1.0, 200, 8)
+    )  # 0…70 ps, blocks of 30 ps: 60 and 70 ps are left over
+    with pytest.warns(PandaWarning, match="2 last frame"):
         profiles = density_profile(trajectory, pore(), "liquid", bins=20, block="30 ps")
     assert profiles.block_frame_counts == (3, 3)
 
@@ -202,7 +206,7 @@ def test_box_changing_along_profile_axis_is_reported_in_liquid_frame() -> None:
         boxes_nm=np.array([[6.0, 3.0, length] for length in lengths]),
         times_ps=[0.0, 1.0],
     )
-    with pytest.warns(PandaWarning, match="ящик вдоль оси профиля"):
+    with pytest.warns(PandaWarning, match="box along the profile axis"):
         density_profile(trajectory, pore(), list(range(400)), centering=ProfileCentering.LIQUID, bins=20)
 
 
@@ -224,14 +228,14 @@ def test_walls_in_a_single_plane_give_the_whole_box_as_pore() -> None:
 def test_warnings_point_at_the_caller() -> None:
     trajectory = trajectory_from(uniform_slab(-1.0, 1.0, 100, 1))
     other_base = SlitPore(width_nm=WIDTH_NM, length_nm=LENGTH_NM, wall_selection="walls")
-    with pytest.warns(PandaWarning, match="площадь бина") as caught:
+    with pytest.warns(PandaWarning, match="bin area") as caught:
         density_profile(trajectory, other_base, "liquid", bins=20)
     assert caught[0].filename == __file__
 
 
 def test_single_frame_with_blocks_is_reported() -> None:
     trajectory = trajectory_from(uniform_slab(-1.0, 1.0, 100, 1))
-    with pytest.warns(PandaWarning, match="один кадр"):
+    with pytest.warns(PandaWarning, match="a single frame"):
         profiles = density_profile(trajectory, pore(), "liquid", bins=20, block="1 ns")
     assert profiles.block_count == 1
 
@@ -252,7 +256,7 @@ def test_time_gap_longer_than_a_block_drops_empty_blocks() -> None:
     trajectory = ArrayTrajectory(
         positions_nm=base.positions_nm, boxes_nm=base.boxes_nm, times_ps=times, groups=base.groups
     )
-    with pytest.warns(PandaWarning, match="без кадров"):
+    with pytest.warns(PandaWarning, match="without frames"):
         profiles = density_profile(trajectory, pore(), "liquid", bins=20, block="10 ps")
     assert profiles.block_frame_counts == (10, 10)
     np.testing.assert_allclose(profiles.block_start_ps, [0.0, 30.0])
@@ -277,14 +281,14 @@ def test_molecules_with_liquid_centering() -> None:
 
 
 def test_default_centering_falls_back_to_liquid_without_walls() -> None:
-    """Итоговый аудит (спецификация §5): без стенок и центра поры — центрирование по жидкости с предупреждением."""
+    """Pre-release audit (specification §5): without walls and pore centre — liquid centering with a warning."""
     from panda_md.core.enums import Frame
     from panda_md.core.errors import PandaWarning
 
     trajectory = trajectory_from(uniform_slab(-1.0, 1.0, 2000, 2))
     with_walls = density_profile(trajectory, pore(), "liquid", bins=20)
-    assert with_walls.frame is Frame.PORE  # стенки известны — по поре, как раньше
+    assert with_walls.frame is Frame.PORE  # walls are known — pore centering, as before
     bare = SlitPore(width_nm=WIDTH_NM, length_nm=LENGTH_NM, base_aspect_ratio=ASPECT_RATIO)
-    with pytest.warns(PandaWarning, match="по жидкости"):
+    with pytest.warns(PandaWarning, match="centred on the liquid"):
         fallback = density_profile(trajectory, bare, "liquid", bins=20)
     assert fallback.frame is Frame.LIQUID

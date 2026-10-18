@@ -1,4 +1,4 @@
-"""Проверка упаковки: пакет импортируется, версия берётся из метаданных, типы объявлены."""
+"""Packaging check: the package imports, the version comes from the metadata, the types are declared."""
 
 import subprocess
 import sys
@@ -19,7 +19,7 @@ def test_package_is_typed() -> None:
 
 
 def test_importing_package_does_not_import_mdanalysis() -> None:
-    """MDAnalysis — необязательная зависимость: нужен только для чтения файлов МД (load_trajectory)."""
+    """MDAnalysis is an optional dependency: it is needed only to read MD files (load_trajectory)."""
     check = "import sys, panda_md; print('MDAnalysis' in sys.modules)"
     output = subprocess.run([sys.executable, "-c", check], capture_output=True, text=True, check=True).stdout
     assert output.strip() == "False"
@@ -41,7 +41,7 @@ def test_three_dimensional_shapes_are_public() -> None:
 
 
 def test_common_entry_points_are_exported_from_the_package() -> None:
-    """Итоговый аудит: диаграмма, синтетика и классы ошибок были доступны только по глубоким путям."""
+    """Pre-release audit: the diagram, synthetic data and error classes were reachable only by deep paths."""
     import panda_md
 
     for name in (

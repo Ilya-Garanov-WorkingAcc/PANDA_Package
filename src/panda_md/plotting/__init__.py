@@ -1,7 +1,7 @@
-"""Графики результатов (необязательная зависимость: `pip install 'panda-md[plot]'`).
+"""Result plots (optional dependency: `pip install 'panda-md[plot]'`).
 
-Единственный пакет, импортирующий matplotlib; функции принимают готовые объекты PANDA и рисуют на переданной оси
-(или создают новую) — ничего не считают сами.
+The only package that imports matplotlib; the functions take ready PANDA objects and draw on the given axes
+(or create new ones) — they compute nothing themselves.
 """
 
 from panda_md.plotting.figures import (

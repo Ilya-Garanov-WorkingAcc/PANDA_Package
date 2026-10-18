@@ -1,8 +1,9 @@
-"""Синтетическая траектория из облаков точек: форма в щели → частицы и атомы стенок по кадрам.
+"""Synthetic trajectory from point clouds: a shape in a slit → liquid particles and wall atoms per frame.
 
-Частицы жидкости равномерно заполняют трёхмерную форму (`contains`) с плотностью ρ_bulk; ось формы в каждом кадре
-сдвинута случайно в плоскости стенок (как блуждает капля или валик в МД), щель пересекает границу ящика по оси
-профиля. Это вход для сквозной проверки «форма → траектория → центрирование → профиль → фит» и 2D-карт.
+Liquid particles fill the three-dimensional shape (`contains`) uniformly at density ρ_bulk; in each frame the shape
+axis is shifted randomly in the wall plane (as a droplet or roll wanders in MD), and the slit crosses the box boundary
+along the profile axis. This is the input for the end-to-end check "shape → trajectory → centering → profile → fit"
+and for 2D maps.
 """
 
 from collections.abc import Mapping
@@ -16,8 +17,8 @@ from panda_md.core.types import FloatArray
 from panda_md.pores.slit.pore import SlitPore
 from panda_md.trajectory.arrays import ArrayTrajectory
 
-WALL_SPACING_NM = 0.25  # шаг решётки атомов подложки
-OVERSAMPLING = 1.3  # кандидатов на одну принятую частицу больше 1/φ — меньше повторных попыток
+WALL_SPACING_NM = 0.25  # lattice spacing of the substrate atoms
+OVERSAMPLING = 1.3  # more than 1/φ candidates per accepted particle — fewer repeated attempts
 MAX_ATTEMPTS = 100
 
 
@@ -31,23 +32,24 @@ def synthetic_trajectory(
     substrate_nm: float = 1.0,
     seed: int | None = None,
 ) -> ArrayTrajectory:
-    """Траектория щели с формой `model` (единицы пользователя в values): группы «liquid» и «walls».
+    """Return a slit trajectory with the shape of `model` (user units in values): groups "liquid" and "walls".
 
-    Ящик — L × kL × (H + substrate_nm); подложка занимает z ∈ [0, substrate_nm), её образ сверху замыкает щель.
-    Число частиц жидкости N = φ ρ_bulk V постоянно; в каждом кадре ось формы — в случайной точке плоскости стенок
-    (истинные положения — axis_positions_nm траектории, для проверки поиска оси).
+    The box is L × kL × (H + substrate_nm); the substrate occupies z ∈ [0, substrate_nm), its periodic image on top
+    closes the slit. The number of liquid particles N = φ ρ_bulk V is constant; in each frame the shape axis is at a
+    random point of the wall plane (the true positions are the trajectory's axis_positions_nm, for checking the
+    axis search).
     """
     if substrate_nm <= 0.0:
-        raise ValueError(f"substrate_nm = {substrate_nm}: толщина подложки должна быть положительной")
+        raise ValueError(f"substrate thickness is not positive: substrate_nm = {substrate_nm}; pass substrate_nm > 0")
     if frame_count < 1:
-        raise ValueError(f"frame_count = {frame_count}: нужен хотя бы один кадр")
+        raise ValueError(f"no frames requested: frame_count = {frame_count}; pass frame_count >= 1")
     pore = model.pore
     if not isinstance(pore, SlitPore) or not model.shape.has_contains():
-        raise NotDerivedError(f"{model}: облако точек выведено только для форм щели (нужен contains)")
+        raise NotDerivedError(f"{model}: a point cloud is derived only for slit shapes that define contains")
     internal = model.supported_values(values)
     geometry = pore.geometry()
     if not model.shape.feasible(geometry, internal):
-        raise NotDerivedError(f"{model}: форма не существует при {dict(values)}")
+        raise NotDerivedError(f"{model}: the shape does not exist at {dict(values)}")
     generator = np.random.default_rng(seed)
     width = pore.width_nm
     box = np.array([pore.length_nm, pore.base_aspect_ratio * pore.length_nm, width + substrate_nm])
@@ -73,7 +75,7 @@ def synthetic_trajectory(
 
 
 def _substrate(box: FloatArray, substrate_nm: float) -> FloatArray:
-    """Решётка атомов подложки: слои через WALL_SPACING_NM от z = 0 до z = substrate_nm (обе поверхности)."""
+    """Return the substrate atom lattice: layers every WALL_SPACING_NM from z = 0 to z = substrate_nm (both faces)."""
     xs = np.arange(0.0, box[0], WALL_SPACING_NM)
     ys = np.arange(0.0, box[1], WALL_SPACING_NM)
     zs = np.linspace(0.0, substrate_nm, max(2, round(substrate_nm / WALL_SPACING_NM) + 1))
@@ -90,7 +92,7 @@ def _sample_inside(
     volume_fraction: float,
     generator: np.random.Generator,
 ) -> FloatArray:
-    """count точек, равномерно распределённых в жидкости (безразмерные, ось формы в начале координат)."""
+    """Return count points uniformly distributed in the liquid (dimensionless, shape axis at the origin)."""
     geometry = model.pore.geometry()
     accepted: list[FloatArray] = []
     total = 0
@@ -103,4 +105,4 @@ def _sample_inside(
         if total >= count:
             points: FloatArray = np.vstack(accepted)[:count]
             return points
-    raise NotDerivedError(f"{model}: не удалось набрать {count} точек в форме за {MAX_ATTEMPTS} попыток")
+    raise NotDerivedError(f"{model}: could not place {count} points in the shape in {MAX_ATTEMPTS} attempts")

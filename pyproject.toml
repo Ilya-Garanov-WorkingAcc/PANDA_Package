@@ -29,7 +29,7 @@ dependencies = [
     "numpy>=1.26",
     "scipy>=1.11",
     "pydantic>=2.6",
-    "typer>=0.27.2",  # typer.TyperException — с 0.27.2 (click встроен в typer с 0.26)
+    "typer>=0.27.2",  # typer.TyperException exists from 0.27.2 (click is vendored since 0.26)
     "tomli>=2 ; python_full_version < '3.11'",
     "typing-extensions>=4.6",
 ]
@@ -48,9 +48,9 @@ plot = [
     "matplotlib>=3.8",
 ]
 
-# Группы зависимостей (PEP 735) — в опубликованный пакет не попадают.
-#   uv sync: группа dev (всё для разработки)
-#   uv sync --no-default-groups --group test: только пакет и то, что нужно для запуска тестов
+# Dependency groups (PEP 735) are not part of the published package.
+#   uv sync: group dev (everything for development)
+#   uv sync --no-default-groups --group test: the package and what the tests need, nothing else
 [dependency-groups]
 test = [
     "pytest>=8",
@@ -65,10 +65,10 @@ lint = [
 dev = [
     { include-group = "test" },
     { include-group = "lint" },
-    "ipykernel>=6.29",  # ядро .venv для examples/test_panda.ipynb в VS Code (WSL) и Jupyter
+    "ipykernel>=6.29",  # .venv kernel for examples/test_panda.ipynb in VS Code (WSL) and Jupyter
 ]
 docs = [
-    "mkdocs>=1.6,<2",  # mkdocs-material несовместим с MkDocs 2.0
+    "mkdocs>=1.6,<2",  # mkdocs-material is incompatible with MkDocs 2.0
     "mkdocs-material>=9.5",
     "mkdocstrings[python]>=0.26",
 ]
@@ -82,7 +82,7 @@ include = ["/src", "/tests", "/examples", "/README.md", "/CHANGELOG.md", "/CITAT
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra --strict-markers --strict-config --import-mode=importlib"
-markers = ["slow: долгие тесты (синтетическая валидация, МД)"]
+markers = ["slow: long tests (synthetic validation, MD)"]
 
 [tool.black]
 target-version = ["py310", "py311", "py312", "py313"]
@@ -97,10 +97,10 @@ extend-exclude = ["PANDA", "smoke", "docs", "*.md"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "SIM", "ANN", "RUF", "NPY"]
-ignore = ["RUF001", "RUF002", "RUF003"]  # кириллица в строках и комментариях
+ignore = ["RUF001", "RUF002", "RUF003"]  # Greek letters and math symbols in strings and comments
 
 [tool.ruff.lint.per-file-ignores]
-"examples/build_test_notebook.py" = ["E501"]  # таблицы markdown-ячеек ноутбука
+"examples/build_test_notebook.py" = ["E501"]  # markdown tables of the notebook cells
 
 [tool.mypy]
 python_version = "3.10"
@@ -110,9 +110,9 @@ warn_unreachable = true
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["MDAnalysis", "MDAnalysis.*"]  # у MDAnalysis нет аннотаций типов
+module = ["MDAnalysis", "MDAnalysis.*"]  # MDAnalysis ships no type annotations
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = ["tomli"]  # нужен только на Python 3.10; mypy проверяет ветку 3.10, а окружение разработки новее
+module = ["tomli"]  # needed on Python 3.10 only; mypy checks the 3.10 branch, the dev environment is newer
 ignore_missing_imports = true

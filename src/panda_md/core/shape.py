@@ -1,4 +1,4 @@
-"""Контракт формы интерфейса: только формулы, без состояния, данных и оптимизатора."""
+"""Interface shape contract: formulas only, without state, data or optimizer."""
 
 import math
 from abc import ABC, abstractmethod
@@ -14,33 +14,33 @@ from panda_md.core.errors import NotDerivedError, UnsupportedRegimeError
 from panda_md.core.parameters import Parameter, ParameterValues
 from panda_md.core.types import BoolArray, FloatArray, PandaModel
 
-REGIME_BOUNDARY_DEG = 90.0  # граница смачивания и несмачивания
-REGIME_GAP_DEG = 0.5  # θ ∈ (90° − зазор, 90° + зазор) не считается: в формулах tan θ и 1/cos θ
+REGIME_BOUNDARY_DEG = 90.0  # boundary between wetting and non-wetting
+REGIME_GAP_DEG = 0.5  # θ ∈ (90° − gap, 90° + gap) is not evaluated: the formulas contain tan θ and 1/cos θ
 MAX_CONTACT_ANGLE_DEG = 180.0
-ANGLE_TOLERANCE_DEG = 1e-9  # градусы → радианы → градусы: degrees(radians(120)) = 119.99999999999999
-CENTER_OF_MASS_GRID_POINTS = 20001  # сетка для численного центра масс, если форма не дала формулу
+ANGLE_TOLERANCE_DEG = 1e-9  # degrees → radians → degrees: degrees(radians(120)) = 119.99999999999999
+CENTER_OF_MASS_GRID_POINTS = 20001  # grid for the numerical centre of mass if the shape gives no formula
 
 
 class PoreGeometry(PandaModel, ABC):
-    """Безразмерная геометрия поры, которую получают формулы формы."""
+    """Dimensionless pore geometry passed to the shape formulas."""
 
     @abstractmethod
     def coordinate_bounds(self) -> tuple[float, float]:
-        """Безразмерные координаты стенок вдоль оси профиля в системе поры (при δ = 0)."""
+        """Dimensionless wall coordinates along the profile axis in the pore frame (at δ = 0)."""
 
     @abstractmethod
     def profile_integral(self) -> float:
-        """∫ρ dz / φ для любой формы этой поры: площадь исходного сечения / ширина слоя нормировки."""
+        """∫ρ dz / φ for any shape of this pore: original cross-section area / width of the normalization layer."""
 
 
 class SurfaceTerms(PandaModel):
-    """Площади межфазных поверхностей формы (безразмерные)."""
+    """Interfacial areas of the shape (dimensionless)."""
 
     liquid_liquid_area: float = Field(ge=0.0)  # S_LV
     liquid_solid_area: float = Field(ge=0.0)  # S_SL
 
     def capillary_energy(self, contact_angle_rad: float) -> float:
-        """Капиллярный функционал S_LV − cos θ · S_SL: по его минимуму выбирается устойчивая форма."""
+        """Capillary functional S_LV − cos θ · S_SL: the stable shape is chosen by its minimum."""
         return self.liquid_liquid_area - math.cos(contact_angle_rad) * self.liquid_solid_area
 
 
@@ -52,13 +52,13 @@ GeometryT = TypeVar("GeometryT", bound=PoreGeometry)
 
 
 class InterfaceShape(ABC, Generic[GeometryT]):
-    """Одна форма интерфейса в одном типе поры. Значения параметров — во внутренних единицах."""
+    """One interface shape in one pore type. Parameter values are in internal units."""
 
     name: ClassVar[str]
     parameters: ClassVar[tuple[Parameter, ...]]
-    regimes: ClassVar[dict[Regime, tuple[float, float]]]  # диапазон θ в градусах для каждого выведенного режима
-    frame: ClassVar[Frame]  # система отсчёта, в которой записаны формулы
-    symmetry_axis: ClassVar[SymmetryAxis | None] = None  # ось для осевого центрирования; None — нет
+    regimes: ClassVar[dict[Regime, tuple[float, float]]]  # θ range in degrees for each derived regime
+    frame: ClassVar[Frame]  # frame of reference in which the formulas are written
+    symmetry_axis: ClassVar[SymmetryAxis | None] = None  # axis for axial centering; None — none
     default_optimize: ClassVar[tuple[str, ...]] = (
         ParameterName.CONTACT_ANGLE.value,
         ParameterName.WALL_LAYER_THICKNESS.value,
@@ -66,29 +66,29 @@ class InterfaceShape(ABC, Generic[GeometryT]):
 
     @abstractmethod
     def feasible(self, geometry: GeometryT, values: ParameterValues) -> bool:
-        """Существует ли форма при этих параметрах."""
+        """Whether the shape exists at these parameters."""
 
     def profile(self, coordinate: FloatArray, geometry: GeometryT, values: ParameterValues) -> FloatArray:
-        """ρ/ρ_bulk на безразмерной координате. Вызывается только для допустимых параметров."""
-        raise NotDerivedError(f"{self.name}: профиль плотности не выведен")
+        """ρ/ρ_bulk on the dimensionless coordinate. Called only for feasible parameters."""
+        raise NotDerivedError(f"density profile is not derived for shape '{self.name}'")
 
     def contains(self, points: FloatArray, geometry: GeometryT, values: ParameterValues) -> BoolArray:
-        """Какие точки (n × 3, безразмерные: вдоль длинной стороны, вдоль короткой, вдоль оси профиля) — в жидкости.
+        """Which points (n × 3, dimensionless: along the long side, the short side, the profile axis) are in the liquid.
 
-        Ось симметрии формы (если есть) — в начале координат плоскости стенок; координаты в плоскости стенок
-        периодичны с периодом ячейки. Вызывается только для допустимых параметров.
+        The symmetry axis of the shape (if any) is at the origin of the wall plane; coordinates in the wall plane are
+        periodic with the cell period. Called only for feasible parameters.
         """
-        raise NotDerivedError(f"{self.name}: трёхмерная форма (contains) не выведена")
+        raise NotDerivedError(f"three-dimensional shape (contains) is not derived for shape '{self.name}'")
 
     def phi_limits(self, geometry: GeometryT, values: ParameterValues) -> tuple[float, float]:
-        """Допустимый интервал φ при остальных параметрах."""
-        raise NotDerivedError(f"{self.name}: интервал φ не выведен")
+        """Feasible interval of φ at the other parameters."""
+        raise NotDerivedError(f"φ interval is not derived for shape '{self.name}'")
 
     def surface_terms(self, geometry: GeometryT, values: ParameterValues) -> SurfaceTerms:
-        raise NotDerivedError(f"{self.name}: площади поверхностей не выведены")
+        raise NotDerivedError(f"surface areas are not derived for shape '{self.name}'")
 
     def center_of_mass(self, geometry: GeometryT, values: ParameterValues) -> float:
-        """Центр масс жидкости вдоль координаты профиля, в системе формул формы. По умолчанию — численно."""
+        """Liquid centre of mass along the profile coordinate, in the shape formula frame; numerical by default."""
         lower, upper = geometry.coordinate_bounds()
         grid = np.linspace(lower, upper, CENTER_OF_MASS_GRID_POINTS)
         density = self.profile(grid, geometry, values)
@@ -107,23 +107,26 @@ class InterfaceShape(ABC, Generic[GeometryT]):
         return type(self).surface_terms is not InterfaceShape.surface_terms
 
     def require_supported_contact_angle(self, contact_angle_deg: float) -> Regime:
-        """Режим угла, если для него у формы выведены формулы; иначе UnsupportedRegimeError."""
-        if not 0.0 <= contact_angle_deg <= MAX_CONTACT_ANGLE_DEG:  # допуск ниже — только у внутренних границ
-            raise UnsupportedRegimeError(f"θ = {contact_angle_deg!r}° вне [0°, {MAX_CONTACT_ANGLE_DEG:g}°]")
+        """Regime of the angle if the shape has formulas derived for it; otherwise UnsupportedRegimeError."""
+        if (
+            not 0.0 <= contact_angle_deg <= MAX_CONTACT_ANGLE_DEG
+        ):  # the tolerance below applies only to the inner bounds
+            raise UnsupportedRegimeError(f"θ = {contact_angle_deg!r}° is outside [0°, {MAX_CONTACT_ANGLE_DEG:g}°]")
         if abs(contact_angle_deg - REGIME_BOUNDARY_DEG) < REGIME_GAP_DEG - ANGLE_TOLERANCE_DEG:
             raise UnsupportedRegimeError(
-                f"θ = {contact_angle_deg:.2f}° внутри зазора ±{REGIME_GAP_DEG}° у 90°: формулы там не определены"
+                f"θ = {contact_angle_deg:.2f}° is inside the gap ±{REGIME_GAP_DEG}° around 90°: "
+                "the formulas are undefined there"
             )
         regime = regime_of(contact_angle_deg)
         if regime not in self.regimes:
             raise UnsupportedRegimeError(
-                f"форма {self.name}: режим {regime.value} (θ = {contact_angle_deg:.4g}°) не объявлен — "
-                f"формулы не выведены"
+                f"regime {regime.value} (θ = {contact_angle_deg:.4g}°) is not declared by shape '{self.name}'; "
+                f"its formulas are not derived"
             )
         lower, upper = self.regimes[regime]
         if not lower - ANGLE_TOLERANCE_DEG <= contact_angle_deg <= upper + ANGLE_TOLERANCE_DEG:
             raise UnsupportedRegimeError(
-                f"форма {self.name}: θ = {contact_angle_deg:.4g}° вне диапазона режима {regime.value} "
+                f"θ = {contact_angle_deg:.4g}° is outside the range of regime {regime.value} of shape '{self.name}' "
                 f"[{lower}, {upper}]"
             )
         return regime

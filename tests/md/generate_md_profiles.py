@@ -1,15 +1,17 @@
-"""Профили по реальным траекториям МД — вход для tests/md (сами траектории в репозиторий не входят).
+"""Profiles from real MD trajectories — input for tests/md (the trajectories themselves are not in the repository).
 
-Три системы (найденная пора сохраняется рядом с профилями, чтобы тесты сверили её с ручным расчётом):
-- graphite: щель графита с деканом и водой TIP4P (PANDA_Reborn graphite_decane_tip4p_1.0), 10 нс, кадр — 2 пс;
-  профиль воды (кислороды) после 2 нс, блоки по 1 нс;
-- benzene: бензол в щели подложки SOLD (roughness_2/angles/base), 10 нс, кадр — 2 пс; после 4 нс, блоки по 1.2 нс;
-- calcite: щель кальцита с деканом и водой (система примера старой PANDA), один стартовый кадр.
+Three systems (the found pore is saved next to the profiles so that the tests compare it with a manual calculation):
+- graphite: graphite slit with decane and TIP4P water (PANDA_Reborn graphite_decane_tip4p_1.0), 10 ns, frame 2 ps;
+  water profile (oxygens) after 2 ns, 1 ns blocks;
+- benzene: benzene in a slit of the SOLD substrate (roughness_2/angles/base), 10 ns, frame 2 ps; after 4 ns,
+  1.2 ns blocks;
+- calcite: calcite slit with decane and water (the example system of old PANDA), one starting frame.
 
-Запуск (нужен panda-md[md] и доступ к данным; корни — переменные PANDA_REBORN_DIR и PANDA_ROUGHNESS_DIR):
+Run (needs panda-md[md] and access to the data; the roots are the PANDA_REBORN_DIR and PANDA_ROUGHNESS_DIR variables):
     uv run python tests/md/generate_md_profiles.py
-Результат: tests/md/data/*_profiles.npz (ProfileSet), *_pore.json и *_frame.npz (один кадр: ящик и высоты атомов
-подложки и жидкости — по нему тесты заново прогоняют поиск стенок и профиль) — коммитятся, тесты читают только их.
+Output: tests/md/data/*_profiles.npz (ProfileSet), *_pore.json and *_frame.npz (one frame: the box and the heights
+of the substrate and liquid atoms — the tests rerun the wall search and the profile on it) — committed, the tests
+read only them.
 """
 
 import os
@@ -28,7 +30,7 @@ BIN_COUNT = 200
 
 
 def save_frame(name: str, trajectory: Trajectory, walls: str, liquid: str, time: str) -> None:
-    """Высоты атомов подложки и жидкости и ящик одного кадра (float32, сжато: точность xtc — 0.001 нм)."""
+    """Substrate and liquid atom heights and the box of one frame (float32, compressed: xtc precision 0.001 nm)."""
     frame = trajectory.frame_at(time, [trajectory.select(walls), trajectory.select(liquid)])
     np.savez_compressed(
         OUTPUT / f"{name}_frame.npz",
@@ -79,7 +81,7 @@ def main() -> None:
     for system in (graphite, benzene, calcite):
         started = time.perf_counter()
         system()
-        print(f"{system.__name__}: {time.perf_counter() - started:.0f} с")
+        print(f"{system.__name__}: {time.perf_counter() - started:.0f} s")
 
 
 if __name__ == "__main__":
