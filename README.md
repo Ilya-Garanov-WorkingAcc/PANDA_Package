@@ -30,10 +30,13 @@ pore = panda.SlitPore.from_trajectory(traj, walls="resname GRAPHITE")
 profiles = panda.density_profile(traj, pore, "resname WATER and name OW", start="2 ns", block="1 ns")
 result = pore.interface("roll").fit(profiles.mean(), density_bulk_per_nm3=33.1)
 spec = panda.FitSpec(density_bulk_per_nm3=33.1)
-print(panda.fit_blocks(pore.interface("roll"), profiles, spec))  # θ по блокам, среднее ± ошибка
-print(panda.compare_shapes(pore, profiles.mean(), spec))  # все формы поры по ошибке фита
-water_map = panda.density_map(traj, pore, "resname WATER and name OW", shape="roll")  # ось валика в x = 0
+print(panda.fit_blocks(pore.interface("roll"), profiles, spec))  # θ over blocks, mean ± error
+print(panda.compare_shapes(pore, profiles.mean(), spec))  # all shapes of the pore ranked by fit loss
+water_map = panda.density_map(traj, pore, "resname WATER and name OW", shape="roll")  # roll axis at x = 0
 ```
+
+Any format MDAnalysis reads works: GROMACS (`.tpr`/`.gro` + `.xtc`/`.trr`), LAMMPS (`.data` + `.lammpstrj`) and
+others; see `docs/manual/guide/trajectories.md`.
 
 Plots (`pip install 'panda-md[plot]'`): `from panda_md.plotting import plot_fit, plot_density_map` — and the
 accuracy of the method on synthetic data is in `validation/REPORT.md`.

@@ -16,6 +16,26 @@ profiles = panda.density_profile(
 profiles.save("water.npz")
 ```
 
+## Input formats
+
+`load_trajectory(topology, *trajectory_files, **options)` passes `options` to `MDAnalysis.Universe`
+(e.g. `topology_format`, `format`, `atom_style`, `dt`).
+
+- GROMACS: `.tpr` or `.gro` as the topology, `.xtc`/`.trr` as the trajectory. A `.tpr` written by a GROMACS
+  version newer than the installed MDAnalysis reads cannot be opened; use the `.gro` of the run instead
+  (molecules are then the residues, and long residue names may be truncated, so select e.g. `resname GRAPH*`).
+- LAMMPS: a data file `.data` and a dump `.lammpstrj`. The dump is read as `LAMMPSDUMP`; a data file of
+  `atom_style atomic` opens without `atom_style`, other styles need it, e.g.
+  `load_trajectory("system.data", "run.lammpstrj", atom_style="id type q x y z")`. MDAnalysis takes LAMMPS
+  lengths as ångström, so in reduced units every length in nm is σ/10 (a gap of 31.8σ reads as 3.18) and a density
+  per nm³ is 1000 times the density in σ⁻³. The time of a frame is its step number unless `dt` (time per step) is
+  given.
+
+```python
+trajectory = panda.load_trajectory("system.data", "run.lammpstrj")
+pore = panda.SlitPore.from_trajectory(trajectory, walls="type 1", liquid="type 2")
+```
+
 ## Pore dimensions
 
 `SlitPore.from_trajectory` measures H as the empty gap between the wall atoms (across periodic boundaries; with

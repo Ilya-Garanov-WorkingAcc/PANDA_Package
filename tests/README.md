@@ -27,7 +27,7 @@ shape does not derive). Run time: about a minute.
 | real MD | `md/test_real_systems.py` | saved profiles and single frames of three MD systems (graphite / water + decane, benzene on SOLD, calcite) in `md/data/`: walls found as in the manual calculation, water θ ≈ 171°, wetting benzene flagged |
 | command line | `cli/test_cli.py` | `panda shapes / profile / fit / run` give the same answer as the API; exit codes 0 / 1 / 2; readable errors |
 | pre-release audit | `unit/test_audit_minors.py` and tests marked “Pre-release audit” | regressions of the issues found before 0.1.0 |
-| examples, layering, packaging | `test_examples.py`, `test_layers.py`, `test_package.py` | examples run; notebooks match their builders; the core imports no pores, trajectories or plotting; `import panda_md` loads neither MDAnalysis nor matplotlib |
+| examples, layering, packaging | `test_examples.py`, `unit/test_layers.py`, `test_package.py` | examples run; notebooks match their builders; the core imports no pores, trajectories or plotting; `import panda_md` loads neither MDAnalysis nor matplotlib |
 
 The reference data in `regression/data/` and `md/data/` were produced once from the reference implementations and
 from the MD trajectories (which are not part of the repository); the tests only read them.
