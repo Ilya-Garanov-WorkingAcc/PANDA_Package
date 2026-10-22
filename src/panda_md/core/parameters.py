@@ -1,4 +1,4 @@
-"""Описание параметров модели и разделение их на свободные и фиксированные."""
+"""Description of the model parameters and their split into free and fixed ones."""
 
 import math
 from collections.abc import Iterable, Mapping, Sequence
@@ -16,11 +16,11 @@ from panda_md.core.errors import (
 from panda_md.core.types import FloatArray, PandaModel
 
 ParameterValues = Mapping[str, float]
-"""Значения параметров по имени, во внутренних единицах (θ в радианах)."""
+"""Parameter values by name, in internal units (θ in radians)."""
 
 
 class Parameter(PandaModel):
-    """Один параметр модели: имя, значение по умолчанию, границы, единицы (всё — в единицах пользователя)."""
+    """One model parameter: name, default value, bounds, units (all in user units)."""
 
     name: str
     default: float | None
@@ -28,17 +28,19 @@ class Parameter(PandaModel):
     unit: Unit = Unit.DIMENSIONLESS
     symbol: str = ""
     description: str = ""
-    natural_lower_bound: bool = False  # нижняя граница физическая (δ = 0 — слоя нет): её достижение — не флаг
+    natural_lower_bound: bool = False  # the lower bound is physical (δ = 0 — no layer): reaching it is not flagged
 
     @model_validator(mode="after")
     def _check_bounds_and_default(self) -> "Parameter":
         lower, upper = self.bounds
         if not self.name:
-            raise ValueError("имя параметра пустое")
+            raise ValueError("parameter name is empty; give a non-empty name")
         if not lower < upper:
-            raise ValueError(f"{self.name}: нижняя граница {lower} не меньше верхней {upper}")
+            raise ValueError(f"lower bound {lower} of parameter '{self.name}' is not less than the upper bound {upper}")
         if self.default is not None and not lower <= self.default <= upper:
-            raise ValueError(f"{self.name}: значение по умолчанию {self.default} вне границ {self.bounds}")
+            raise ValueError(
+                f"default value {self.default} of parameter '{self.name}' is outside its bounds {self.bounds}"
+            )
         return self
 
     def to_internal(self, user_value: float) -> float:
@@ -54,7 +56,7 @@ CONTACT_ANGLE = Parameter(
     bounds=(0.0, 180.0),
     unit=Unit.DEGREE,
     symbol="θ",
-    description="контактный угол, измеренный через анализируемую жидкость",
+    description="contact angle measured through the analysed liquid",
 )
 WALL_LAYER_THICKNESS = Parameter(
     name=ParameterName.WALL_LAYER_THICKNESS.value,
@@ -63,7 +65,7 @@ WALL_LAYER_THICKNESS = Parameter(
     unit=Unit.PORE_SIZE,
     symbol="δ",
     natural_lower_bound=True,
-    description="толщина слоя у стенки, недоступного анализируемой жидкости",
+    description="thickness of the wall layer inaccessible to the analysed liquid",
 )
 VOLUME_FRACTION = Parameter(
     name=ParameterName.VOLUME_FRACTION.value,
@@ -71,7 +73,7 @@ VOLUME_FRACTION = Parameter(
     bounds=(0.0, 1.0),
     unit=Unit.DIMENSIONLESS,
     symbol="φ",
-    description="объёмная доля анализируемой жидкости в поре",
+    description="volume fraction of the analysed liquid in the pore",
 )
 PROFILE_SHIFT = Parameter(
     name=ParameterName.PROFILE_SHIFT.value,
@@ -79,12 +81,12 @@ PROFILE_SHIFT = Parameter(
     bounds=(-0.1, 0.1),
     unit=Unit.PORE_SIZE,
     symbol="s",
-    description="сдвиг модели вдоль координаты профиля (досцентрирование фитом)",
+    description="shift of the model along the profile coordinate (residual centering by the fit)",
 )
 
 
 class FreeSpec:
-    """Результат разбора: какие параметры свободны, их границы и старт, значения фиксированных."""
+    """Result of resolution: which parameters are free, their bounds and start, the values of the fixed ones."""
 
     parameters: dict[str, Parameter]
     free_names: tuple[str, ...]
@@ -110,11 +112,11 @@ class FreeSpec:
         self.initial_values = initial_values
 
     def pack(self, values: ParameterValues) -> FloatArray:
-        """Словарь (внутренние единицы) → вектор свободных параметров."""
+        """Dictionary (internal units) → vector of free parameters."""
         return np.array([values[name] for name in self.free_names], dtype=np.float64)
 
     def unpack(self, vector: FloatArray) -> dict[str, float]:
-        """Вектор свободных параметров → полный словарь значений (внутренние единицы)."""
+        """Vector of free parameters → full dictionary of values (internal units)."""
         free_values = {name: float(item) for name, item in zip(self.free_names, vector, strict=True)}
         return {name: free_values[name] if name in free_values else self.fixed_values[name] for name in self.parameters}
 
@@ -122,7 +124,7 @@ class FreeSpec:
         return {name: self.parameters[name].to_user(value) for name, value in values.items()}
 
     def with_free_bounds(self, name: str, lower: float, upper: float) -> "FreeSpec":
-        """Копия с другими внутренними границами одного свободного параметра (для режимов смачивания)."""
+        """Copy with different internal bounds of one free parameter (for the wetting regimes)."""
         index = self.free_names.index(name)
         lower_bounds = self.lower_bounds.copy()
         upper_bounds = self.upper_bounds.copy()
@@ -134,7 +136,7 @@ class FreeSpec:
 
 
 class ParameterSet:
-    """Все параметры одной модели; разбирает optimize / fixed / bounds / initial в FreeSpec."""
+    """All parameters of one model; resolves optimize / fixed / bounds / initial into a FreeSpec."""
 
     parameters: dict[str, Parameter]
 
@@ -142,7 +144,7 @@ class ParameterSet:
         self.parameters = {}
         for parameter in parameters:
             if parameter.name in self.parameters:
-                raise ValueError(f"параметр {parameter.name} объявлен дважды")
+                raise ValueError(f"parameter '{parameter.name}' is declared twice")
             self.parameters[parameter.name] = parameter
 
     @property
@@ -156,7 +158,9 @@ class ParameterSet:
     def require_known(self, names: Iterable[str]) -> None:
         unknown = [name for name in names if name not in self.parameters]
         if unknown:
-            raise UnknownParameterError(f"неизвестные параметры {unknown}; допустимые: {list(self.parameters)}")
+            raise UnknownParameterError(
+                f"unknown parameter(s): {', '.join(unknown)}; available: {', '.join(self.parameters)}"
+            )
 
     def resolve(
         self,
@@ -166,11 +170,13 @@ class ParameterSet:
         initial: Mapping[str, float],
         values_from_data: Mapping[str, float],
     ) -> FreeSpec:
-        """Правила спецификации §4: каждый параметр либо свободный, либо фиксированный со значением."""
+        """Rules of specification §4: every parameter is either free or fixed with a value."""
         self.require_known([*optimize, *fixed, *bounds, *initial])
         conflict = sorted(set(optimize) & set(fixed))
         if conflict:
-            raise ParameterConflictError(f"параметры {conflict} одновременно в optimize и fixed")
+            raise ParameterConflictError(
+                f"parameter(s) {', '.join(conflict)} both in optimize and fixed; keep each in one of them"
+            )
         free_names = tuple(name for name in self.parameters if name in optimize)
 
         fixed_values: dict[str, float] = {}
@@ -179,25 +185,30 @@ class ParameterSet:
                 continue
             if name in fixed:
                 user_value = fixed[name]
-                source = "задано в fixed"
+                source = "given in fixed"
             elif name in values_from_data:
                 user_value = parameter.to_user(values_from_data[name])
-                source = "оценено из данных — проверь ρ_bulk, единицы профиля и размер поры"
+                source = "estimated from the data — check ρ_bulk, the profile units and the pore size"
             elif parameter.default is not None:
                 user_value = parameter.default
-                source = "значение по умолчанию"
+                source = "default value"
             else:
-                raise MissingParameterValueError(f"задай значение {name} в fixed или освободи его в optimize")
+                raise MissingParameterValueError(
+                    f"parameter '{name}' has no value; set it in fixed or free it in optimize"
+                )
             lower, upper = parameter.bounds
             if not lower <= user_value <= upper:
                 raise InvalidBoundsError(
-                    f"{name} = {user_value:.4g} вне допустимых границ [{lower}, {upper}] ({source})"
+                    f"{name} = {user_value:.4g} is outside the feasible bounds [{lower}, {upper}] ({source})"
                 )
             fixed_values[name] = parameter.to_internal(user_value)
 
         bounds_not_free = sorted(set(bounds) - set(free_names))
         if bounds_not_free:
-            raise ParameterConflictError(f"границы заданы для несвободных параметров {bounds_not_free}")
+            raise ParameterConflictError(
+                f"bounds are given for parameter(s) that are not free: {', '.join(bounds_not_free)}; "
+                "add them to optimize or remove the bounds"
+            )
         lower_bounds: list[float] = []
         upper_bounds: list[float] = []
         user_bounds: dict[str, tuple[float, float]] = {}
@@ -207,21 +218,28 @@ class ParameterSet:
             if name in bounds:
                 requested_lower, requested_upper = bounds[name]
                 if not (math.isfinite(requested_lower) and math.isfinite(requested_upper)):
-                    raise InvalidBoundsError(f"{name}: границы {bounds[name]} должны быть конечными числами")
+                    raise InvalidBoundsError(f"bounds {bounds[name]} of '{name}' are not finite; give finite numbers")
                 lower, upper = max(lower, requested_lower), min(upper, requested_upper)
                 if not lower < upper:
-                    raise InvalidBoundsError(f"{name}: границы {bounds[name]} не пересекаются с {parameter.bounds}")
+                    raise InvalidBoundsError(
+                        f"bounds {bounds[name]} of '{name}' do not intersect the feasible bounds {parameter.bounds}"
+                    )
             user_bounds[name] = (lower, upper)
             lower_bounds.append(parameter.to_internal(lower))
             upper_bounds.append(parameter.to_internal(upper))
 
         not_free = sorted(set(initial) - set(free_names))
         if not_free:
-            raise ParameterConflictError(f"стартовые значения заданы для несвободных параметров {not_free}")
+            raise ParameterConflictError(
+                f"starting values are given for parameter(s) that are not free: {', '.join(not_free)}; "
+                "add them to optimize or remove the starting values"
+            )
         for name, value in initial.items():
             lower, upper = user_bounds[name]
             if not lower <= value <= upper:
-                raise InvalidBoundsError(f"{name}: стартовое значение {value} вне границ фита [{lower}, {upper}]")
+                raise InvalidBoundsError(
+                    f"starting value {value} of '{name}' is outside the fit bounds [{lower}, {upper}]"
+                )
         initial_values = {name: self.parameters[name].to_internal(value) for name, value in initial.items()}
         return FreeSpec(
             self.parameters,

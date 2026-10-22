@@ -1,10 +1,11 @@
-"""Осесимметричные формы щели (капля, пончик, перфорация) в ячейке с основанием L × kL.
+"""Axisymmetric slit shapes (droplet, doughnut, perforation) in a cell with base L × kL.
 
-Формулы таких форм записаны для квадратной ячейки (Semenchuk et al., 2025). Если форма не касается боковых
-границ ячейки, она «видит» только короткую сторону kL: ячейка L × kL эквивалентна квадратной ячейке kL × kL,
-в которой та же жидкость занимает другую долю объёма. Подкласс задаёт формулы квадратной ячейки и правило
-пересчёта φ; профиль, границы φ и центр масс в ячейке L × kL выводятся отсюда. При k = 1 пересчёт тождественный.
-Проверка — формулы Shistko et al. (2025) при θ = 180°, δ = 0 (tests/unit/test_slit_rectangular_cell.py).
+The formulas of these shapes are written for a square cell (Semenchuk et al., 2025). If the shape does not touch the
+lateral cell boundaries, it "sees" only the short side kL: an L × kL cell is equivalent to a square kL × kL cell in
+which the same liquid occupies a different volume fraction. A subclass provides the square-cell formulas and the rule
+for rescaling φ; the profile, φ bounds and centre of mass in the L × kL cell are derived here. At k = 1 the
+rescaling is the identity. Checked against the formulas of Shistko et al. (2025) at θ = 180°, δ = 0
+(tests/unit/test_slit_rectangular_cell.py).
 """
 
 from abc import abstractmethod
@@ -18,33 +19,33 @@ from panda_md.pores.slit.shape import SlitShape
 
 
 class AxisymmetricSlitShape(SlitShape):
-    """База осесимметричной формы щели: формулы квадратной ячейки + пересчёт на ячейку L × kL."""
+    """Base of an axisymmetric slit shape: square-cell formulas + rescaling to the L × kL cell."""
 
     @abstractmethod
     def square_profile(self, coordinate: FloatArray, square: SlitGeometry, values: ParameterValues) -> FloatArray:
-        """ρ/ρ_bulk в квадратной ячейке со стороной l (k = 1)."""
+        """ρ/ρ_bulk in a square cell with side l (k = 1)."""
 
     @abstractmethod
     def square_phi_limits(self, square: SlitGeometry, values: ParameterValues) -> tuple[float, float]:
-        """Интервал φ в квадратной ячейке."""
+        """φ interval in the square cell."""
 
     def square_center_of_mass(self, square: SlitGeometry, values: ParameterValues) -> float:
         return InterfaceShape.center_of_mass(self, square, values)
 
     def equivalent_volume_fraction(self, geometry: SlitGeometry, values: ParameterValues) -> float:
-        """φ в эквивалентной квадратной ячейке: объём жидкости сохраняется, площадь основания k l² → (k l)²."""
+        """φ in the equivalent square cell: the liquid volume is preserved, the base area k l² → (k l)²."""
         return values[ParameterName.VOLUME_FRACTION] / geometry.base_aspect_ratio
 
     def volume_fraction_from_equivalent(
         self, geometry: SlitGeometry, values: ParameterValues, equivalent: float
     ) -> float:
-        """Обратный пересчёт: φ в ячейке L × kL по φ эквивалентной квадратной ячейки."""
+        """Inverse rescaling: φ in the L × kL cell from φ of the equivalent square cell."""
         return equivalent * geometry.base_aspect_ratio
 
     def profile_from_equivalent(
         self, geometry: SlitGeometry, values: ParameterValues, coordinate: FloatArray, square_density: FloatArray
     ) -> FloatArray:
-        """ρ в ячейке L × kL: то же сечение жидкости, но основание в k раз меньше квадратного (kl)²/(k l²) = k."""
+        """ρ in the L × kL cell: the same liquid cross-section, base area ratio square / cell (kl)²/(k l²) = k."""
         return geometry.base_aspect_ratio * square_density
 
     def square_values(self, geometry: SlitGeometry, values: ParameterValues) -> dict[str, float]:

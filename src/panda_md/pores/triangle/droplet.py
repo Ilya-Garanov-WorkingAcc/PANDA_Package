@@ -1,8 +1,8 @@
-"""Капли (droplet) в треугольной поре. Формулы — PANDA_Polygon `docs/model/triangle.py` (коммит 38ff491).
+"""Droplets in a triangular pore. Formulas: PANDA_Polygon `docs/model/triangle.py` (commit 38ff491).
 
-Профиль плотности в источнике выведен только у droplet_w1c0; остальные капли — для диаграммы устойчивости.
-droplet_w2c1 не переносится: площадь S_LV в источнике расходится с геометрией на всём диапазоне θ
-(docs/architecture/05_polygon_pores.md §4).
+The source derives a density profile only for droplet_w1c0; the other droplets serve the stability diagram.
+droplet_w2c1 is not ported: the S_LV area in the source disagrees with the geometry over the whole θ range
+(Monte Carlo S_LV / R² = 2.66 / 3.29 / 4.67 at θ = 95° / 100° / 110°, the formula gives 1.56 / 1.07 / 0.20).
 """
 
 import math
@@ -24,11 +24,11 @@ from panda_md.pores.triangle.shape import (
 )
 
 DROPLET_PARAMETERS = (CONTACT_ANGLE, WALL_LAYER_THICKNESS, VOLUME_FRACTION)
-FIXED_VOLUME_TOLERANCE = 0.015  # droplet_w3c0: объём задан геометрией, φ допускается в пределах 1.5 % (источник)
+FIXED_VOLUME_TOLERANCE = 0.015  # droplet_w3c0: volume set by geometry, φ allowed within 1.5 % (source)
 
 
 def liquid_volume(geometry: TriangleGeometry, values: ParameterValues) -> float:
-    """V = φ · (√3/4) · l — объём жидкости в канале длины l."""
+    """V = φ · (√3/4) · l — liquid volume in a channel of length l."""
     return values[ParameterName.VOLUME_FRACTION] * TRIANGLE_SECTION_AREA * geometry.pore_length_ratio
 
 
@@ -38,7 +38,7 @@ def accessible_height_of(side: float) -> float:
 
 @TrianglePore.register
 class TriangleDropletOneWall(TriangleShape):
-    """droplet_w1c0: сферический сегмент на основании, боковых стенок не касается."""
+    """droplet_w1c0: a spherical cap on the base that does not touch the side walls."""
 
     name: ClassVar[str] = "droplet_w1c0"
     parameters: ClassVar[tuple[Parameter, ...]] = DROPLET_PARAMETERS
@@ -46,7 +46,7 @@ class TriangleDropletOneWall(TriangleShape):
 
     @staticmethod
     def volume_factor(contact_angle: float) -> float:
-        """π/3 (2 − 3 cos θ + cos³ θ): объём сегмента = R³ · (этот множитель)."""
+        """π/3 (2 − 3 cos θ + cos³ θ): cap volume = R³ · (this factor)."""
         cosine = math.cos(contact_angle)
         return math.pi / 3.0 * (2.0 - 3.0 * cosine + cosine**3)
 
@@ -58,7 +58,7 @@ class TriangleDropletOneWall(TriangleShape):
         return bottom - self.sphere_radius(geometry, values) * math.cos(values[ParameterName.CONTACT_ANGLE])
 
     def feasible(self, geometry: TriangleGeometry, values: ParameterValues) -> bool:
-        """Сфера короче канала, пятно на основании, сегмент не касается боковых стенок (cond_droplet_w1c0)."""
+        """Sphere shorter than the channel, patch on the base, cap not touching the side walls (cond_droplet_w1c0)."""
         contact_angle = values[ParameterName.CONTACT_ANGLE]
         side = self.side(values)
         if side <= 0.0 or contact_angle < math.pi / 2.0 or self.volume_factor(contact_angle) <= 0.0:
@@ -68,7 +68,7 @@ class TriangleDropletOneWall(TriangleShape):
         radius = self.sphere_radius(geometry, values)
         fits_length = 2.0 * radius <= geometry.pore_length_ratio
         fits_base = 2.0 * radius * math.sin(contact_angle) <= side
-        # расстояние до боковой стенки как квадратичная функция высоты над основанием: max < 0 — касания нет
+        # distance to the side wall as a quadratic function of height above the base: max < 0 — no contact
         quadratic = 4.0 / 3.0
         linear = side / SQRT3 - 2.0 * radius * math.cos(contact_angle)
         constant = -0.25 * side**2 + (radius * math.sin(contact_angle)) ** 2
@@ -95,7 +95,7 @@ class TriangleDropletOneWall(TriangleShape):
         )
 
     def profile(self, coordinate: FloatArray, geometry: TriangleGeometry, values: ParameterValues) -> FloatArray:
-        """ρ/ρ_bulk = π (R² − (z − z_c)²) / (l · ly) между основанием и верхушкой капли."""
+        """ρ/ρ_bulk = π (R² − (z − z_c)²) / (l · ly) between the base and the top of the droplet."""
         radius = self.sphere_radius(geometry, values)
         center = self.sphere_center(geometry, values)
         bottom = accessible_bottom(values[ParameterName.WALL_LAYER_THICKNESS])
@@ -106,7 +106,7 @@ class TriangleDropletOneWall(TriangleShape):
 
 @TrianglePore.register
 class TriangleDropletTwoWalls(TriangleShape):
-    """droplet_w2c0: капля в угле между двумя стенками без заполнения угла (θ > 2π/3)."""
+    """droplet_w2c0: a droplet in the corner between two walls without filling the corner (θ > 2π/3)."""
 
     name: ClassVar[str] = "droplet_w2c0"
     parameters: ClassVar[tuple[Parameter, ...]] = DROPLET_PARAMETERS
@@ -146,14 +146,14 @@ class TriangleDropletTwoWalls(TriangleShape):
 
 @TrianglePore.register
 class TriangleDropletThreeWalls(TriangleShape):
-    """droplet_w3c0: капля касается трёх стенок; её размер задан сечением, φ — с допуском 1.5 % (источник)."""
+    """droplet_w3c0: the droplet touches three walls; its size is set by the cross-section, φ within 1.5 % (source)."""
 
     name: ClassVar[str] = "droplet_w3c0"
     parameters: ClassVar[tuple[Parameter, ...]] = DROPLET_PARAMETERS
     regimes: ClassVar[dict[Regime, tuple[float, float]]] = {Regime.NON_WETTING: NON_WETTING_ABOVE_TWO_THIRDS_PI}
 
     def sphere_radius(self, values: ParameterValues) -> float:
-        """R = −a′ / (2√3 cos θ) — сфера, касающаяся трёх стенок под углом θ."""
+        """R = −a′ / (2√3 cos θ) — a sphere touching three walls at angle θ."""
         return -self.side(values) / (2.0 * SQRT3 * math.cos(values[ParameterName.CONTACT_ANGLE]))
 
     def droplet_volume(self, values: ParameterValues) -> float:

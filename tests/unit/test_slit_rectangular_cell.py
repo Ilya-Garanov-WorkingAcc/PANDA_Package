@@ -1,8 +1,8 @@
-"""Щель с основанием L × kL против независимых формул Shistko et al., Mol. Simul. (2025) при θ = 180°, δ = 0.
+"""Slit with an L × kL base against independent formulas of Shistko et al., Mol. Simul. (2025) at θ = 180°, δ = 0.
 
-Формулы статьи (уравнения (6)–(27)) записаны здесь заново, в лоб. Пределы φ перфорации в тексте статьи
-неоднозначны (уравнение (23)), поэтому они выведены здесь интегрированием объёма отверстия: при d = 1 отверстие
-закрывается (φ_max), при d = kl касается своего образа (φ_min).
+The formulas of the paper (equations (6)–(27)) are rewritten here from scratch, directly. The φ limits of the
+perforation in the paper text are ambiguous (equation (23)), so they are derived here by integrating the hole
+volume: at d = 1 the hole closes (φ_max), at d = kl it touches its own image (φ_min).
 """
 
 import math
@@ -31,7 +31,7 @@ def test_droplet_matches_rectcell(aspect_ratio: float, length_ratio: float) -> N
     assert droplet.phi_limits(theta=FULL_NON_WETTING, phi=0.01) == pytest.approx((0.0, upper), abs=TOLERANCE)
     phi = 0.5 * upper
     radius = (3 * phi * aspect_ratio * length_ratio**2 / (4 * math.pi)) ** (1 / 3)  # (6)
-    center = -0.5 + radius  # при θ = 180° сфера касается нижней стенки
+    center = -0.5 + radius  # at θ = 180° the sphere touches the lower wall
     expected = np.where(
         np.abs(COORDINATE - center) < radius,
         math.pi / (aspect_ratio * length_ratio**2) * (radius**2 - (COORDINATE - center) ** 2),  # (8)
@@ -99,8 +99,8 @@ def test_perforation_matches_rectcell(aspect_ratio: float, length_ratio: float) 
     perforation = pore(aspect_ratio, length_ratio).interface("perforation")
     side = aspect_ratio * length_ratio
     base = aspect_ratio * length_ratio**2
-    lower = 1 - math.pi / (4 * base) * (side**2 - math.pi * side / 2 + 2 / 3)  # отверстие касается образа
-    upper = 1 - math.pi / (4 * base) * (5 / 3 - math.pi / 2)  # отверстие закрывается
+    lower = 1 - math.pi / (4 * base) * (side**2 - math.pi * side / 2 + 2 / 3)  # the hole touches its image
+    upper = 1 - math.pi / (4 * base) * (5 / 3 - math.pi / 2)  # the hole closes
     if side < math.pi / 4:
         assert perforation.phi_limits(theta=FULL_NON_WETTING, phi=0.9) == pytest.approx((upper, upper), abs=TOLERANCE)
         assert not perforation.is_feasible(theta=FULL_NON_WETTING, phi=0.5 * (lower + upper))
@@ -124,7 +124,7 @@ def test_layer_matches_rectcell(aspect_ratio: float) -> None:
 
 @pytest.mark.parametrize("shape_name", ["droplet", "doughnut"])
 def test_axisymmetric_shape_in_rectangle_equals_square_of_short_side(shape_name: str) -> None:
-    """ρ(z; l, k, φ) = k · ρ(z; kl, 1, φ/k): ячейка L × kL эквивалентна квадратной kL × kL."""
+    """ρ(z; l, k, φ) = k · ρ(z; kl, 1, φ/k): an L × kL cell is equivalent to a square kL × kL one."""
     rectangle = SlitPore(width_nm=1.0, length_nm=5.0, base_aspect_ratio=0.4).interface(shape_name)
     square = SlitPore(width_nm=1.0, length_nm=2.0).interface(shape_name)
     values = {"theta": 140.0, "delta": 0.03}

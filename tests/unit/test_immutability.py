@@ -1,4 +1,4 @@
-"""Результат и настройки фита действительно неизменяемы и сравнимы — их можно хранить и класть в множества."""
+"""The fit result and settings are truly immutable and comparable — they can be stored and put into sets."""
 
 import pytest
 
@@ -52,7 +52,7 @@ def _profile(density: list[float]) -> DensityProfile:
 
 
 def test_models_with_arrays_compare_and_hash_by_value() -> None:
-    """Итоговый аудит: == и in падали (truth value of an array is ambiguous), hash — unhashable ndarray."""
+    """Pre-release audit: == and in failed (truth value of an array is ambiguous), hash — unhashable ndarray."""
     first, same, other = _profile([1.0, 2.0, 3.0]), _profile([1.0, 2.0, 3.0]), _profile([1.0, 2.0, 4.0])
     assert first == same and first != other
     assert first in [other, same]
@@ -74,5 +74,5 @@ def test_copies_keep_arrays_read_only() -> None:
 def test_model_copy_with_update_is_validated() -> None:
     from pydantic import ValidationError
 
-    with pytest.raises(ValidationError, match="отрицательна"):
+    with pytest.raises(ValidationError, match="density is negative"):
         _profile([1.0, 2.0, 3.0]).model_copy(update={"density_per_nm3": [-1.0, 5.0, 6.0]})

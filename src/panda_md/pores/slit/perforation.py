@@ -1,8 +1,8 @@
-"""Перфорация (perforation) в щели: слой жидкости между стенками с осесимметричным отверстием.
+"""Perforation in a slit: a liquid layer between the walls with an axisymmetric hole.
 
-Формулы: Semenchuk et al., Colloids Surf. A 708 (2025) 135994, уравнения (19)–(22), с поправкой на слой δ
-по старой PANDA (`interface/alpha.py`). Ячейка L × kL — через эквивалентную квадратную ячейку: сохраняется
-объём отверстия, а не жидкости (axisymmetric.py).
+Formulas: Semenchuk et al., Colloids Surf. A 708 (2025) 135994, equations (19)–(22), with the δ layer correction
+from the old PANDA (`interface/alpha.py`). The L × kL cell is handled via the equivalent square cell: the hole
+volume is preserved, not the liquid volume (axisymmetric.py).
 """
 
 import math
@@ -30,7 +30,7 @@ class SlitPerforation(AxisymmetricSlitShape):
     regimes: ClassVar[dict[Regime, tuple[float, float]]] = {Regime.NON_WETTING: (90.0, 180.0)}
 
     def equivalent_volume_fraction(self, geometry: SlitGeometry, values: ParameterValues) -> float:
-        """Объём отверстия ((1−2δ) − φ) k l² сохраняется в квадратной ячейке со стороной k l."""
+        """The hole volume ((1−2δ) − φ) k l² is preserved in the square cell with side k l."""
         width = self.accessible_width(values)
         return width - (width - values[ParameterName.VOLUME_FRACTION]) / geometry.base_aspect_ratio
 
@@ -43,12 +43,12 @@ class SlitPerforation(AxisymmetricSlitShape):
     def profile_from_equivalent(
         self, geometry: SlitGeometry, values: ParameterValues, coordinate: FloatArray, square_density: FloatArray
     ) -> FloatArray:
-        """Доля сечения, занятая отверстием, в k раз меньше квадратной: ρ = 1 − k (1 − ρ_кв) внутри щели."""
+        """The hole takes k times the square-cell cross-section fraction: ρ = 1 − k (1 − ρ_sq) inside the slit."""
         density = 1.0 - geometry.base_aspect_ratio * (1.0 - square_density)
         return np.where(self.inside_accessible(coordinate, values), density, 0.0)
 
     def _discriminant(self, square: SlitGeometry, values: ParameterValues) -> float:
-        """Подкоренное выражение уравнения (19); < 0 — отверстия с такой φ нет."""
+        """Radicand of equation (19); < 0 means there is no hole with such φ."""
         contact_angle = values[ParameterName.CONTACT_ANGLE]
         width = self.accessible_width(values)
         cos_angle = math.cos(contact_angle)
@@ -61,7 +61,7 @@ class SlitPerforation(AxisymmetricSlitShape):
         )
 
     def hole_diameter(self, square: SlitGeometry, values: ParameterValues) -> float:
-        """d_perf — диаметр отверстия у стенки, уравнение (19) с учётом δ (alpha.py)."""
+        """d_perf — hole diameter at the wall, equation (19) including δ (alpha.py)."""
         contact_angle = values[ParameterName.CONTACT_ANGLE]
         width = self.accessible_width(values)
         cos_angle = math.cos(contact_angle)
@@ -73,26 +73,26 @@ class SlitPerforation(AxisymmetricSlitShape):
         )
 
     def square_phi_limits(self, square: SlitGeometry, values: ParameterValues) -> tuple[float, float]:
-        """φ_min — отверстие касается своего образа; φ_max — отверстие закрывается.
-        Диаметр отверстия у стенки d(φ) = ¼√D(φ) + c, D линейно убывает с φ, поэтому d ≥ c. Если c > l, отверстие
-        не помещается в ячейку ни при какой φ — перфорации нет (интервал пуст). Иначе корень формулы φ_min настоящий.
-        Формула (21) получена возведением в квадрат и в узкой ячейке (c > l) даёт посторонний корень с отверстием
-        шире ячейки и ρ < 0 (итоговый аудит, O12).
+        """φ_min — the hole touches its periodic image; φ_max — the hole closes.
+        The hole diameter at the wall is d(φ) = ¼√D(φ) + c, D decreases linearly with φ, hence d ≥ c. If c > l,
+        the hole does not fit into the cell for any φ — there is no perforation (empty interval). Otherwise the
+        φ_min root is real. Formula (21) is obtained by squaring and in a narrow cell (c > l) gives a spurious root
+        with a hole wider than the cell and ρ < 0 (pre-release audit).
         """
         lower, upper = self._formula_phi_limits(square, values)
         if upper <= 0.0 or self._smallest_hole_diameter(values) > square.pore_length_ratio:
-            return max(upper, 0.0), max(upper, 0.0)  # пустой интервал: перфорации в такой ячейке нет
+            return max(upper, 0.0), max(upper, 0.0)  # empty interval: no perforation in such a cell
         return max(lower, 0.0), upper
 
     def _smallest_hole_diameter(self, values: ParameterValues) -> float:
-        """c — диаметр отверстия у стенки при D = 0: меньше он не бывает ни при какой φ (уравнение (19))."""
+        """c — hole diameter at the wall at D = 0: it is never smaller for any φ (equation (19))."""
         contact_angle = values[ParameterName.CONTACT_ANGLE]
         width = self.accessible_width(values)
         arc_term = math.pi - 2.0 * contact_angle
         return 0.5 * width * math.tan(contact_angle) - 0.25 * width * arc_term / math.cos(contact_angle) ** 2
 
     def _formula_phi_limits(self, square: SlitGeometry, values: ParameterValues) -> tuple[float, float]:
-        """Уравнение (21) с δ (alpha.py): φ_min — отверстие касается образа, φ_max — закрывается."""
+        """Equation (21) with δ (alpha.py): φ_min — the hole touches its image, φ_max — it closes."""
         contact_angle = values[ParameterName.CONTACT_ANGLE]
         width = self.accessible_width(values)
         length_ratio = square.pore_length_ratio
@@ -110,10 +110,10 @@ class SlitPerforation(AxisymmetricSlitShape):
         return lower, upper
 
     def square_center_of_mass(self, square: SlitGeometry, values: ParameterValues) -> float:
-        return 0.0  # перфорация симметрична относительно середины щели
+        return 0.0  # the perforation is symmetric about the middle of the slit
 
     def square_profile(self, coordinate: FloatArray, square: SlitGeometry, values: ParameterValues) -> FloatArray:
-        """ρ/ρ_bulk = 1 − π y² / l², y = (d − √((1−2δ)²/cos²θ − 4z²) − (1−2δ) tan θ) / 2 — уравнение (22) с δ."""
+        """ρ/ρ_bulk = 1 − π y² / l², y = (d − √((1−2δ)²/cos²θ − 4z²) − (1−2δ) tan θ) / 2 — equation (22) with δ."""
         contact_angle = values[ParameterName.CONTACT_ANGLE]
         width = self.accessible_width(values)
         meniscus = np.sqrt(np.maximum(width**2 / math.cos(contact_angle) ** 2 - 4.0 * coordinate**2, 0.0))

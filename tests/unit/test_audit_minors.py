@@ -1,4 +1,4 @@
-"""Мелкие находки итогового аудита перед 0.1.0: время, PBC, размеры щели по траектории, реестр пор, сводки."""
+"""Minor pre-release audit findings before 0.1.0: time, PBC, slit size from a trajectory, pore registry, summaries."""
 
 import math
 
@@ -20,7 +20,7 @@ def test_time_strings_that_people_write(text: str, picoseconds: float) -> None:
 
 @pytest.mark.parametrize("value", ["nan", "inf", "-1 ns", -5.0, True, math.nan])
 def test_time_must_be_a_finite_non_negative_number(value: object) -> None:
-    with pytest.raises(ValueError, match="время"):
+    with pytest.raises(ValueError, match="time"):
         to_picoseconds(value)  # type: ignore[arg-type]
 
 
@@ -31,7 +31,7 @@ def test_circular_mean_stays_inside_the_period(values: list[float]) -> None:
 
 
 def test_nearly_square_base_is_not_rejected_by_rounding() -> None:
-    """Анизотропный NPT: рёбра 5.0000010 и 5.0000005 нм — основание квадратное, а не «ось перепутана»."""
+    """Anisotropic NPT: edges 5.0000010 and 5.0000005 nm — the base is square, not "the axes are swapped"."""
     walls = np.array([[x, y, z] for x in (0.5, 2.5, 4.5) for y in (0.5, 2.5, 4.5) for z in (0.5, 1.0)])
     trajectory = ArrayTrajectory(
         positions_nm=walls[np.newaxis],
@@ -41,7 +41,7 @@ def test_nearly_square_base_is_not_rejected_by_rounding() -> None:
     )
     pore = SlitPore.from_trajectory(trajectory, walls="walls")
     assert pore.base_aspect_ratio == pytest.approx(1.0)
-    with pytest.raises(InvalidTrajectoryError, match="length_axis"):  # заметно длиннее — по-прежнему ошибка
+    with pytest.raises(InvalidTrajectoryError, match="length_axis"):  # noticeably longer — still an error
         SlitPore.from_trajectory(trajectory.model_copy(update={"boxes_nm": np.array([[5.0, 5.5, 6.0]])}), walls="walls")
 
 
@@ -49,7 +49,7 @@ def test_duplicate_pore_type_names_are_rejected(monkeypatch: pytest.MonkeyPatch)
     from panda_md.pores import registry
 
     class OtherSlit(SlitPore):
-        pass  # то же имя «slit»
+        pass  # the same name 'slit'
 
     monkeypatch.setattr(registry, "PORE_TYPES", (*registry.PORE_TYPES, OtherSlit))
     with pytest.raises(PandaError, match="slit"):
@@ -68,7 +68,7 @@ def test_fixed_parameters_have_exactly_zero_spread_in_block_summary() -> None:
 
 
 def test_angle_tolerance_does_not_accept_angles_beyond_180() -> None:
-    """Ревью исправлений: допуск 1e−9° у границ режима пропускал θ = 180 + 5e−10 (и падал дальше в площадях)."""
+    """Fix review: the 1e−9° tolerance at the regime bounds let θ = 180 + 5e−10 through (to fail later in the areas)."""
     from panda_md import TrianglePore
     from panda_md.core.errors import UnsupportedRegimeError
 
@@ -87,7 +87,7 @@ def test_hash_agrees_with_equality_for_negative_zero() -> None:
 
 
 def test_old_fit_result_json_does_not_claim_the_current_version() -> None:
-    """Ревью исправлений: JSON без версии при загрузке выглядел посчитанным текущей версией."""
+    """Fix review: a JSON without a version looked, once loaded, as if computed by the current version."""
     import json
 
     from panda_md import FitResult

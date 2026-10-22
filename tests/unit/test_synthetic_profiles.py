@@ -1,4 +1,4 @@
-"""Синтетический профиль: как МД — среднее по бину и пуассоновский шум."""
+"""Synthetic profile: like MD — bin average and Poisson noise."""
 
 import numpy as np
 import pytest
@@ -18,7 +18,7 @@ def volume_fraction(density: np.ndarray, coordinate_nm: np.ndarray) -> float:
 
 
 def test_bin_averaged_profile_keeps_the_volume_fraction_on_a_coarse_grid() -> None:
-    """Гистограмма МД — среднее по бину: ∫ρ = φ при любом числе бинов; значения в центрах бинов этого не дают."""
+    """An MD histogram is a bin average: ∫ρ = φ for any number of bins; values at the bin centres do not give this."""
     model = PORE.interface("droplet")
     centers = synthetic_profile(model, DROPLET, density_bulk_per_nm3=DENSITY_BULK, bin_count=50)
     averaged = synthetic_profile(
@@ -40,10 +40,10 @@ def test_poisson_noise_vanishes_where_there_is_no_liquid() -> None:
     empty = clean.density_per_nm3 == 0.0
     assert all(np.all(profile.density_per_nm3[empty] == 0.0) for profile in noisy)
     fractions = [volume_fraction(profile.density_per_nm3, profile.coordinate_nm) for profile in noisy]
-    assert float(np.mean(fractions)) == pytest.approx(0.05, rel=0.01)  # без обрезки — без смещения φ
+    assert float(np.mean(fractions)) == pytest.approx(0.05, rel=0.01)  # no clipping — no bias in φ
     constant = [
         synthetic_profile(model, DROPLET, density_bulk_per_nm3=DENSITY_BULK, noise_std=0.02, seed=seed)
         for seed in range(20)
     ]
     biased = float(np.mean([volume_fraction(profile.density_per_nm3, profile.coordinate_nm) for profile in constant]))
-    assert biased > 0.051  # постоянная σ с обрезкой в пустых бинах завышает φ
+    assert biased > 0.051  # a constant σ with clipping in empty bins overestimates φ

@@ -1,4 +1,4 @@
-"""Файл настроек `panda run`: пора, профиль (из траектории или готовый), фит. Пути — относительно файла настроек."""
+"""Settings file of `panda run`: pore, profile (from a trajectory or ready-made), fit. Paths are relative to it."""
 
 import sys
 from pathlib import Path
@@ -20,15 +20,15 @@ else:  # pragma: no cover — Python 3.10
 
 
 class ProfileConfig(PandaModel):
-    """Раздел [profile]: либо готовый профиль (input), либо траектория (topology, trajectory, select)."""
+    """Section [profile]: either a ready-made profile (input) or a trajectory (topology, trajectory, select)."""
 
-    input: Path | None = None  # .npz/.csv профиля или набора профилей по блокам
+    input: Path | None = None  # .npz/.csv of a profile or of a set of block profiles
     topology: Path | None = None
     trajectory: tuple[Path, ...] = ()
-    select: str | None = None  # выборка атомов жидкости (синтаксис MDAnalysis)
-    centering: ProfileCentering | None = None  # None — pore, если стенки известны, иначе liquid
-    pore_center_nm: float | None = None  # центр поры вдоль оси профиля; None — по атомам стенок
-    bins: int | None = Field(default=None, ge=1)  # None — 200 бинов, если не задана bin_width_nm
+    select: str | None = None  # selection of the liquid atoms (MDAnalysis syntax)
+    centering: ProfileCentering | None = None  # None — pore if the walls are known, otherwise liquid
+    pore_center_nm: float | None = None  # pore centre along the profile axis; None — from the wall atoms
+    bins: int | None = Field(default=None, ge=1)  # None — 200 bins unless bin_width_nm is set
     bin_width_nm: float | None = Field(default=None, gt=0.0)
     start: TimeValue = 0.0
     stop: TimeValue | None = None
@@ -36,26 +36,30 @@ class ProfileConfig(PandaModel):
     stride: int = Field(default=1, ge=1)
     per: ParticleGrouping = ParticleGrouping.ATOM
     orientation: Orientation = Orientation.AUTO
-    output: Path | None = None  # куда сохранить профили по блокам
-    pore_output: Path | None = None  # куда сохранить пору (JSON) — нужно, если размеры найдены по траектории
+    output: Path | None = None  # where to save the block profiles
+    pore_output: Path | None = (
+        None  # where to save the pore (JSON) — needed if the sizes are measured from the trajectory
+    )
 
     @model_validator(mode="after")
     def _one_source(self) -> "ProfileConfig":
         from_trajectory = self.topology is not None or bool(self.trajectory) or self.select is not None
         if self.input is not None and from_trajectory:
-            raise ValueError("input и topology/trajectory/select взаимоисключающие: профиль готов или строится")
+            raise ValueError(
+                "input and topology/trajectory/select are mutually exclusive; the profile is either ready or built"
+            )
         if self.input is None and (self.topology is None or not self.trajectory or self.select is None):
-            raise ValueError("задай input (готовый профиль) или topology, trajectory и select")
+            raise ValueError("no profile source; set input (a ready-made profile) or topology, trajectory and select")
         if self.bins is not None and self.bin_width_nm is not None:
-            raise ValueError("bins и bin_width_nm взаимоисключающие")
+            raise ValueError("bins and bin_width_nm are mutually exclusive; set only one")
         return self
 
 
 class FitConfig(FitSpec):
-    """Раздел [fit]: поля FitSpec и форма, выход, график."""
+    """Section [fit]: the FitSpec fields plus shape, output, plot."""
 
     shape: str = AUTO_SHAPE
-    blocks: bool = False  # ещё и фит каждого блока (нужен набор профилей по блокам)
+    blocks: bool = False  # also fit each block (needs a set of block profiles)
     output: Path | None = None
     plot: Path | None = None
 
@@ -64,12 +68,12 @@ class FitConfig(FitSpec):
 
 
 class RunConfig(PandaModel):
-    pore: dict[str, Any]  # type и поля поры, как в JSON поры
+    pore: dict[str, Any]  # type and fields of the pore, as in the pore JSON
     profile: ProfileConfig
-    fit: FitConfig | None = None  # нет раздела — только профиль
+    fit: FitConfig | None = None  # no section — profile only
 
     def resolved(self, base: Path) -> "RunConfig":
-        """Относительные пути — от каталога файла настроек."""
+        """Relative paths are taken from the directory of the settings file."""
 
         def resolve(path: Path) -> Path:
             return path if path.is_absolute() else base / path
@@ -96,9 +100,9 @@ class RunConfig(PandaModel):
 
 def load_config(path: Path) -> RunConfig:
     if not path.is_file():
-        raise CommandLineError(f"файл настроек {path} не найден")
+        raise CommandLineError(f"settings file not found: {path}")
     try:
         content = tomllib.loads(path.read_text(encoding="utf-8"))
     except tomllib.TOMLDecodeError as error:
-        raise CommandLineError(f"{path}: ошибка TOML: {error}") from None
+        raise CommandLineError(f"{path}: TOML error: {error}") from None
     return RunConfig.model_validate(content).resolved(path.parent)

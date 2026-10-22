@@ -1,14 +1,15 @@
-"""Осевое центрирование: ось симметрии формы в плоскости стенок и как найти её положение в кадре.
+"""Axial centering: the symmetry axis of a shape in the plane of the walls and how to find its position in a frame.
 
-Центрирование вдоль оси профиля (по поре или по жидкости) — `trajectory/density.py`. Здесь — вторая, независимая
-часть: сдвиг в плоскости стенок, чтобы ось формы стояла в начале координат. На одномерный профиль щели он не влияет,
-нужен для 2D-карт и облаков точек. Ось объявляется в классе формы (`InterfaceShape.symmetry_axis`).
+Centering along the profile axis (pore centering or liquid centering) — `trajectory/density.py`. This is the second,
+independent part: a shift in the plane of the walls so that the shape axis sits at the origin. It does not affect the
+one-dimensional slit profile; it is needed for 2D maps and point clouds. The axis is declared in the shape class
+(`InterfaceShape.symmetry_axis`).
 
-Положение ищется по гистограмме частиц в плоскости стенок (у горизонтальной оси — вдоль длинной стороны), периодически
-сглаженной гауссом шириной L / 16: берётся самый выраженный экстремум — максимум жидкости или минимум пустоты (тогда
-центр жидкости — на L/2 дальше) — и уточняется средним с весами вокруг него. Простое круговое среднее всех частиц
-теряет ось, когда жидкость почти заполняет ячейку (маленькое отверстие перфорации, широкий валик): вектор среднего
-тогда порядка шума выборки.
+The position is found from the particle histogram in the plane of the walls (for a horizontal axis — along the long
+side), periodically smoothed with a Gaussian of width L / 16: the most pronounced extremum is taken — a liquid maximum
+or a void minimum (then the liquid centre is L/2 further) — and refined by a weighted mean around it. A plain circular
+mean of all particles loses the axis when the liquid almost fills the cell (a small perforation hole, a wide roll): the
+mean vector is then of the order of the sampling noise.
 """
 
 import warnings
@@ -19,10 +20,10 @@ from panda_md.core.enums import AxisLocator, AxisOrientation
 from panda_md.core.errors import PandaWarning
 from panda_md.core.types import FloatArray, PandaModel
 
-LATERAL_BINS = 64  # бинов гистограммы вдоль стороны ячейки
-SMOOTHING_FRACTION = 1.0 / 16.0  # σ сглаживания в долях стороны ячейки
-REGION_LEVEL = 0.5  # граница области вокруг экстремума — половина его высоты (по ширине на полувысоте)
-WEAK_CONTRAST = 0.3  # перепад сглаженной гистограммы меньше 30 % среднего — форма почти однородна
+LATERAL_BINS = 64  # histogram bins along a side of the cell
+SMOOTHING_FRACTION = 1.0 / 16.0  # smoothing σ as a fraction of the cell side
+REGION_LEVEL = 0.5  # boundary of the region around the extremum — half its height (full width at half maximum)
+WEAK_CONTRAST = 0.3  # contrast of the smoothed histogram below 30 % of the mean — the shape is almost uniform
 
 
 class SymmetryAxis(PandaModel):
@@ -31,10 +32,10 @@ class SymmetryAxis(PandaModel):
 
 
 def _smooth_periodic(counts: FloatArray, sigma_bins: float) -> FloatArray:
-    """Периодическое сглаживание гауссом по каждой оси массива (свёртка через БПФ)."""
+    """Periodic Gaussian smoothing along each axis of the array (convolution via FFT)."""
     smoothed = counts.astype(np.float64)
     for axis_index, size in enumerate(smoothed.shape):
-        offsets = np.fft.fftfreq(size) * size  # 0, 1, …, −1 в бинах
+        offsets = np.fft.fftfreq(size) * size  # 0, 1, …, −1 in bins
         kernel = np.exp(-0.5 * (offsets / sigma_bins) ** 2)
         kernel /= kernel.sum()
         shape = [1] * smoothed.ndim
@@ -46,14 +47,14 @@ def _smooth_periodic(counts: FloatArray, sigma_bins: float) -> FloatArray:
 
 
 def _region_center(deviation: FloatArray, index: int, period: float) -> float | None:
-    """Центр вдоль одной оси: среднее с весами по связной области выше половины экстремума вокруг index.
-    Для симметричной формы область симметрична, и её середина — ось при любой ширине формы: и у узкой ямки
-    (маленькое отверстие), и у широкого плато (форма в полъячейки), где экстремум стоит в случайной точке, а окно
-    фиксированной ширины вокруг него ось не находило (итоговый аудит). None — область занимает всю ось (строка
-    не пересекает форму), центр по ней не определён.
+    """Centre along one axis: weighted mean over the connected region above half the extremum around index.
+    For a symmetric shape the region is symmetric, and its midpoint is the axis for any shape width: both for a
+    narrow dip (a small hole) and for a wide plateau (a shape of half a cell), where the extremum sits at a random
+    point and a fixed-width window around it did not find the axis (pre-release audit). None — the region covers the
+    whole axis (the row does not cross the shape), the centre along it is undefined.
     """
     size = deviation.size
-    level = REGION_LEVEL * float(deviation[index])  # область — выше половины экстремума: шум вдали в неё не входит
+    level = REGION_LEVEL * float(deviation[index])  # region above half the extremum: distant noise does not enter it
     left = 0
     while left < size - 1 and deviation[(index - left - 1) % size] > level:
         left += 1
@@ -70,11 +71,12 @@ def _region_center(deviation: FloatArray, index: int, period: float) -> float | 
 
 
 def structure_center(values: FloatArray, periods: FloatArray) -> tuple[FloatArray, float]:
-    """Центр жидкости (по каждой оси, в [0, L)) и перепад сглаженной гистограммы, делённый на среднее.
-    values — координаты частиц (n × d, d = 1 или 2), periods — стороны ячейки (d). Экстремум сглаженной
-    гистограммы — избыток (жидкость) или недостаток (пустота: перфорация, жидкость почти во всей ячейке); по каждой
-    оси центр — середина связной области отклонения вдоль строки через экстремум, а если строка целиком в области,
-    — середина области маргинального распределения по этой оси. Центр пустоты переводится в центр жидкости (+ L/2).
+    """Liquid centre (along each axis, in [0, L)) and the contrast of the smoothed histogram divided by the mean.
+    values — particle coordinates (n × d, d = 1 or 2), periods — cell sides (d). The extremum of the smoothed
+    histogram is an excess (liquid) or a deficit (void: perforation, liquid in almost the whole cell); along each
+    axis the centre is the midpoint of the connected deviation region along the row through the extremum, and if the
+    row lies entirely in the region — the midpoint of the region of the marginal distribution along this axis. A void
+    centre is converted to the liquid centre (+ L/2).
     """
     dimensions = values.shape[1]
     counts, _ = np.histogramdd(
@@ -101,23 +103,23 @@ def structure_center(values: FloatArray, periods: FloatArray) -> tuple[FloatArra
             found = _region_center(marginal, int(np.argmax(marginal)), period)
         center[axis_index] = found if found is not None else 0.0
     if not liquid_peak:
-        center = np.mod(center + 0.5 * periods, periods)  # центр пустоты → центр жидкости
+        center = np.mod(center + 0.5 * periods, periods)  # void centre → liquid centre
     return center, max(excess, deficit) / mean
 
 
 def axis_position(lateral_positions: FloatArray, lateral_periods: FloatArray, axis: SymmetryAxis) -> FloatArray:
-    """Положение оси в плоскости стенок: (по длинной стороне, по короткой стороне), в [0, L) по каждой.
+    """Axis position in the plane of the walls: (along the long side, along the short side), in [0, L) along each.
 
-    lateral_positions — координаты частиц (n × 2): вдоль длинной стороны ячейки и вдоль короткой. У горизонтальной
-    оси (вдоль короткой стороны) положение по короткой стороне не определено и возвращается как 0.
+    lateral_positions — particle coordinates (n × 2): along the long side of the cell and along the short one. For a
+    horizontal axis (along the short side) the position along the short side is undefined and is returned as 0.
     """
     if axis.orientation is AxisOrientation.HORIZONTAL:
         along, contrast = structure_center(lateral_positions[:, :1], lateral_periods[:1])
         _, across_contrast = structure_center(lateral_positions[:, 1:], lateral_periods[1:])
         if across_contrast > contrast:
             warnings.warn(
-                "форма неоднородна вдоль короткой стороны сильнее, чем вдоль длинной: похоже, ось лежит вдоль длинной "
-                "стороны — карта по длинной стороне её не покажет (профиль от этого не зависит)",
+                "shape is less uniform along the short side than along the long one: the axis seems to lie along the "
+                "long side, so a map along the long side will not show it (the profile does not depend on this)",
                 PandaWarning,
                 stacklevel=3,
             )
@@ -126,7 +128,9 @@ def axis_position(lateral_positions: FloatArray, lateral_periods: FloatArray, ax
         position, contrast = structure_center(lateral_positions, lateral_periods)
     if contrast < WEAK_CONTRAST:
         warnings.warn(
-            "форма почти однородна в плоскости стенок — положение оси определено плохо", PandaWarning, stacklevel=3
+            "shape is almost uniform in the plane of the walls: the axis position is poorly determined",
+            PandaWarning,
+            stacklevel=3,
         )
     if axis.locate is AxisLocator.VOID_CENTER:
         shift = 0.5 * lateral_periods

@@ -1,4 +1,4 @@
-"""Периодические граничные условия вдоль одной оси ящика: заворот, круговое среднее, наибольший пустой промежуток."""
+"""Periodic boundary conditions along one box axis: wrapping, circular mean, largest empty gap."""
 
 import math
 import warnings
@@ -8,42 +8,42 @@ import numpy as np
 from panda_md.core.errors import InvalidTrajectoryError, PandaWarning
 from panda_md.core.types import FloatArray, IndexArray
 
-LONG_MOLECULE_FRACTION = 0.45  # атом дальше 0.45 L от опорного — молекула, вероятно, длиннее L/2
+LONG_MOLECULE_FRACTION = 0.45  # atom farther than 0.45 L from the reference atom — molecule likely longer than L/2
 
 
 def wrap_centered(values: FloatArray, period: float | FloatArray) -> FloatArray:
-    """Завернуть координаты в [−L/2, L/2) — ближайший образ относительно нуля (L — число или по оси на столбец)."""
+    """Wrap coordinates into [−L/2, L/2) — the nearest image relative to zero (L is a number or one per column)."""
     wrapped: FloatArray = values - period * np.floor(values / period + 0.5)
     return wrapped
 
 
 def circular_mean(values: FloatArray, period: float) -> float:
-    """Центр облака точек на окружности длины L: среднее направление, результат в [0, L).
+    """Centre of a point cloud on a circle of length L: the mean direction, result in [0, L).
 
-    Так центр жидкости, пересекающей границу ящика, не попадает в середину пустоты (как в старой PANDA,
-    `utils.get_center_pbc`).
+    This way the centre of a liquid that crosses the box boundary does not land in the middle of the void (as in
+    the old PANDA, `utils.get_center_pbc`).
     """
     if values.size == 0:
-        raise InvalidTrajectoryError("центр по пустой выборке не определён")
+        raise InvalidTrajectoryError("centre of an empty selection is undefined; check the selection")
     angles = 2.0 * math.pi * values / period
     mean_angle = math.atan2(-float(np.mean(np.sin(angles))), -float(np.mean(np.cos(angles)))) + math.pi
     center = (period * mean_angle / (2.0 * math.pi)) % period
-    return center if center < period else 0.0  # −1e−17 % L даёт ровно L
+    return center if center < period else 0.0  # −1e−17 % L gives exactly L
 
 
 def largest_gap(values: FloatArray, period: float) -> tuple[float, float]:
-    """Наибольший промежуток без точек на окружности длины L: (начало, конец), конец > начала, конец < начало + L.
+    """Largest gap without points on a circle of length L: (start, end), end > start, end < start + L.
 
-    Стенки щели — атомы подложки: пора — самый широкий пустой промежуток между ними, в том числе через границу
-    ящика (одна подложка и её образ).
+    The slit walls are substrate atoms: the pore is the widest empty gap between them, including one across the
+    box boundary (one substrate and its image).
     """
     return empty_gaps(values, period)[0]
 
 
 def empty_gaps(values: FloatArray, period: float) -> list[tuple[float, float]]:
-    """Все промежутки между соседними точками на окружности длины L, от широкого к узкому: (начало, конец)."""
+    """All gaps between neighbouring points on a circle of length L, from widest to narrowest: (start, end)."""
     if values.size == 0:
-        raise InvalidTrajectoryError("в выборке стенок нет атомов")
+        raise InvalidTrajectoryError("wall selection contains no atoms; check the wall selection")
     ordered = np.sort(np.mod(values, period))
     widths = np.diff(np.append(ordered, ordered[0] + period))
     order = np.argsort(-widths, kind="stable")
@@ -53,29 +53,29 @@ def empty_gaps(values: FloatArray, period: float) -> list[tuple[float, float]]:
 def molecule_centers(
     positions: FloatArray, box: FloatArray, molecule_indices: IndexArray, masses: FloatArray
 ) -> FloatArray:
-    """Центры масс молекул (n_молекул × 3), в ящике. Атомы каждой молекулы сначала собираются к одному из её
-    атомов по ближайшему образу — молекула, разрезанная границей ящика, не «размазывается» на весь ящик.
-    Молекула длиннее половины ящика так не собирается — предупреждение.
+    """Centres of mass of the molecules (n_molecules × 3), inside the box. The atoms of each molecule are first
+    gathered to one of its atoms by the nearest image — a molecule cut by the box boundary is not 'smeared' over
+    the whole box. A molecule longer than half the box cannot be gathered this way — a warning.
 
-    molecule_indices — номер молекулы каждого атома (0 … n_молекул − 1, атомы одной молекулы — где угодно).
+    molecule_indices — the molecule index of each atom (0 … n_molecules − 1, atoms of one molecule anywhere).
     """
     count = int(np.max(molecule_indices)) + 1
     if np.any(np.bincount(molecule_indices, minlength=count) == 0):
-        raise InvalidTrajectoryError("номера молекул должны идти 0 … n − 1 без пропусков (см. renumber)")
+        raise InvalidTrajectoryError("molecule indices have gaps; they must run 0 … n − 1 without gaps (see renumber)")
     first_atom = np.full(count, -1, dtype=np.int64)
     first_atom[molecule_indices[::-1]] = np.arange(molecule_indices.size)[::-1]
     reference = positions[first_atom[molecule_indices]]
     offsets = wrap_centered(positions - reference, box)
     if np.any(np.abs(offsets) > LONG_MOLECULE_FRACTION * box):
         warnings.warn(
-            "молекула длиннее половины ящика: центр масс по ближайшему образу может быть неверным",
+            "molecule is longer than half the box: the centre of mass by the nearest image may be wrong",
             PandaWarning,
             stacklevel=2,
         )
     unwrapped = reference + offsets
     total_mass = np.bincount(molecule_indices, weights=masses, minlength=count)
     if np.any(total_mass <= 0.0):
-        raise InvalidTrajectoryError("у молекулы нулевая масса — проверь массы атомов")
+        raise InvalidTrajectoryError("molecule has zero mass; check the atom masses")
     centers = np.column_stack(
         [np.bincount(molecule_indices, weights=masses * unwrapped[:, axis], minlength=count) for axis in range(3)]
     )

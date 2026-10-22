@@ -1,4 +1,4 @@
-"""InterfaceModel — форма в конкретной поре; значения параметров в единицах пользователя."""
+"""InterfaceModel is a shape in a specific pore; parameter values are in user units."""
 
 import math
 
@@ -47,8 +47,8 @@ def test_roll_profile_matches_closed_form_at_pore_center() -> None:
     expected = (spot_width + accessible / abs(math.cos(theta)) + accessible * math.tan(theta)) / length_ratio
     profile = SLIT.interface("roll").profile(np.array([0.0, 0.49, 0.6]), theta=120.0, delta=delta, phi=phi)
     assert profile[0] == pytest.approx(expected, rel=1e-12)
-    assert profile[1] == 0.0  # внутри слоя δ у стенки
-    assert profile[2] == 0.0  # за стенкой
+    assert profile[1] == 0.0  # inside the wall layer δ
+    assert profile[2] == 0.0  # beyond the wall
 
 
 def test_feasibility_follows_volume_fraction_limits() -> None:
@@ -101,7 +101,7 @@ def test_square_droplet_energy_is_capillary_functional() -> None:
 
 
 def test_square_pore_rejects_layer_narrower_than_pore() -> None:
-    with pytest.raises(ValidationError, match="меньше стороны"):
+    with pytest.raises(ValidationError, match="smaller than the pore side"):
         SquarePore(side_nm=6.0, length_nm=12.0, layer_width_nm=5.0)
 
 

@@ -1,1 +1,1 @@
-"""Типы пор и их формы интерфейса. Каждая пора — отдельный подпакет."""
+"""Pore types and their interface shapes. Each pore is a separate subpackage."""

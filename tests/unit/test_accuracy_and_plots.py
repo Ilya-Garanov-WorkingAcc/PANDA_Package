@@ -1,4 +1,4 @@
-"""Исследование точности на синтетике и графики (matplotlib — необязательная зависимость)."""
+"""Accuracy study on synthetic data and plots (matplotlib is an optional dependency)."""
 
 import importlib
 import sys
@@ -35,7 +35,7 @@ def test_without_noise_the_angle_is_recovered() -> None:
         density_bulk_per_nm3=DENSITY_BULK,
         seeds=[0],
     )
-    assert abs(errors.errors_deg[0]) < 0.05  # среднее по бину против модели в центрах — малая систематика
+    assert abs(errors.errors_deg[0]) < 0.05  # bin mean against the model at the centres — a small bias
 
 
 def test_study_summarises_errors_per_condition() -> None:
@@ -43,13 +43,13 @@ def test_study_summarises_errors_per_condition() -> None:
         "0.5": (0.5, AccuracyCase(truth=ROLL_TRUTH, noise_std=0.005)),
         "2": (2.0, AccuracyCase(truth=ROLL_TRUTH, noise_std=0.02)),
     }
-    study = accuracy_study(PORE.interface("roll"), "шум, %", cases, density_bulk_per_nm3=DENSITY_BULK, seeds=range(3))
+    study = accuracy_study(PORE.interface("roll"), "noise, %", cases, density_bulk_per_nm3=DENSITY_BULK, seeds=range(3))
     assert study.errors_deg.shape == (2, 3)
-    assert study.mean_absolute()[1] > study.mean_absolute()[0]  # больше шума — больше ошибка
+    assert study.mean_absolute()[1] > study.mean_absolute()[0]  # more noise — larger error
     np.testing.assert_allclose(study.maximum_absolute(), np.max(np.abs(study.errors_deg), axis=1))
     table = study.table()
-    assert table.splitlines()[0].startswith("| шум, %") and "| 2 |" in table
-    with pytest.raises(ValidationError, match="подписи"):
+    assert table.splitlines()[0].startswith("| noise, %") and "| 2 |" in table
+    with pytest.raises(ValidationError, match="one label per value"):
         AccuracyStudy(
             shape_name="roll",
             varied="x",
@@ -61,7 +61,7 @@ def test_study_summarises_errors_per_condition() -> None:
 
 
 def test_noise_is_rescaled_with_the_bin_count() -> None:
-    """Та же траектория, разбитая мельче, — шум на бин растёт как √(бинов / 200)."""
+    """The same trajectory split into finer bins: the noise per bin grows as √(bins / 200)."""
     assert effective_noise_std(AccuracyCase(truth=ROLL_TRUTH, noise_std=0.01)) == pytest.approx(0.01)
     assert effective_noise_std(AccuracyCase(truth=ROLL_TRUTH, noise_std=0.01, bin_count=400)) == pytest.approx(
         0.01 * np.sqrt(2.0)
@@ -97,7 +97,7 @@ def test_figures_are_drawn_from_panda_objects(pyplot: object) -> None:
     )
     walls = SlitPore.from_trajectory(trajectory, walls="walls")
     assert (
-        "ось формы"
+        "shape axis"
         in plot_density_map(density_map(trajectory, walls, "liquid", shape="roll", bins=(20, 20))).get_xlabel()
     )
 
@@ -113,8 +113,8 @@ def test_figures_are_drawn_from_panda_objects(pyplot: object) -> None:
     assert plot_stability(diagram).get_title().startswith("slit")
 
     cases = {"0.5": (0.5, AccuracyCase(truth=ROLL_TRUTH, noise_std=0.005))}
-    study = accuracy_study(roll, "шум, %", cases, density_bulk_per_nm3=DENSITY_BULK, seeds=range(2))
-    assert plot_accuracy(study).get_xlabel() == "шум, %"
+    study = accuracy_study(roll, "noise, %", cases, density_bulk_per_nm3=DENSITY_BULK, seeds=range(2))
+    assert plot_accuracy(study).get_xlabel() == "noise, %"
 
 
 def test_plotting_without_matplotlib_is_a_clear_error(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -137,8 +137,8 @@ def test_fits_at_the_angle_bound_are_counted() -> None:
     cases = {"175": (175.0, AccuracyCase(truth={**ROLL_TRUTH, "theta": 175.0}, noise_std=0.01))}
     study = accuracy_study(PORE.interface("roll"), "θ, °", cases, density_bulk_per_nm3=DENSITY_BULK, seeds=range(10))
     assert len(study.at_bound_counts) == 1 and 0 < study.at_bound_counts[0] <= 10
-    assert "у границы θ" in study.table().splitlines()[0]
-    with pytest.raises(ValueError, match="зерно"):
+    assert "at θ bound" in study.table().splitlines()[0]
+    with pytest.raises(ValueError, match="no noise seeds"):
         accuracy_study(PORE.interface("roll"), "θ, °", cases, density_bulk_per_nm3=DENSITY_BULK, seeds=[])
 
 
@@ -156,7 +156,7 @@ def test_density_map_figure_keeps_orientation_and_stability_colors(pyplot: objec
         frame="pore",
         axis_centered=True,
         frame_count=1,
-        selection="тест",
+        selection="test",
     )
     mesh = plot_density_map(density).collections[0]
     np.testing.assert_allclose(np.asarray(mesh.get_array()).reshape(3, 5), density.density_per_nm3.T)
@@ -165,7 +165,7 @@ def test_density_map_figure_keeps_orientation_and_stability_colors(pyplot: objec
         PORE, contact_angle_deg=150.0, wall_layer=0.0, volume_fractions=(0.001, 0.4, 0.97), length_ratios=(1.0, 2.0)
     )
     axes = plot_stability(diagram)
-    axes.figure.canvas.draw()  # цвета клеток вычисляются при отрисовке
+    axes.figure.canvas.draw()  # cell colours are computed on drawing
     colors = np.asarray(axes.collections[0].get_facecolor(), dtype=float)
     handles, labels = axes.get_legend_handles_labels()
     label_colors = {}
@@ -179,7 +179,7 @@ def test_density_map_figure_keeps_orientation_and_stability_colors(pyplot: objec
 
 
 def test_save_fit_figure_writes_a_file_without_pyplot_state(tmp_path: Path) -> None:
-    """Итоговый аудит: CLI сам импортировал matplotlib; сохранение графика — в panda_md.plotting."""
+    """Pre-release audit: the CLI imported matplotlib itself; saving a figure belongs in panda_md.plotting."""
     import matplotlib.pyplot as plt
 
     from panda_md.plotting import save_fit_figure
@@ -189,7 +189,7 @@ def test_save_fit_figure_writes_a_file_without_pyplot_state(tmp_path: Path) -> N
     before = plt.get_fignums()
     save_fit_figure(model.fit(profile, density_bulk_per_nm3=30.0), tmp_path / "fit.svg")
     assert (tmp_path / "fit.svg").read_text().startswith("<?xml")
-    assert plt.get_fignums() == before  # открытых фигур pyplot не прибавилось
+    assert plt.get_fignums() == before  # no new open pyplot figures
 
 
 def test_only_plotting_imports_matplotlib() -> None:
@@ -205,7 +205,7 @@ def test_only_plotting_imports_matplotlib() -> None:
 
 
 def test_plot_labels_for_flipped_map_and_single_block() -> None:
-    """Итоговый аудит: отражённая карта не отмечалась; при одном блоке легенда «± nan»."""
+    """Pre-release audit: a mirrored map was not marked; with a single block the legend showed "± nan"."""
     import matplotlib.pyplot as plt
 
     from panda_md.plotting import plot_blocks, plot_density_map
@@ -215,7 +215,7 @@ def test_plot_labels_for_flipped_map_and_single_block() -> None:
         length_edges_nm=[0.0, 1.0, 2.0], height_edges_nm=[-1.0, 0.0, 1.0], density_per_nm3=[[1.0, 2.0], [3.0, 4.0]],
         frame="pore", axis_centered=False, flipped=True, frame_count=1, selection="liquid",
     )  # fmt: skip
-    assert "отражена" in plot_density_map(density).get_ylabel()
+    assert "mirrored" in plot_density_map(density).get_ylabel()
     model = SlitPore(width_nm=8.0, length_nm=16.0).interface("roll")
     profile = synthetic_profile(model, {"theta": 120.0, "delta": 0.03, "phi": 0.4}, density_bulk_per_nm3=30.0)
     from panda_md.core.profile import ProfileSet
@@ -229,4 +229,26 @@ def test_plot_labels_for_flipped_map_and_single_block() -> None:
     blocks = fit_blocks(model, one_block, FitSpec(density_bulk_per_nm3=30.0))
     labels = plot_blocks(blocks).get_legend_handles_labels()[1]
     assert not any("nan" in label for label in labels)
+    plt.close("all")
+
+
+def test_plot_profile_shows_blocks_with_their_error() -> None:
+    import matplotlib.pyplot as plt
+
+    from panda_md.core.profile import ProfileSet
+    from panda_md.plotting import plot_profile
+
+    model = SlitPore(width_nm=8.0, length_nm=16.0).interface("roll")
+    profile = synthetic_profile(model, {"theta": 120.0, "delta": 0.03, "phi": 0.4}, density_bulk_per_nm3=30.0)
+    axes = plot_profile(profile)
+    assert len(axes.lines) == 1 and "nm" in axes.get_xlabel()
+    two_blocks = ProfileSet(
+        bin_edges_nm=np.linspace(-4.0, 4.0, profile.coordinate_nm.size + 1),
+        block_densities_per_nm3=np.vstack([profile.density_per_nm3, 1.1 * profile.density_per_nm3]),
+        block_start_ps=[0.0, 1000.0], block_stop_ps=[1000.0, 2000.0], block_frame_counts=(10, 10),
+        block_particle_counts=[1.0, 1.0], frame="pore", centering="pore", selection="liquid", pore_volume_nm3=2048.0,
+    )  # fmt: skip
+    axes = plot_profile(two_blocks)
+    assert axes.containers  # error bars: the standard error over blocks
+    assert "2 blocks" in axes.get_legend_handles_labels()[1][0]
     plt.close("all")

@@ -1,7 +1,8 @@
-"""Пончик (doughnut) в щели: перемычка между стенками, осесимметричная вокруг вертикальной оси.
+"""Doughnut in a slit: a bridge between the walls, axisymmetric about the vertical axis.
 
-Формулы: Semenchuk et al., Colloids Surf. A 708 (2025) 135994, уравнения (6)–(9), с поправкой на слой δ
-по старой PANDA (`interface/alpha.py`). Ячейка L × kL — через эквивалентную квадратную ячейку (axisymmetric.py).
+Formulas: Semenchuk et al., Colloids Surf. A 708 (2025) 135994, equations (6)–(9), with the δ layer correction
+from the old PANDA (`interface/alpha.py`). The L × kL cell is handled via the equivalent square cell
+(axisymmetric.py).
 """
 
 import math
@@ -29,7 +30,7 @@ class SlitDoughnut(AxisymmetricSlitShape):
     regimes: ClassVar[dict[Regime, tuple[float, float]]] = {Regime.NON_WETTING: (90.0, 180.0)}
 
     def contact_spot_diameter(self, square: SlitGeometry, values: ParameterValues) -> float:
-        """d_dou — диаметр пятна контакта, уравнение (6) с учётом δ (alpha.py)."""
+        """d_dou — contact patch diameter, equation (6) including δ (alpha.py)."""
         contact_angle = values[ParameterName.CONTACT_ANGLE]
         width = self.accessible_width(values)
         length_ratio = square.pore_length_ratio
@@ -47,7 +48,7 @@ class SlitDoughnut(AxisymmetricSlitShape):
         )
 
     def square_phi_limits(self, square: SlitGeometry, values: ParameterValues) -> tuple[float, float]:
-        """φ_min — пятно контакта исчезает; φ_max — пончик касается своего образа (уравнение (8) с δ, alpha.py)."""
+        """φ_min — contact patch vanishes; φ_max — the doughnut touches its image (equation (8) with δ, alpha.py)."""
         contact_angle = values[ParameterName.CONTACT_ANGLE]
         width = self.accessible_width(values)
         length_ratio = square.pore_length_ratio
@@ -77,10 +78,10 @@ class SlitDoughnut(AxisymmetricSlitShape):
         return lower, upper
 
     def square_center_of_mass(self, square: SlitGeometry, values: ParameterValues) -> float:
-        return 0.0  # пончик симметричен относительно середины щели
+        return 0.0  # the doughnut is symmetric about the middle of the slit
 
     def square_profile(self, coordinate: FloatArray, square: SlitGeometry, values: ParameterValues) -> FloatArray:
-        """ρ/ρ_bulk = π y² / l², y = (d + √((1−2δ)²/cos²θ − 4z²) + (1−2δ) tan θ) / 2 — уравнение (9) с δ."""
+        """ρ/ρ_bulk = π y² / l², y = (d + √((1−2δ)²/cos²θ − 4z²) + (1−2δ) tan θ) / 2 — equation (9) with δ."""
         contact_angle = values[ParameterName.CONTACT_ANGLE]
         width = self.accessible_width(values)
         meniscus = np.sqrt(np.maximum(width**2 / math.cos(contact_angle) ** 2 - 4.0 * coordinate**2, 0.0))

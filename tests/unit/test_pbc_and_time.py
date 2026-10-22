@@ -1,4 +1,4 @@
-"""Периодические границы вдоль оси ящика и время в пользовательских единицах."""
+"""Periodic boundaries along a box axis and time in user units."""
 
 import numpy as np
 import pytest
@@ -16,17 +16,19 @@ def test_wrap_centered_maps_to_nearest_image_around_zero() -> None:
 
 
 def test_circular_mean_of_cloud_across_boundary_is_not_box_middle() -> None:
-    cloud = np.array([9.0, 9.5, 0.5, 1.0])  # облако вокруг 0 ≡ 10, а не вокруг 5
+    cloud = np.array([9.0, 9.5, 0.5, 1.0])  # a cloud around 0 ≡ 10, not around 5
     center = circular_mean(cloud, PERIOD)
     assert min(center, PERIOD - center) == pytest.approx(0.0, abs=1e-12)
     assert circular_mean(np.array([2.0, 3.0, 4.0]), PERIOD) == pytest.approx(3.0)
 
 
 def test_largest_gap_finds_pore_through_box_boundary() -> None:
-    walls = np.array([0.2, 1.0, 2.0, 2.9])  # подложка внизу, её образ сверху: пора от 2.9 до 10.2
+    walls = np.array(
+        [0.2, 1.0, 2.0, 2.9]
+    )  # substrate at the bottom, its image at the top: the pore runs from 2.9 to 10.2
     start, end = largest_gap(walls, PERIOD)
     assert (start, end) == pytest.approx((2.9, 10.2))
-    inner = np.array([1.0, 1.5, 8.0, 8.5])  # две стенки внутри ящика: пора от 1.5 до 8.0
+    inner = np.array([1.0, 1.5, 8.0, 8.5])  # two walls inside the box: the pore runs from 1.5 to 8.0
     assert largest_gap(inner, PERIOD) == pytest.approx((1.5, 8.0))
 
 
@@ -55,7 +57,7 @@ def test_time_values_are_converted_to_picoseconds(value: float | str, picosecond
 
 @pytest.mark.parametrize("value", ["two ns", "2 hours", ""])
 def test_unparsable_time_is_an_error(value: str) -> None:
-    with pytest.raises(ValueError, match=r"время|единица"):
+    with pytest.raises(ValueError, match=r"time"):
         to_picoseconds(value)
 
 

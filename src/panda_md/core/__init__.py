@@ -1,1 +1,1 @@
-"""Ядро PANDA: параметры, контракт формы и поры, профиль, общий фит. Не знает ни одной конкретной поры."""
+"""PANDA core: parameters, shape and pore contract, profile, generic fit. Knows nothing about any specific pore."""

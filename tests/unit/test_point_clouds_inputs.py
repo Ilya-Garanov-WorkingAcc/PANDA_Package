@@ -1,4 +1,4 @@
-"""Проверка входа синтетической траектории."""
+"""Input checks of the synthetic trajectory."""
 
 import pytest
 

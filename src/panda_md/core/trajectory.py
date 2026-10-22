@@ -1,7 +1,7 @@
-"""Траектория как последовательность кадров: интерфейс, общий для файлов МД и массивов numpy.
+"""Trajectory as a sequence of frames: an interface shared by MD files and numpy arrays.
 
-Реализации — `panda_md.trajectory` (`ArrayTrajectory`, `MDATrajectory`). Ядро и поры знают только этот интерфейс,
-поэтому MDAnalysis нужен лишь для чтения файлов. Все длины — нм, время — пс, ящик прямоугольный.
+Implementations — `panda_md.trajectory` (`ArrayTrajectory`, `MDATrajectory`). The core and the pores know only this
+interface, so MDAnalysis is needed only for reading files. All lengths are in nm, time in ps, the box is rectangular.
 """
 
 from abc import ABC, abstractmethod
@@ -15,36 +15,36 @@ from panda_md.core.timing import TimeValue, to_picoseconds
 from panda_md.core.types import Array1D, Array2D, FloatArray, IndexArray, PandaModel
 
 BOX_DIMENSIONS = 3
-TIME_TOLERANCE_PS = 1e-6  # кадр на границе интервала времени включается
+TIME_TOLERANCE_PS = 1e-6  # a frame on the boundary of the time interval is included
 
 
 class TrajectoryFrame(PandaModel):
-    """Один кадр: время, ящик и позиции запрошенных групп атомов (в порядке запроса)."""
+    """One frame: time, box and positions of the requested atom groups (in the order of the request)."""
 
-    index: int = Field(ge=0)  # номер кадра в траектории
+    index: int = Field(ge=0)  # frame index in the trajectory
     time_ps: float
-    box_nm: Array1D  # длины рёбер прямоугольного ящика
-    positions_nm: tuple[Array2D, ...]  # по одному массиву (n, 3) на группу
+    box_nm: Array1D  # edge lengths of the rectangular box
+    positions_nm: tuple[Array2D, ...]  # one (n, 3) array per group
 
 
 class Trajectory(ABC):
-    """Источник кадров. Выборка атомов — строка (язык выборки бэкенда) или явные индексы."""
+    """Source of frames. An atom selection is a string (the backend's selection language) or explicit indices."""
 
     @abstractmethod
     def select(self, selection: str | Sequence[int]) -> IndexArray:
-        """Индексы атомов выборки. Пустая выборка — InvalidTrajectoryError."""
+        """Atom indices of the selection. An empty selection — InvalidTrajectoryError."""
 
     @abstractmethod
     def molecules(self, indices: IndexArray) -> tuple[IndexArray, FloatArray]:
-        """Для атомов выборки: номер молекулы (0 … n − 1 в порядке первого появления) и масса атома."""
+        """For the selected atoms: molecule index (0 … n − 1 in order of first appearance) and atom mass."""
 
     @abstractmethod
     def times_ps(self) -> FloatArray:
-        """Время каждого кадра, пс."""
+        """Time of each frame, ps."""
 
     @abstractmethod
     def _read(self, frame_indices: Sequence[int], groups: Sequence[IndexArray]) -> Iterator[TrajectoryFrame]:
-        """Прочитать кадры по номерам (по возрастанию), отдать позиции групп."""
+        """Read frames by index (in ascending order), yield the positions of the groups."""
 
     def frames(
         self,
@@ -54,40 +54,43 @@ class Trajectory(ABC):
         stop: TimeValue | None = None,
         stride: int = 1,
     ) -> Iterator[TrajectoryFrame]:
-        """Кадры с start ≤ t ≤ stop, каждый stride-й; потоково, без загрузки всей траектории в память."""
+        """Frames with start ≤ t ≤ stop, every stride-th; streamed, without loading the whole trajectory into memory."""
         indices = self.frame_indices(start=start, stop=stop, stride=stride)
         return self._read(indices, groups)
 
     def frame_indices(self, *, start: TimeValue = 0.0, stop: TimeValue | None = None, stride: int = 1) -> list[int]:
         if stride < 1:
-            raise ValueError(f"stride = {stride}: шаг по кадрам должен быть ≥ 1")
+            raise ValueError(f"frame stride must be ≥ 1: stride = {stride}")
         times = self.times_ps()
         if np.any(np.diff(times) <= 0.0):
             raise InvalidTrajectoryError(
-                "время кадров не возрастает — склеенные траектории перекрываются; удали перекрытие "
-                "(например, gmx trjcat -settime)"
+                "frame times do not increase — concatenated trajectories overlap; remove the overlap "
+                "(for example, gmx trjcat -settime)"
             )
         lower = to_picoseconds(start)
         upper = float(times[-1]) if stop is None else to_picoseconds(stop)
         inside = np.flatnonzero((times >= lower - TIME_TOLERANCE_PS) & (times <= upper + TIME_TOLERANCE_PS))
         if inside.size == 0:
             raise InvalidTrajectoryError(
-                f"в интервале [{lower:g}, {upper:g}] пс нет кадров; траектория — [{times[0]:g}, {times[-1]:g}] пс"
+                f"no frames in the interval [{lower:g}, {upper:g}] ps; "
+                f"the trajectory spans [{times[0]:g}, {times[-1]:g}] ps"
             )
         return [int(index) for index in inside[::stride]]
 
     def frame_at(self, time: TimeValue, groups: Sequence[IndexArray]) -> TrajectoryFrame:
-        """Первый кадр с t ≥ time."""
+        """First frame with t ≥ time."""
         return next(self._read(self.frame_indices(start=time)[:1], groups))
 
 
 def check_box(box_nm: FloatArray) -> None:
     if box_nm.shape != (BOX_DIMENSIONS,) or np.any(box_nm <= 0.0):
-        raise InvalidTrajectoryError(f"ящик {box_nm.tolist()}: нужны три положительные длины прямоугольного ящика")
+        raise InvalidTrajectoryError(
+            f"invalid box {box_nm.tolist()}: three positive edge lengths of a rectangular box are required"
+        )
 
 
 def renumber(labels: IndexArray) -> IndexArray:
-    """Метки молекул → 0 … n − 1 в порядке первого появления."""
+    """Molecule labels → 0 … n − 1 in order of first appearance."""
     _, first, inverse = np.unique(labels, return_index=True, return_inverse=True)
     order = np.argsort(np.argsort(first))
     renumbered: IndexArray = order[inverse].astype(np.int64)

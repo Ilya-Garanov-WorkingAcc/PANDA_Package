@@ -1,4 +1,4 @@
-"""Форма, подставленная в конкретную пору, — объект, который фитируют."""
+"""A shape placed into a concrete pore — the object that is fitted."""
 
 import math
 from collections.abc import Mapping, Sequence
@@ -25,10 +25,10 @@ if TYPE_CHECKING:
 
 
 class InterfaceModel:
-    """Связка «пора + форма». Значения параметров на входе методов — в единицах пользователя."""
+    """A 'pore + shape' pair. Parameter values passed to the methods are in user units."""
 
     pore: "Pore"
-    # Any: форма параметризована геометрией своей поры; согласованность гарантирует реестр поры.
+    # Any: the shape is parameterized by the geometry of its pore; consistency is guaranteed by the pore registry.
     shape: InterfaceShape[Any]
     parameters: ParameterSet
 
@@ -45,7 +45,7 @@ class InterfaceModel:
         return tuple(name for name in self.shape.default_optimize if name in self.parameters.names)
 
     def internal_values(self, user_values: Mapping[str, float]) -> dict[str, float]:
-        """Значения всех параметров во внутренних единицах; пропущенные — по умолчанию."""
+        """Values of all parameters in internal units; missing ones take their defaults."""
         self.parameters.require_known(user_values)
         resolved: dict[str, float] = {}
         for name in self.parameters.names:
@@ -55,13 +55,14 @@ class InterfaceModel:
             elif parameter.default is not None:
                 resolved[name] = parameter.to_internal(parameter.default)
             else:
-                raise MissingParameterValueError(f"задай значение параметра {name}")
+                raise MissingParameterValueError(f"parameter '{name}' has no value; set its value")
         return resolved
 
     def supported_values(self, user_values: Mapping[str, float]) -> dict[str, float]:
-        """Внутренние значения, если для угла θ у формы выведены формулы; иначе UnsupportedRegimeError.
+        """Internal values if the shape has formulas derived for the angle θ; otherwise UnsupportedRegimeError.
 
-        Формулы вне объявленного режима не вызываются: они либо неверны (θ < 90° у форм щели, O1), либо делят на 0.
+        Formulas outside the declared regime are not called: they are either wrong (θ < 90° for slit shapes) or
+        divide by 0.
         """
         values = self.internal_values(user_values)
         if ParameterName.CONTACT_ANGLE in values:
@@ -69,19 +70,19 @@ class InterfaceModel:
         return values
 
     def _feasible_values(self, user_values: Mapping[str, float]) -> dict[str, float]:
-        """Значения для формул площадей: вне области существования формулы дают нефизичные числа."""
+        """Values for the area formulas: outside the existence domain the formulas give unphysical numbers."""
         values = self.supported_values(user_values)
         if not self.shape.feasible(self.pore.geometry(), values):
-            raise InfeasibleParametersError(f"форма {self.shape.name} не существует при {dict(user_values)}")
+            raise InfeasibleParametersError(f"shape '{self.shape.name}' does not exist at {dict(user_values)}")
         return values
 
     def profile(self, coordinate: ArrayLike, **user_values: float) -> FloatArray:
-        """Модельный ρ/ρ_bulk в системе отсчёта формулы формы."""
+        """Model ρ/ρ_bulk in the frame of reference of the shape formula."""
         values = self.supported_values(user_values)
         return self.shape.profile(np.asarray(coordinate, dtype=np.float64), self.pore.geometry(), values)
 
     def is_feasible(self, **user_values: float) -> bool:
-        """Существует ли форма; вне объявленных режимов смачивания — нет."""
+        """Whether the shape exists; outside the declared wetting regimes it does not."""
         try:
             values = self.supported_values(user_values)
         except UnsupportedRegimeError:
@@ -101,7 +102,8 @@ class InterfaceModel:
             return terms.capillary_energy(values[ParameterName.CONTACT_ANGLE])
         if terms.liquid_solid_area > 0.0:
             raise PandaError(
-                f"форма {self.shape.name} без параметра θ касается стенок (S_SL > 0): энергию без угла не посчитать"
+                f"shape '{self.shape.name}' has no θ parameter but touches the walls (S_SL > 0): "
+                "the energy cannot be computed without the angle"
             )
         return terms.liquid_liquid_area
 

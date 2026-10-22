@@ -1,4 +1,4 @@
-"""Общие поры для тестов: размеры порядка реальных МД-систем."""
+"""Shared pores for the tests: dimensions of the order of real MD systems."""
 
 import pytest
 

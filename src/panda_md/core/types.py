@@ -1,4 +1,4 @@
-"""Общая базовая модель pydantic, типы массивов numpy с проверкой и неизменяемый словарь."""
+"""Common pydantic base model, validated numpy array types and an immutable dictionary."""
 
 from collections.abc import Callable, Iterator, Mapping
 from typing import Annotated, Any, Generic, TypeVar
@@ -16,7 +16,7 @@ ValueT = TypeVar("ValueT")
 
 
 class FrozenMapping(Mapping[str, ValueT], Generic[ValueT]):
-    """Неизменяемый словарь с хешем: поля-словари моделей pydantic с frozen=True иначе остаются изменяемыми."""
+    """Immutable hashable dictionary: otherwise dict fields of pydantic models with frozen=True stay mutable."""
 
     __slots__ = ("_items",)
     _items: dict[str, ValueT]
@@ -61,25 +61,25 @@ FrozenFloats = Annotated[
     AfterValidator(_freeze_floats),
     PlainSerializer(_thaw_floats, return_type=dict[str, float]),
 ]
-"""Поле «имя → число»: на входе любой словарь, внутри — FrozenMapping, в JSON — обычный объект."""
+"""Field 'name → number': any dictionary on input, a FrozenMapping inside, a plain object in JSON."""
 
 FrozenBounds = Annotated[
     Mapping[str, tuple[float, float]],
     AfterValidator(_freeze_bounds),
     PlainSerializer(_thaw_bounds, return_type=dict[str, tuple[float, float]]),
 ]
-"""Поле «имя → (нижняя, верхняя граница)»."""
+"""Field 'name → (lower, upper bound)'."""
 
 
 def _float_array_validator(dimensions: int) -> Callable[[object], FloatArray]:
-    """Проверка: неизменяемый массив float64 заданной размерности без NaN и бесконечностей."""
+    """Validation: an immutable float64 array of the given dimensionality without NaN and infinities."""
 
     def validate(value: object) -> FloatArray:
         array = np.array(value, dtype=np.float64)
         if array.ndim != dimensions:
-            raise ValueError(f"ожидается массив размерности {dimensions}, получена размерность {array.ndim}")
+            raise ValueError(f"array has {array.ndim} dimension(s), expected {dimensions}")
         if not np.all(np.isfinite(array)):
-            raise ValueError("массив содержит NaN или бесконечность")
+            raise ValueError("array contains NaN or infinity")
         array.flags.writeable = False
         return array
 
@@ -87,15 +87,15 @@ def _float_array_validator(dimensions: int) -> Callable[[object], FloatArray]:
 
 
 def _validate_index_array(value: object) -> IndexArray:
-    """Проверка: неизменяемый одномерный массив неотрицательных целых индексов."""
+    """Validation: an immutable one-dimensional array of non-negative integer indices."""
     array = np.array(value)
     if array.ndim != 1:
-        raise ValueError(f"ожидается одномерный массив индексов, получена размерность {array.ndim}")
+        raise ValueError(f"index array has {array.ndim} dimension(s), expected a one-dimensional array")
     if array.size and not np.issubdtype(array.dtype, np.integer):
-        raise ValueError("индексы должны быть целыми")
+        raise ValueError("indices are not integers; give integer indices")
     array = array.astype(np.int64)
     if np.any(array < 0):
-        raise ValueError("индексы не могут быть отрицательными")
+        raise ValueError("indices are negative; give non-negative indices")
     array.flags.writeable = False
     return array
 
@@ -136,18 +136,18 @@ IndexArray1D = Annotated[
 
 
 class PandaModel(BaseModel):
-    """База всех объектов-данных: неизменяемые, без лишних полей, с проверкой значений по умолчанию."""
+    """Base of all data objects: immutable, no extra fields, defaults are validated."""
 
     model_config = ConfigDict(
         frozen=True,
         extra="forbid",
         validate_default=True,
         arbitrary_types_allowed=True,
-        protected_namespaces=(),  # поля model_curve и т. п.: pydantic < 2.10 предупреждает о префиксе model_
+        protected_namespaces=(),  # fields like model_curve: pydantic < 2.10 warns about the model_ prefix
     )
 
     def __eq__(self, other: object) -> bool:
-        """Сравнение по значениям; массивы — поэлементно (иначе == падает: truth value of an array is ambiguous)."""
+        """Comparison by value; arrays element-wise (otherwise == fails: truth value of an array is ambiguous)."""
         if type(other) is not type(self):
             return NotImplemented
         assert isinstance(other, PandaModel)
@@ -166,7 +166,7 @@ class PandaModel(BaseModel):
         _freeze_arrays(self.__dict__)
 
     def model_copy(self, *, update: Mapping[str, Any] | None = None, deep: bool = False) -> Self:
-        """Копия; с update — заново через проверку модели (pydantic по умолчанию её пропускает)."""
+        """Copy; with update — again through model validation (pydantic skips it by default)."""
         if not update:
             return super().model_copy(deep=deep)
         values = {field.alias or name: getattr(self, name) for name, field in type(self).model_fields.items()}
@@ -194,7 +194,7 @@ def _values_equal(first: object, second: object) -> bool:
 
 def _hashable(value: object) -> object:
     if isinstance(value, np.ndarray):
-        normalized = value + 0.0 if np.issubdtype(value.dtype, np.floating) else value  # −0.0 == 0.0 и в хеше
+        normalized = value + 0.0 if np.issubdtype(value.dtype, np.floating) else value  # −0.0 == 0.0 in the hash too
         return (value.shape, str(value.dtype), normalized.tobytes())
     if isinstance(value, Mapping):
         return tuple(sorted((key, _hashable(item)) for key, item in value.items()))
@@ -204,7 +204,7 @@ def _hashable(value: object) -> object:
 
 
 def _freeze_arrays(value: object) -> None:
-    """Массивы внутри копии — снова только для чтения (deepcopy и pickle создают изменяемые)."""
+    """Arrays inside a copy are read-only again (deepcopy and pickle create writable ones)."""
     if isinstance(value, np.ndarray):
         value.flags.writeable = False
     elif isinstance(value, Mapping):

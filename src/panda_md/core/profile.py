@@ -1,4 +1,4 @@
-"""Профиль плотности из данных, набор профилей по блокам времени и безразмерный вид профиля."""
+"""Density profile from the data, a set of profiles over time blocks, and the dimensionless form of a profile."""
 
 import json
 from collections.abc import Mapping
@@ -15,48 +15,50 @@ from panda_md.core.version import library_version
 
 MIN_PROFILE_POINTS = 2
 CSV_COMMENT = "# "
-CSV_COMMENT_MARK = "#"  # при чтении пробел после # не обязателен
-VERSION_KEY = "panda_version"  # версия PANDA, записавшая файл
+CSV_COMMENT_MARK = "#"  # on reading, the space after # is optional
+VERSION_KEY = "panda_version"  # PANDA version that wrote the file
 CSV_METADATA_FIELDS = ("frame", "particle_count", "pore_volume_nm3", "flipped", "frame_count")
-CSV_COLUMNS = ("coordinate_nm", "density_per_nm3", "density_sem_per_nm3")  # порядок столбцов без заголовка
+CSV_COLUMNS = ("coordinate_nm", "density_per_nm3", "density_sem_per_nm3")  # column order when there is no header
 
 
 class DensityProfile(PandaModel):
-    """Профиль плотности анализируемой жидкости вдоль оси профиля поры."""
+    """Density profile of the analysed liquid along the profile axis of the pore."""
 
-    coordinate_nm: Array1D  # центры бинов, нм, в системе frame
-    density_per_nm3: Array1D  # число частиц на нм³
-    density_sem_per_nm3: Array1D | None = None  # ошибка среднего по блокам
+    coordinate_nm: Array1D  # bin centres, nm, in the frame of reference `frame`
+    density_per_nm3: Array1D  # number of particles per nm³
+    density_sem_per_nm3: Array1D | None = None  # standard error of the mean over blocks
     frame: Frame = Frame.PORE
-    particle_count: float | None = Field(default=None, gt=0.0)  # N — частиц в поре
-    pore_volume_nm3: float | None = Field(default=None, gt=0.0)  # V — объём поры, к которому отнесена φ
-    flipped: bool = False  # профиль отражён z → −z (жидкость была у верхней стенки)
-    frame_count: int | None = Field(default=None, ge=1)  # сколько кадров усреднено
+    particle_count: float | None = Field(default=None, gt=0.0)  # N — particles in the pore
+    pore_volume_nm3: float | None = Field(default=None, gt=0.0)  # V — pore volume to which φ refers
+    flipped: bool = False  # profile reflected z → −z (the liquid was at the upper wall)
+    frame_count: int | None = Field(default=None, ge=1)  # number of frames averaged
 
     @model_validator(mode="after")
     def _check_arrays(self) -> "DensityProfile":
         if self.coordinate_nm.shape != self.density_per_nm3.shape:
-            raise ValueError("длины координаты и плотности различаются")
+            raise ValueError("coordinate and density have different lengths")
         if self.density_sem_per_nm3 is not None and self.density_sem_per_nm3.shape != self.density_per_nm3.shape:
-            raise ValueError("длины плотности и её ошибки различаются")
+            raise ValueError("density and its error have different lengths")
         if self.coordinate_nm.size < MIN_PROFILE_POINTS:
-            raise ValueError(f"в профиле меньше {MIN_PROFILE_POINTS} точек")
+            raise ValueError(f"profile has fewer than {MIN_PROFILE_POINTS} points")
         if not np.all(np.diff(self.coordinate_nm) > 0):
-            raise ValueError("координата профиля не возрастает")
+            raise ValueError("profile coordinate is not increasing")
         if np.any(self.density_per_nm3 < 0):
-            raise ValueError("плотность отрицательна")
+            raise ValueError("density is negative")
         if not np.any(self.density_per_nm3 > 0):
-            raise ValueError("профиль пуст: плотность везде нулевая — проверь выборку атомов")
+            raise ValueError("profile is empty: the density is zero everywhere; check the atom selection")
         return self
 
     def mean_density_per_nm3(self) -> float:
-        """n̄ = N / V — средняя плотность жидкости в поре."""
+        """n̄ = N / V — mean density of the liquid in the pore."""
         if self.particle_count is None or self.pore_volume_nm3 is None:
-            raise InvalidProfileError("для нормировки mean нужны particle_count и pore_volume_nm3")
+            raise InvalidProfileError(
+                "mean normalization needs particle_count and pore_volume_nm3; set both in the profile"
+            )
         return self.particle_count / self.pore_volume_nm3
 
     def save(self, path: str | Path) -> None:
-        """Сохранить: .npz — полностью; .csv — столбцы и метаданные в строках-комментариях."""
+        """Save: .npz — everything; .csv — columns and metadata in comment lines."""
         target = Path(path)
         if target.suffix == ".npz":
             save_npz_arrays(target, _profile_arrays(self), self._metadata())
@@ -68,7 +70,7 @@ class DensityProfile(PandaModel):
             table = np.column_stack([arrays[name] for name in columns])
             np.savetxt(target, table, delimiter=",", header=header + "\n" + ",".join(columns), comments=CSV_COMMENT)
         else:
-            raise ValueError(f"формат {target.suffix!r} не поддерживается: .npz или .csv")
+            raise ValueError(f"unsupported format {target.suffix!r}; available: .npz, .csv")
 
     @classmethod
     def load(cls, path: str | Path) -> "DensityProfile":
@@ -78,7 +80,7 @@ class DensityProfile(PandaModel):
         elif source.suffix == ".csv":
             metadata, arrays = _read_csv(source)
         else:
-            raise ValueError(f"формат {source.suffix!r} не поддерживается: .npz или .csv")
+            raise ValueError(f"unsupported format {source.suffix!r}; available: .npz, .csv")
         return cls(**arrays, **metadata)
 
     def _metadata(self) -> dict[str, object]:
@@ -87,25 +89,27 @@ class DensityProfile(PandaModel):
 
 
 def load_npz_arrays(path: Path) -> tuple[dict[str, FloatArray], dict[str, Any]]:
-    """Массивы и метаданные, сохранённые save_npz_arrays."""
+    """Arrays and metadata saved by save_npz_arrays."""
     with np.load(path) as archive:
         metadata: dict[str, Any] = json.loads(str(archive["metadata"]))
         arrays = {name: archive[name] for name in archive.files if name != "metadata"}
-    metadata.pop(VERSION_KEY, None)  # версия, которой файл записан, — справочно; в модель не идёт
+    metadata.pop(
+        VERSION_KEY, None
+    )  # the version that wrote the file is for reference only; it does not go into the model
     return arrays, metadata
 
 
 def save_npz_arrays(path: Path, arrays: Mapping[str, FloatArray], metadata: Mapping[str, object]) -> None:
-    """Массивы — по именам, метаданные — JSON-строкой под ключом metadata."""
-    # Any: заглушки numpy типизируют **kwds у savez как bool (allow_pickle); значения — массивы и строка
+    """Arrays by name, metadata as a JSON string under the key metadata."""
+    # Any: numpy stubs type **kwds of savez as bool (allow_pickle); the values are arrays and a string
     payload: dict[str, Any] = {**arrays, "metadata": json.dumps({**metadata, VERSION_KEY: library_version()})}
     np.savez(path, **payload)
 
 
 def _require_npz(path: Path) -> None:
-    """ProfileSet хранится только в .npz: иначе numpy молча дописывает суффикс, и load по тому же имени падает."""
+    """A ProfileSet is stored only in .npz: otherwise numpy silently appends the suffix and load by that name fails."""
     if path.suffix != ".npz":
-        raise ValueError(f"набор профилей хранится в .npz, а не в {path.name!r}")
+        raise ValueError(f"profile set cannot be stored in {path.name!r}; use a .npz file")
 
 
 def _profile_arrays(profile: DensityProfile) -> dict[str, FloatArray]:
@@ -122,7 +126,7 @@ def _read_csv(source: Path) -> tuple[dict[str, object], dict[str, FloatArray]]:
         for line in stream:
             if not line.startswith(CSV_COMMENT_MARK):
                 break
-            content = line[len(CSV_COMMENT_MARK) :].strip()  # «# frame: …» и «#frame: …»
+            content = line[len(CSV_COMMENT_MARK) :].strip()  # '# frame: …' and '#frame: …'
             key, separator, value = content.partition(": ")
             if separator and key == VERSION_KEY:
                 continue
@@ -133,27 +137,27 @@ def _read_csv(source: Path) -> tuple[dict[str, object], dict[str, FloatArray]]:
     table = np.loadtxt(source, delimiter=",", comments=CSV_COMMENT_MARK, ndmin=2)
     if columns and set(columns) <= set(CSV_COLUMNS) and len(columns) != table.shape[1]:
         raise InvalidProfileError(
-            f"{source.name}: в заголовке {len(columns)} столбца ({', '.join(columns)}), в данных — {table.shape[1]}"
+            f"{source.name}: header has {len(columns)} column(s) ({', '.join(columns)}), the data have {table.shape[1]}"
         )
-    if not columns or not set(columns) <= set(CSV_COLUMNS):  # заголовка нет или он чужой — столбцы по порядку
+    if not columns or not set(columns) <= set(CSV_COLUMNS):  # no header or a foreign one — columns in order
         if table.shape[1] not in (len(CSV_COLUMNS) - 1, len(CSV_COLUMNS)):
             raise InvalidProfileError(
-                f"{source.name}: {table.shape[1]} столбцов — нужно 2 или 3 (координата, нм; плотность, нм⁻³; "
-                "ошибка плотности) или заголовок «# " + ",".join(CSV_COLUMNS) + "»"
+                f"{source.name}: {table.shape[1]} column(s), expected 2 or 3 (coordinate, nm; density, nm⁻³; "
+                "density error); or add the header '# " + ",".join(CSV_COLUMNS) + "'"
             )
         columns = list(CSV_COLUMNS[: table.shape[1]])
     return metadata, {name: table[:, index] for index, name in enumerate(columns)}
 
 
 class ProfileSet(PandaModel):
-    """Профили по блокам времени: блоки × бины. Среднее по блокам — профиль для фита, разброс — его ошибка."""
+    """Profiles over time blocks: blocks × bins. The block mean is the profile for the fit, the spread is its error."""
 
-    bin_edges_nm: Array1D  # края бинов, нм, в системе frame
-    block_densities_per_nm3: Array2D  # блоки × бины
+    bin_edges_nm: Array1D  # bin edges, nm, in the frame of reference `frame`
+    block_densities_per_nm3: Array2D  # blocks × bins
     block_start_ps: Array1D
     block_stop_ps: Array1D
     block_frame_counts: tuple[int, ...]
-    block_particle_counts: Array1D  # среднее по кадрам блока число частиц в поре (N)
+    block_particle_counts: Array1D  # number of particles in the pore (N) averaged over the frames of the block
     frame: Frame
     centering: ProfileCentering
     selection: str
@@ -164,12 +168,12 @@ class ProfileSet(PandaModel):
     def _check_shapes(self) -> "ProfileSet":
         block_count, bin_count = self.block_densities_per_nm3.shape
         if self.bin_edges_nm.shape != (bin_count + 1,) or not np.all(np.diff(self.bin_edges_nm) > 0):
-            raise ValueError("края бинов: по одному больше, чем бинов, строго по возрастанию")
+            raise ValueError("invalid bin edges; there must be one more edge than bins, strictly increasing")
         for name in ("block_start_ps", "block_stop_ps", "block_particle_counts"):
             if getattr(self, name).shape != (block_count,):
-                raise ValueError(f"{name}: по одному значению на блок")
+                raise ValueError(f"{name} has a wrong length; give one value per block")
         if len(self.block_frame_counts) != block_count or min(self.block_frame_counts, default=0) < 1:
-            raise ValueError("в каждом блоке должен быть хотя бы один кадр")
+            raise ValueError("block without frames; every block needs at least one frame")
         return self
 
     @property
@@ -182,19 +186,19 @@ class ProfileSet(PandaModel):
         return int(self.block_densities_per_nm3.shape[0])
 
     def std(self) -> FloatArray:
-        """Стандартное отклонение плотности по блокам (0 при одном блоке)."""
+        """Standard deviation of the density over blocks (0 for a single block)."""
         if self.block_count < 2:
             return np.zeros(self.block_densities_per_nm3.shape[1])
         spread: FloatArray = np.std(self.block_densities_per_nm3, axis=0, ddof=1)
         return spread
 
     def sem(self) -> FloatArray:
-        """Ошибка среднего по блокам: std / √(число блоков)."""
+        """Standard error of the mean over blocks: std / √(number of blocks)."""
         error: FloatArray = self.std() / np.sqrt(self.block_count)
         return error
 
     def mean(self) -> DensityProfile:
-        """Средний профиль по блокам с ошибкой среднего."""
+        """Mean profile over blocks with the standard error of the mean."""
         return self._profile(
             np.mean(self.block_densities_per_nm3, axis=0),
             float(np.mean(self.block_particle_counts)),
@@ -225,7 +229,7 @@ class ProfileSet(PandaModel):
         )
 
     def save(self, path: str | Path) -> None:
-        """Сохранить в .npz (массивы и метаданные)."""
+        """Save to .npz (arrays and metadata)."""
         _require_npz(Path(path))
         arrays = {
             name: getattr(self, name)
@@ -248,13 +252,13 @@ class ProfileSet(PandaModel):
 
 
 class ReducedProfile(PandaModel):
-    """Профиль в безразмерном виде: координата в долях размера поры, плотность после нормировки."""
+    """Profile in dimensionless form: coordinate as a fraction of the pore size, density after normalization."""
 
     coordinate: Array1D
     density: Array1D
     frame: Frame
     normalization: Normalization
-    density_scale_per_nm3: float = Field(gt=0.0)  # на что поделена плотность: ρ_bulk или n̄
+    density_scale_per_nm3: float = Field(gt=0.0)  # what the density was divided by: ρ_bulk or n̄
 
 
 def reduce_profile(
@@ -265,12 +269,12 @@ def reduce_profile(
 ) -> ReducedProfile:
     if normalization is Normalization.BULK:
         if density_bulk_per_nm3 is None:
-            raise InvalidProfileError("для нормировки bulk нужна объёмная плотность density_bulk")
+            raise InvalidProfileError("bulk normalization needs the bulk density; set density_bulk_per_nm3")
         scale = density_bulk_per_nm3
     elif normalization is Normalization.MEAN:
         scale = profile.mean_density_per_nm3()
     else:
-        raise ValueError(f"нормировка {normalization.value} должна быть разрешена до приведения профиля")
+        raise ValueError(f"normalization {normalization.value} must be resolved before the profile is reduced")
     return ReducedProfile(
         coordinate=profile.coordinate_nm / characteristic_size_nm,
         density=profile.density_per_nm3 / scale,

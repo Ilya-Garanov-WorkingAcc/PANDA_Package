@@ -1,4 +1,4 @@
-"""Трёхмерные формы щели (contains) и оси симметрии."""
+"""Three-dimensional slit shapes (contains) and symmetry axes."""
 
 import itertools
 import math
@@ -20,7 +20,7 @@ POINTS = 400_000
 
 
 def cell_points(geometry: SlitGeometry, generator: np.random.Generator) -> FloatArray:
-    """Точки, равномерно заполняющие ячейку щели (безразмерные, ось формы в начале координат)."""
+    """Points filling the slit cell uniformly (dimensionless, the shape axis at the origin)."""
     uniform = generator.uniform(-0.5, 0.5, size=(POINTS, 3))
     points: FloatArray = uniform * np.array([geometry.pore_length_ratio, geometry.short_side_ratio(), 1.0])
     return points
@@ -38,7 +38,7 @@ def test_droplet_is_a_spherical_cap_on_the_lower_wall() -> None:
         points[:, 2] > -0.5 + 0.03
     )
     agreement = np.mean(shape.contains(points, geometry, values) == sphere)
-    assert agreement > 0.9995  # расхождение — только точки на самой границе (дискретизация не участвует)
+    assert agreement > 0.9995  # disagreement only for points on the boundary itself (no discretization involved)
 
 
 def test_worm_is_a_cylindrical_segment_along_the_short_side() -> None:
@@ -64,7 +64,7 @@ CASES = [
 @pytest.mark.parametrize("aspect_ratio", [1.0, 0.4])
 @pytest.mark.parametrize(("shape_name", "values"), CASES, ids=[name for name, _ in CASES])
 def test_point_cloud_reproduces_the_profile(shape_name: str, values: dict[str, float], aspect_ratio: float) -> None:
-    """Доля точек в жидкости по слоям = профиль (контракт §9: облако даёт тот же профиль; допуск — статистика)."""
+    """Fraction of points in the liquid per layer = the profile (contract §9; the tolerance is statistical)."""
     pore = SlitPore(width_nm=8.0, length_nm=16.0, base_aspect_ratio=aspect_ratio)
     model = pore.interface(shape_name)
     assert model.is_feasible(**values), values
@@ -72,7 +72,7 @@ def test_point_cloud_reproduces_the_profile(shape_name: str, values: dict[str, f
     points = cell_points(pore.geometry(), np.random.default_rng(SEED))
     inside = model.shape.contains(points, pore.geometry(), internal)
     phi = internal["phi"]
-    assert np.mean(inside) == pytest.approx(phi, abs=4.0 * math.sqrt(phi * (1.0 - phi) / POINTS))  # 4σ выборки
+    assert np.mean(inside) == pytest.approx(phi, abs=4.0 * math.sqrt(phi * (1.0 - phi) / POINTS))  # 4σ of the sample
     edges = np.linspace(-0.5, 0.5, 21)
     counts, _ = np.histogram(points[inside, 2], bins=edges)
     totals, _ = np.histogram(points[:, 2], bins=edges)
@@ -91,7 +91,7 @@ def test_shapes_declare_their_symmetry_axes() -> None:
     assert axes["roll"] == SymmetryAxis(orientation=AxisOrientation.HORIZONTAL, locate=AxisLocator.LIQUID_CENTER)
     assert axes["doughnut"] == SymmetryAxis(orientation=AxisOrientation.VERTICAL, locate=AxisLocator.LIQUID_CENTER)
     assert axes["perforation"] == SymmetryAxis(orientation=AxisOrientation.VERTICAL, locate=AxisLocator.VOID_CENTER)
-    # итоговый аудит: капля осесимметрична, как пончик, у червя горизонтальная ось, как у валика
+    # pre-release audit: the droplet is axisymmetric like the doughnut, the worm has a horizontal axis like the roll
     assert axes["droplet"] == SymmetryAxis(orientation=AxisOrientation.VERTICAL, locate=AxisLocator.LIQUID_CENTER)
     assert axes["worm"] == SymmetryAxis(orientation=AxisOrientation.HORIZONTAL, locate=AxisLocator.LIQUID_CENTER)
     assert axes["layer"] is None
@@ -103,7 +103,7 @@ def test_axis_position_through_box_boundary() -> None:
     vertical = SymmetryAxis(orientation=AxisOrientation.VERTICAL, locate=AxisLocator.LIQUID_CENTER)
     position = axis_position(around_edge, periods, vertical)
     assert min(position[0], 10.0 - position[0]) == pytest.approx(0.0, abs=0.2)
-    assert position[1] == pytest.approx(2.0, abs=0.07)  # гистограмма: точность — доля бина
+    assert position[1] == pytest.approx(2.0, abs=0.07)  # histogram: the accuracy is a fraction of a bin
     horizontal = SymmetryAxis(orientation=AxisOrientation.HORIZONTAL, locate=AxisLocator.LIQUID_CENTER)
     assert axis_position(around_edge, periods, horizontal)[1] == 0.0
     void = SymmetryAxis(orientation=AxisOrientation.VERTICAL, locate=AxisLocator.VOID_CENTER)
@@ -124,7 +124,7 @@ def test_polygon_shapes_have_no_3d_form_yet() -> None:
 
 @pytest.mark.parametrize("radius_nm", [1.0, 2.0, 2.5, 3.0, 3.5])
 def test_axis_of_a_wide_disk_is_found_within_two_bins(radius_nm: float) -> None:
-    """Итоговый аудит: у формы в половину ячейки сглаженная гистограмма — плато, и ось уходила на 0.5–1.5 нм."""
+    """Pre-release audit: a half-cell shape gives a plateau in the smoothed histogram; the axis drifted 0.5–1.5 nm."""
     generator = np.random.default_rng(int(radius_nm * 10))
     periods = np.array([8.0, 8.0])
     vertical = SymmetryAxis(orientation=AxisOrientation.VERTICAL, locate=AxisLocator.LIQUID_CENTER)
@@ -136,7 +136,7 @@ def test_axis_of_a_wide_disk_is_found_within_two_bins(radius_nm: float) -> None:
         points = np.mod(center + np.column_stack([radius * np.cos(angle), radius * np.sin(angle)]), periods)
         found = axis_position(points, periods, vertical)
         errors.append(float(np.max(np.abs((found - center + 4.0) % 8.0 - 4.0))))
-    assert max(errors) < 0.25  # два бина гистограммы (8 нм / 64); до исправления — 0.5–1.5 нм
+    assert max(errors) < 0.25  # two histogram bins (8 nm / 64); before the fix — 0.5–1.5 nm
 
 
 def test_axis_of_a_half_cell_band_is_found() -> None:
@@ -144,7 +144,7 @@ def test_axis_of_a_half_cell_band_is_found() -> None:
     periods = np.array([8.0, 4.0])
     horizontal = SymmetryAxis(orientation=AxisOrientation.HORIZONTAL, locate=AxisLocator.LIQUID_CENTER)
     for center in (1.0, 3.7, 6.2):
-        along = np.mod(center + generator.uniform(-2.0, 2.0, 20000), 8.0)  # полоса 4 нм из 8
+        along = np.mod(center + generator.uniform(-2.0, 2.0, 20000), 8.0)  # a 4 nm band out of 8
         points = np.column_stack([along, generator.uniform(0.0, 4.0, 20000)])
         found = axis_position(points, periods, horizontal)[0]
         assert abs((found - center + 4.0) % 8.0 - 4.0) < 0.15

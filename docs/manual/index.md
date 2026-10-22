@@ -34,5 +34,3 @@ The method: A. Semenchuk, N. Kondratyuk, I. Kopanichuk, *PANDA: Predicting angle
 analysis*, Colloids Surf. A 708 (2025) 135994,
 [doi:10.1016/j.colsurfa.2024.135994](https://doi.org/10.1016/j.colsurfa.2024.135994).
 
-!!! note "Language of messages"
-    Error messages, warnings and printed summaries of the library are in Russian; the documentation is in English.

@@ -1,4 +1,4 @@
-# Окружение и кэши
+# Environments and caches
 .venv/
 .venv-*/
 .coverage
@@ -13,18 +13,19 @@ build/
 dist/
 site/
 panda_test_results/
+demo_results/
 uv.lock
 
-# Старая PANDA — отдельный клон (github.com/FlufffyMelon/PANDA), только справочник
+# The previous PANDA: a separate clone (github.com/FlufffyMelon/PANDA), reference only
 /PANDA/
-# Модели треугольной и квадратной пор — отдельный клон (github.com/Vandyshge/PANDA_Polygon), справочник и эталон
+# Models of the triangular and square pores: a separate clone (github.com/Vandyshge/PANDA_Polygon), reference
 /PANDA_Polygon/
 
-# Статьи и ТЗ — не распространяются через репозиторий
+# Papers and the task statement are not distributed
 *.pdf
 *:Zone.Identifier
 
-# Результаты прогонов и данные МД
+# Run outputs and MD data
 smoke/out/
 *.npy
 *.npz
@@ -33,6 +34,9 @@ smoke/out/
 *.trr
 *.gro
 
-# Редакторы
+# Editors
 .vscode/
 .idea/
+
+# Internal development notes (design, plans, audits, reference generators): kept locally, not published
+/dev_notes/

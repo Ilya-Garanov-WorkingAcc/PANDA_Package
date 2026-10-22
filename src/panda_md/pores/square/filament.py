@@ -1,4 +1,4 @@
-"""Нити (filament) в квадратной поре. Формулы — PANDA_Polygon `square.py` (коммит 38ff491)."""
+"""Filaments in a square pore. Formulas: PANDA_Polygon `square.py` (commit 38ff491)."""
 
 import math
 from typing import ClassVar
@@ -16,7 +16,7 @@ from panda_md.pores.square.shape import SquareShape
 
 @SquarePore.register
 class SquareFilamentOneWall(SquareShape):
-    """filament_w1c0: цилиндрический сегмент вдоль оси поры на нижней стенке, углы свободны."""
+    """filament_w1c0: a cylindrical segment along the pore axis on the lower wall, the corners are free."""
 
     name: ClassVar[str] = "filament_w1c0"
     parameters: ClassVar[tuple[Parameter, ...]] = (CONTACT_ANGLE, WALL_LAYER_THICKNESS, VOLUME_FRACTION)
@@ -26,7 +26,7 @@ class SquareFilamentOneWall(SquareShape):
     }
 
     def arc_radius(self, geometry: SquareGeometry, values: ParameterValues) -> float:
-        """R = √(φ / (θ − sin θ cos θ)): площадь сегмента равна φ · a²."""
+        """R = √(φ / (θ − sin θ cos θ)): the segment area equals φ · a²."""
         return math.sqrt(
             values[ParameterName.VOLUME_FRACTION] / circular_segment_factor(values[ParameterName.CONTACT_ANGLE])
         )
@@ -36,7 +36,7 @@ class SquareFilamentOneWall(SquareShape):
         return floor - self.arc_radius(geometry, values) * math.cos(values[ParameterName.CONTACT_ANGLE])
 
     def feasible(self, geometry: SquareGeometry, values: ParameterValues) -> bool:
-        """cond_filament_w1c0_square: φ > 0 и хорда 2R меньше доступной стороны a′."""
+        """cond_filament_w1c0_square: φ > 0 and the chord 2R is shorter than the accessible side a′."""
         side = accessible_side(values[ParameterName.WALL_LAYER_THICKNESS])
         if side <= 0.0 or circular_segment_factor(values[ParameterName.CONTACT_ANGLE]) <= 0.0:
             return False
@@ -45,7 +45,7 @@ class SquareFilamentOneWall(SquareShape):
         return 2.0 * self.arc_radius(geometry, values) < side
 
     def center_of_mass(self, geometry: SquareGeometry, values: ParameterValues) -> float:
-        """Центр масс сегмента: 4 R sin³θ / (3 (2θ − sin 2θ)) от центра окружности."""
+        """Segment centroid: 4 R sin³θ / (3 (2θ − sin 2θ)) from the circle centre."""
         radius = self.arc_radius(geometry, values)
         offset = circular_segment_centroid_offset(radius, values[ParameterName.CONTACT_ANGLE])
         return self.arc_center(geometry, values) + offset
@@ -71,7 +71,7 @@ class SquareFilamentOneWall(SquareShape):
 
 @SquarePore.register
 class SquareFilamentNoWall(SquareShape):
-    """filament_w0c0: круглый цилиндр по оси канала, стенок не касается — контактного угла нет."""
+    """filament_w0c0: a circular cylinder along the channel axis that touches no walls — no contact angle."""
 
     name: ClassVar[str] = "filament_w0c0"
     parameters: ClassVar[tuple[Parameter, ...]] = (WALL_LAYER_THICKNESS, VOLUME_FRACTION)
@@ -80,11 +80,11 @@ class SquareFilamentNoWall(SquareShape):
 
     @staticmethod
     def cylinder_radius(values: ParameterValues) -> float:
-        """π r² = φ — площадь круга равна доле φ сечения."""
+        """π r² = φ — the disk area equals the fraction φ of the cross-section."""
         return math.sqrt(values[ParameterName.VOLUME_FRACTION] / math.pi)
 
     def feasible(self, geometry: SquareGeometry, values: ParameterValues) -> bool:
-        """0 < φ < π a′² / 4 — круг вписан в доступный квадрат (cond_filament_w0c0_square)."""
+        """0 < φ < π a′² / 4 — the disk is inscribed in the accessible square (cond_filament_w0c0_square)."""
         side = self.side(values)
         volume_fraction = values[ParameterName.VOLUME_FRACTION]
         return side > 0.0 and 0.0 < volume_fraction < math.pi * side**2 / 4.0
@@ -95,10 +95,10 @@ class SquareFilamentNoWall(SquareShape):
         return SurfaceTerms(liquid_liquid_area=liquid_liquid, liquid_solid_area=0.0)
 
     def center_of_mass(self, geometry: SquareGeometry, values: ParameterValues) -> float:
-        return 0.0  # ось цилиндра — в центре сечения
+        return 0.0  # the cylinder axis is at the cross-section centre
 
     def profile(self, coordinate: FloatArray, geometry: SquareGeometry, values: ParameterValues) -> FloatArray:
-        """ρ/ρ_bulk = 2 √(r² − z²) / ly при |z| ≤ r."""
+        """ρ/ρ_bulk = 2 √(r² − z²) / ly for |z| ≤ r."""
         radius = self.cylinder_radius(values)
         chord = 2.0 * np.sqrt(np.maximum(0.0, radius**2 - coordinate**2))
         return np.where(np.abs(coordinate) <= radius, chord / geometry.layer_width_ratio, 0.0)
@@ -106,7 +106,7 @@ class SquareFilamentNoWall(SquareShape):
 
 @SquarePore.register
 class SquareFilamentStraight(SquareShape):
-    """filament_w0c0_straight: шнур квадратного сечения b × b по оси канала, стенок не касается."""
+    """filament_w0c0_straight: a cord of square cross-section b × b along the channel axis, touching no walls."""
 
     name: ClassVar[str] = "filament_w0c0_straight"
     parameters: ClassVar[tuple[Parameter, ...]] = (WALL_LAYER_THICKNESS, VOLUME_FRACTION)
@@ -130,9 +130,9 @@ class SquareFilamentStraight(SquareShape):
         return SurfaceTerms(liquid_liquid_area=liquid_liquid, liquid_solid_area=0.0)
 
     def center_of_mass(self, geometry: SquareGeometry, values: ParameterValues) -> float:
-        return 0.0  # шнур симметричен относительно центра сечения
+        return 0.0  # the cord is symmetric about the cross-section centre
 
     def profile(self, coordinate: FloatArray, geometry: SquareGeometry, values: ParameterValues) -> FloatArray:
-        """ρ/ρ_bulk = b / ly при |z| ≤ b / 2."""
+        """ρ/ρ_bulk = b / ly for |z| ≤ b / 2."""
         cord_side = self.cord_side(values)
         return np.where(np.abs(coordinate) <= cord_side / 2.0, cord_side / geometry.layer_width_ratio, 0.0)

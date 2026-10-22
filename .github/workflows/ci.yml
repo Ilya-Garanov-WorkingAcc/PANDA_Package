@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
-  workflow_call:  # publish.yml: публикация только после всего CI
+  workflow_call:  # publish.yml: publish only after the whole CI
 
 permissions:
   contents: read
@@ -31,11 +31,11 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: ${{ matrix.python-version }}
-      # только пакет с [md, plot] и группа test — тесты не должны зависеть от инструментов разработки
+      # only the package with [md, plot] and the test group: tests must not depend on the dev tools
       - run: uv sync --no-default-groups --group test --extra md --extra plot
       - run: uv run --no-sync pytest
 
-  # нижние границы зависимостей из pyproject.toml (numpy 1.26, scipy 1.11, pydantic 2.6, typer 0.27.2, …)
+  # lower bounds of the dependencies in pyproject.toml (numpy 1.26, scipy 1.11, pydantic 2.6, typer 0.27.2, …)
   test-lowest:
     runs-on: ubuntu-latest
     steps:
@@ -58,11 +58,11 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - run: uv build
       - run: uv run --isolated --no-project --with dist/*.whl python -c "import panda_md; print(panda_md.__version__)"
-      - run: uv run --isolated --no-project --with dist/*.whl panda shapes --pore slit  # консольный скрипт
-      # колесо без extras: графики дают понятную ошибку, а не ImportError matplotlib
+      - run: uv run --isolated --no-project --with dist/*.whl panda shapes --pore slit  # console script
+      # wheel without extras: plotting gives a clear error, not an ImportError of matplotlib
       - run: |
           uv run --isolated --no-project --with dist/*.whl python -c "import importlib
           from panda_md.core.errors import MissingDependencyError
           try: importlib.import_module('panda_md.plotting')
-          except MissingDependencyError: print('без matplotlib: понятная ошибка')
-          else: raise SystemExit('matplotlib не должен входить в колесо без extras')"
+          except MissingDependencyError: print('without matplotlib: clear error')
+          else: raise SystemExit('matplotlib must not be installed with the plain wheel')"

@@ -1,4 +1,4 @@
-"""Синтетические профили плотности из аналитической модели — для тестов и валидации."""
+"""Synthetic density profiles from an analytical model, for tests and validation."""
 
 from collections.abc import Mapping
 
@@ -9,7 +9,7 @@ from panda_md.core.errors import InfeasibleParametersError
 from panda_md.core.model import InterfaceModel
 from panda_md.core.profile import DensityProfile
 
-BIN_SUBSAMPLES = 16  # точек на бин при усреднении модели по бину
+BIN_SUBSAMPLES = 16  # points per bin when averaging the model over a bin
 
 
 def synthetic_profile(
@@ -25,11 +25,12 @@ def synthetic_profile(
     noise_model: NoiseModel = NoiseModel.CONSTANT,
     sampling: ProfileSampling = ProfileSampling.CENTER,
 ) -> DensityProfile:
-    """Профиль, который дала бы МД при идеальной форме с параметрами values (единицы пользователя).
+    """Return the profile MD would give for an ideal shape with parameters values (user units).
 
-    noise_std — шум в долях ρ_bulk на бин (у POISSON — при плотности ρ_bulk; σ ∝ √ρ); offset — сдвиг интерфейса
-    вдоль оси профиля в долях размера поры (ошибка положения стенок); frame — система отсчёта координаты;
-    sampling=BIN_AVERAGE — плотность в бине усреднена по бину, как в гистограмме МД (CENTER — значение в центре).
+    noise_std — noise per bin in units of ρ_bulk (for POISSON — at density ρ_bulk; σ ∝ √ρ); offset — interface shift
+    along the profile axis in units of the pore size (wall position error); frame — frame of reference of the
+    coordinate; sampling=BIN_AVERAGE — the bin density is averaged over the bin, as in an MD histogram (CENTER — the
+    value at the bin centre).
     """
     pore = model.pore
     geometry = pore.geometry()
@@ -38,7 +39,7 @@ def synthetic_profile(
     centers = 0.5 * (edges[:-1] + edges[1:])
     internal = model.supported_values(values)
     if not model.shape.feasible(geometry, internal):
-        raise InfeasibleParametersError(f"{model}: форма не существует при {dict(values)}")
+        raise InfeasibleParametersError(f"{model}: the shape does not exist at {dict(values)}")
     if sampling is ProfileSampling.BIN_AVERAGE:
         fractions = (np.arange(BIN_SUBSAMPLES) + 0.5) / BIN_SUBSAMPLES
         points = edges[:-1, np.newaxis] + np.diff(edges)[:, np.newaxis] * fractions

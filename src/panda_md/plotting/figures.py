@@ -1,4 +1,4 @@
-"""Графики: профиль и модель, фит по блокам, 2D-карта плотности, диаграмма устойчивости, точность метода."""
+"""Plots: profile and model, fit over blocks, 2D density map, stability diagram, accuracy of the method."""
 
 import math
 from pathlib import Path
@@ -10,6 +10,7 @@ from panda_md.analysis.blocks import FitResultSet
 from panda_md.analysis.stability import StabilityDiagram
 from panda_md.core.enums import ParameterName
 from panda_md.core.errors import MissingDependencyError
+from panda_md.core.profile import DensityProfile, ProfileSet
 from panda_md.core.result import FitResult
 from panda_md.trajectory.maps import DensityMap
 
@@ -19,14 +20,14 @@ try:
     from matplotlib.backend_bases import FigureCanvasBase
     from matplotlib.colors import ListedColormap
     from matplotlib.figure import Figure
-except ImportError as error:  # pragma: no cover — проверяется тестом без matplotlib
-    raise MissingDependencyError("для графиков нужен matplotlib: pip install 'panda-md[plot]'") from error
+except ImportError as error:  # pragma: no cover — checked by a test without matplotlib
+    raise MissingDependencyError("plots need matplotlib; run pip install 'panda-md[plot]'") from error
 
-EMPTY_CELL_COLOR = "#f0f0f0"  # точки диаграммы, где ни одна форма не существует
+EMPTY_CELL_COLOR = "#f0f0f0"  # diagram points where no shape exists
 
 
 def supported_figure_formats() -> tuple[str, ...]:
-    """Расширения файлов, в которые matplotlib сохраняет рисунок (png, pdf, svg, …)."""
+    """File extensions matplotlib can save a figure to (png, pdf, svg, …)."""
     return tuple(FigureCanvasBase.get_supported_filetypes())
 
 
@@ -37,10 +38,27 @@ def _axes(ax: Axes | None) -> Axes:
     return created
 
 
-def plot_fit(result: FitResult, ax: Axes | None = None) -> Axes:
-    """Данные и модель в безразмерных координатах окна фита."""
+def plot_profile(profile: DensityProfile | ProfileSet, ax: Axes | None = None) -> Axes:
+    """Density profile in nm and nm⁻³; for a set of time blocks — the mean with the standard error as error bars."""
     axes = _axes(ax)
-    axes.plot(result.coordinate, result.data, ".", markersize=3, label="данные")
+    if isinstance(profile, ProfileSet):
+        mean = profile.mean()
+        axes.errorbar(mean.coordinate_nm, mean.density_per_nm3, yerr=profile.sem(), fmt=".", markersize=3,
+                      label=f"mean of {profile.block_count} blocks ± standard error")  # fmt: skip
+        frame = profile.frame
+    else:
+        axes.plot(profile.coordinate_nm, profile.density_per_nm3, ".-", markersize=3, label="profile")
+        frame = profile.frame
+    axes.set_xlabel(f"coordinate, nm ({frame.value} frame)")
+    axes.set_ylabel("ρ, nm⁻³")
+    axes.legend()
+    return axes
+
+
+def plot_fit(result: FitResult, ax: Axes | None = None) -> Axes:
+    """Data and model in the dimensionless coordinates of the fit window."""
+    axes = _axes(ax)
+    axes.plot(result.coordinate, result.data, ".", markersize=3, label="data")
     axes.plot(
         result.coordinate,
         result.model_curve,
@@ -51,14 +69,14 @@ def plot_fit(result: FitResult, ax: Axes | None = None) -> Axes:
             else result.shape_name
         ),
     )
-    axes.set_xlabel("координата / размер поры")
-    axes.set_ylabel("плотность (нормированная)")
+    axes.set_xlabel("coordinate / pore size")
+    axes.set_ylabel("density (normalized)")
     axes.legend()
     return axes
 
 
 def save_fit_figure(result: FitResult, path: str | Path, dpi: int = 150) -> None:
-    """Сохранить график фита в файл (формат — по расширению) без pyplot: ни окна, ни глобальных фигур."""
+    """Save the fit plot to a file (format by extension) without pyplot: no window, no global figures."""
     figure = Figure()
     plot_fit(result, figure.subplots())
     figure.savefig(path, dpi=dpi, bbox_inches="tight")
@@ -67,35 +85,35 @@ def save_fit_figure(result: FitResult, path: str | Path, dpi: int = 150) -> None
 def plot_blocks(
     blocks: FitResultSet, parameter: str = ParameterName.CONTACT_ANGLE.value, ax: Axes | None = None
 ) -> Axes:
-    """Значение параметра в каждом блоке, среднее и ошибка среднего."""
+    """Value of the parameter in each block, the mean and the standard error of the mean."""
     axes = _axes(ax)
     times_ns = 0.5 * (blocks.block_start_ps + blocks.block_stop_ps) / 1000.0
     values = blocks.values(parameter)
-    axes.plot(times_ns, values, "o-", label="блоки")
+    axes.plot(times_ns, values, "o-", label="blocks")
     mean = blocks.mean(parameter)
     error = blocks.sem(parameter)
-    spread = f" ± {error:.2g}" if math.isfinite(error) else " (один блок: ошибка не оценена)"
-    axes.axhline(mean, color="black", linewidth=1, label=f"среднее {mean:.4g}{spread}")
-    axes.set_xlabel("время, нс")
+    spread = f" ± {error:.2g}" if math.isfinite(error) else " (single block: error not estimated)"
+    axes.axhline(mean, color="black", linewidth=1, label=f"mean {mean:.4g}{spread}")
+    axes.set_xlabel("time, ns")
     axes.set_ylabel(parameter)
     axes.legend()
     return axes
 
 
 def plot_density_map(density: DensityMap, ax: Axes | None = None) -> Axes:
-    """ρ(x, z) в нм⁻³: x — вдоль длинной стороны (ось формы в 0, если центрировано), z — ось профиля."""
+    """ρ(x, z) in nm⁻³: x along the long side (shape axis at 0 if centred), z the profile axis."""
     axes = _axes(ax)
     mesh = axes.pcolormesh(density.length_edges_nm, density.height_edges_nm, density.density_per_nm3.T, shading="flat")
-    axes.figure.colorbar(mesh, ax=axes, label="ρ, нм⁻³")
-    axes.set_xlabel("x, нм" + (" (ось формы в 0)" if density.axis_centered else ""))
-    flipped = ", отражена z → −z" if density.flipped else ""
-    axes.set_ylabel(f"z, нм (система {density.frame.value}{flipped})")
+    axes.figure.colorbar(mesh, ax=axes, label="ρ, nm⁻³")
+    axes.set_xlabel("x, nm" + (" (shape axis at 0)" if density.axis_centered else ""))
+    flipped = ", mirrored z → −z" if density.flipped else ""
+    axes.set_ylabel(f"z, nm ({density.frame.value} frame{flipped})")
     axes.set_aspect("equal")
     return axes
 
 
 def plot_stability(diagram: StabilityDiagram, ax: Axes | None = None) -> Axes:
-    """Устойчивая форма в каждой точке (φ, l); пустые клетки — ни одна форма не существует."""
+    """Stable shape at each point (φ, l); empty cells mean that no shape exists."""
     axes = _axes(ax)
     names = list(diagram.shape_names)
     codes = np.array(
@@ -116,7 +134,7 @@ def plot_stability(diagram: StabilityDiagram, ax: Axes | None = None) -> Axes:
     for name in present:
         axes.plot([], [], "s", color=palette(names.index(name)), label=name)
     axes.set_xlabel("φ")
-    axes.set_ylabel("l = L / размер поры")
+    axes.set_ylabel("l = L / pore size")
     axes.set_title(f"{diagram.pore_name}: θ = {diagram.contact_angle_deg:g}°, δ = {diagram.wall_layer:g}")
     if present:
         axes.legend(fontsize="small")
@@ -124,12 +142,12 @@ def plot_stability(diagram: StabilityDiagram, ax: Axes | None = None) -> Axes:
 
 
 def plot_accuracy(study: AccuracyStudy, ax: Axes | None = None) -> Axes:
-    """Средняя и максимальная |Δθ| и смещение по значениям условия (значения — равномерно, с подписями)."""
+    """Mean and maximum |Δθ| and the bias over the condition values (values evenly spaced, with labels)."""
     axes = _axes(ax)
     positions = np.arange(len(study.labels))
-    axes.plot(positions, study.mean_absolute(), "o-", label="среднее |Δθ|")
-    axes.plot(positions, study.maximum_absolute(), "s--", label="максимум |Δθ|")
-    axes.plot(positions, study.bias(), "^:", label="смещение")
+    axes.plot(positions, study.mean_absolute(), "o-", label="mean |Δθ|")
+    axes.plot(positions, study.maximum_absolute(), "s--", label="max |Δθ|")
+    axes.plot(positions, study.bias(), "^:", label="bias")
     axes.axhline(0.0, color="grey", linewidth=0.5)
     axes.set_xticks(positions, study.labels)
     axes.set_xlabel(study.varied)

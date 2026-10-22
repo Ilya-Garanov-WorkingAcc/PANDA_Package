@@ -1,4 +1,4 @@
-"""`python -m panda_md` — то же, что команда `panda`."""
+"""`python -m panda_md` — the same as the `panda` command."""
 
 from panda_md.cli import console
 

@@ -1,8 +1,8 @@
-"""Контракт формы — проверяется автоматически для КАЖДОЙ зарегистрированной формы каждой поры.
+"""Shape contract — checked automatically for EVERY registered shape of every pore.
 
-Новая форма, подключённая декоратором @Pore.register, попадает сюда без правки тестов. Щель проверяется
-и с квадратным, и с прямоугольным основанием (k = 0.4). Проверки профиля пропускаются у форм, для которых
-профиль не выведен (такие формы участвуют только в диаграмме устойчивости).
+A new shape registered with the @Pore.register decorator lands here without editing the tests. The slit is
+checked with both a square and a rectangular base (k = 0.4). Profile checks are skipped for shapes whose
+profile is not derived (such shapes take part only in the stability diagram).
 """
 
 import itertools
@@ -21,18 +21,18 @@ from panda_md.core.shape import InterfaceShape, regime_of
 
 PORES: tuple[Pore, ...] = (
     SlitPore(width_nm=8.0, length_nm=16.0),
-    SlitPore(width_nm=8.0, length_nm=32.0, base_aspect_ratio=0.4),  # прямоугольное основание (RectCell)
+    SlitPore(width_nm=8.0, length_nm=32.0, base_aspect_ratio=0.4),  # rectangular base (RectCell)
     SquarePore(side_nm=6.0, length_nm=12.0, layer_width_nm=6.0),
     TrianglePore(side_nm=6.0, length_nm=12.0, layer_width_nm=6.0),
 )
 MODELS = [model for pore in PORES for model in pore.available_interfaces()]
 INTEGRATION_POINTS = 200_001
-OUTSIDE_OFFSETS = (0.01, 0.4)  # точки вне поры: чуть за стенкой и далеко за ней
-INTEGRAL_TOLERANCE = 1e-4  # ступенька на краю профиля даёт ошибку трапеций ~ шаг сетки
+OUTSIDE_OFFSETS = (0.01, 0.4)  # points outside the pore: just past the wall and far past it
+INTEGRAL_TOLERANCE = 1e-4  # the step at the profile edge gives a trapezoid error ~ grid step
 CENTER_OF_MASS_TOLERANCE = 1e-4
 SAMPLE_LIMIT = 12
 WALL_LAYERS = (0.0, 0.03)
-VOLUME_FRACTIONS = np.linspace(0.005, 0.995, 400)  # мелко: droplet_w3c0 треугольника существует в окне ±1.5 % по φ
+VOLUME_FRACTIONS = np.linspace(0.005, 0.995, 400)  # fine: the triangle droplet_w3c0 exists in a ±1.5 % window in φ
 
 
 def has_contact_angle(model: InterfaceModel) -> bool:
@@ -40,7 +40,7 @@ def has_contact_angle(model: InterfaceModel) -> bool:
 
 
 def regime_angles(model: InterfaceModel) -> list[float]:
-    """Три угла внутри каждого объявленного режима (градусы)."""
+    """Three angles inside each declared regime (degrees)."""
     angles: list[float] = []
     for lower, upper in model.shape.regimes.values():
         angles.extend(np.linspace(lower, upper, 5)[1:-1].tolist())
@@ -48,7 +48,7 @@ def regime_angles(model: InterfaceModel) -> list[float]:
 
 
 def feasible_samples(model: InterfaceModel) -> list[dict[str, float]]:
-    """Допустимые точки (θ, δ, φ) — не больше SAMPLE_LIMIT, равномерно по сетке; у формы без θ — (δ, φ)."""
+    """Feasible points (θ, δ, φ) — at most SAMPLE_LIMIT, evenly over the grid; (δ, φ) for a shape without θ."""
     grid: list[dict[str, float]]
     if has_contact_angle(model):
         grid = [
@@ -76,7 +76,7 @@ def outside_points(model: InterfaceModel) -> np.ndarray:
 
 def require_profile(model: InterfaceModel) -> None:
     if not model.shape.has_profile():
-        pytest.skip(f"{model_id(model)}: профиль не выведен")
+        pytest.skip(f"{model_id(model)}: profile not derived")
 
 
 def model_id(model: InterfaceModel) -> str:
@@ -91,23 +91,23 @@ def test_shape_declares_contract_attributes(model: InterfaceModel) -> None:
     assert isinstance(shape, InterfaceShape)
     assert shape.name in type(model.pore).own_registry()
     if has_contact_angle(model):
-        assert shape.regimes, "форма с θ должна объявить хотя бы один режим смачивания"
+        assert shape.regimes, "a shape with θ must declare at least one wetting regime"
     else:
-        assert shape.regimes == {}, "у формы без θ режимов смачивания нет"
+        assert shape.regimes == {}, "a shape without θ has no wetting regimes"
     for regime, (lower, upper) in shape.regimes.items():
         assert isinstance(regime, Regime)
         assert 0.0 <= lower < upper <= 180.0
-    assert model.default_optimize, "у формы должен быть хотя бы один свободный параметр по умолчанию"
+    assert model.default_optimize, "a shape must have at least one free parameter by default"
     assert set(model.default_optimize) <= set(model.parameters.names)
 
 
 @pytest.mark.parametrize("model", MODELS, ids=model_id)
 def test_shape_exists_somewhere_in_each_regime(model: InterfaceModel) -> None:
     samples = feasible_samples(model)
-    assert samples, "ни одной допустимой точки на сетке — проверь feasible"
+    assert samples, "no feasible point on the grid; check feasible"
     if has_contact_angle(model):
         covered = {regime_of(sample["theta"]) for sample in samples}
-        assert covered == set(model.shape.regimes), "в каком-то режиме нет допустимых точек — проверь feasible"
+        assert covered == set(model.shape.regimes), "some regime has no feasible points; check feasible"
 
 
 @pytest.mark.parametrize("model", MODELS, ids=model_id)
@@ -151,7 +151,7 @@ def test_surface_terms_are_non_negative_where_derived(model: InterfaceModel) -> 
         try:
             terms = model.surface_terms(**values)
         except NotDerivedError:
-            pytest.skip(f"{model_id(model)}: площади не выведены")
+            pytest.skip(f"{model_id(model)}: areas not derived")
         assert terms.liquid_liquid_area > 0.0
         assert terms.liquid_solid_area >= 0.0
         assert math.isfinite(model.capillary_energy(**values))

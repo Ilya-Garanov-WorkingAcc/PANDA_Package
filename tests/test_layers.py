@@ -1,12 +1,12 @@
-"""Правила слоёв (спецификация §2): ядро не знает о порах, траекториях, анализе и интерфейсах; тяжёлые
-необязательные пакеты импортируются только там, где нужны."""
+"""Layer rules (specification §2): the core knows nothing of pores, trajectories, analysis and interfaces; heavy
+optional packages are imported only where they are needed."""
 
 import subprocess
 import sys
 
 import pytest
 
-# модуль → пакеты, которых после его импорта не должно быть в sys.modules
+# module → packages that must not be in sys.modules after importing it
 FORBIDDEN = {
     "panda_md.core.fitting": (
         "panda_md.pores",
@@ -25,7 +25,8 @@ FORBIDDEN = {
 
 @pytest.mark.parametrize(("module", "forbidden"), sorted(FORBIDDEN.items()))
 def test_module_does_not_pull_forbidden_packages(module: str, forbidden: tuple[str, ...]) -> None:
-    # пакет panda_md подменяется пустым модулем: иначе его __init__ импортирует всё, и граф зависимостей не виден
+    # the panda_md package is replaced by an empty module: otherwise its __init__ imports everything and the
+    # dependency graph is hidden
     stub = (
         "import importlib, importlib.util, sys, types; "
         "location = importlib.util.find_spec('panda_md').submodule_search_locations; "
@@ -42,4 +43,4 @@ def test_module_does_not_pull_forbidden_packages(module: str, forbidden: tuple[s
     offenders = sorted(
         {name for name in loaded for prefix in forbidden if name == prefix or name.startswith(prefix + ".")}
     )
-    assert offenders == [], f"{module} тянет {offenders}"
+    assert offenders == [], f"{module} pulls in {offenders}"
