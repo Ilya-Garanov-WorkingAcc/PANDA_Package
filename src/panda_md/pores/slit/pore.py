@@ -20,6 +20,8 @@ from panda_md.core.trajectory import Trajectory
 from panda_md.core.types import FloatArray
 
 SECOND_GAP_WARNING_NM = 1.0  # gaps inside substrates < 0.5 nm (graphite, SOLD, calcite); a second one > 1 nm — vacuum?
+MIN_SLIT_GAP_NM = 0.5  # a narrower widest gap is the spacing inside a solid (a tube, a channel), not a slit
+MIN_LIQUID_INSIDE_FRACTION = 0.5  # less of the liquid in the chosen gap — the walls do not form a slit
 ASPECT_RATIO_TOLERANCE = 1e-6  # base edges equal up to float noise — a square
 SLIT_HALF_WIDTH = 0.5  # slit walls in the dimensionless coordinate: z = ±0.5
 
@@ -140,6 +142,19 @@ class SlitPore(Pore):
                 return int(np.count_nonzero(np.abs(offsets) < 0.5 * (gap[1] - gap[0])))
 
             start, end = max(gaps, key=liquid_inside)
+            inside_fraction = liquid_inside((start, end)) / heights.size
+            if inside_fraction < MIN_LIQUID_INSIDE_FRACTION:
+                raise InvalidTrajectoryError(
+                    f"not a slit along {normal_axis.value}: at most {inside_fraction:.0%} of the liquid lies between "
+                    f"two wall layers ({end - start:.3f} nm gap); the walls may form a tube or a channel — check the "
+                    "wall selection and normal_axis"
+                )
+        if end - start < MIN_SLIT_GAP_NM:
+            raise InvalidTrajectoryError(
+                f"not a slit along {normal_axis.value}: the widest gap between wall atoms is {end - start:.3f} nm "
+                f"(< {MIN_SLIT_GAP_NM} nm); the walls may form a tube or a channel — check the wall selection and "
+                "normal_axis"
+            )
         (other_axis,) = (axis for axis in AXIS_ORDER if axis not in (length_axis, normal_axis))
         length = float(box[length_axis.column])
         aspect_ratio = float(box[other_axis.column]) / length

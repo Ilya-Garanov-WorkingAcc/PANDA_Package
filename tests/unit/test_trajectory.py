@@ -260,3 +260,27 @@ def test_load_trajectory_explains_an_unreadable_topology(tmp_path: Path) -> None
     (tmp_path / "broken.tpr").write_bytes(b"\x00\x01not a tpr file")
     with pytest.raises(InvalidTrajectoryError, match=r"cannot open .*broken\.tpr.*\.gro"):
         load_trajectory(tmp_path / "broken.tpr")
+
+
+def tube_trajectory(box_side: float = 6.0) -> ArrayTrajectory:
+    """A carbon-nanotube-like pore along x (radius 2 nm, axis at the box centre) filled with liquid: no slit along z."""
+    c = 0.5 * box_side
+    angles = np.linspace(0.0, 2.0 * np.pi, 60, endpoint=False)
+    rings = [np.column_stack([np.full(60, x), c + 2.0 * np.cos(angles), c + 2.0 * np.sin(angles)])
+             for x in np.arange(0.0, 8.0, 0.25)]  # fmt: skip
+    walls = np.vstack(rings)
+    generator = np.random.default_rng(0)
+    radius = 1.6 * np.sqrt(generator.random(200))
+    phi = 2.0 * np.pi * generator.random(200)
+    liquid = np.column_stack([8.0 * generator.random(200), c + radius * np.cos(phi), c + radius * np.sin(phi)])
+    return ArrayTrajectory(positions_nm=np.vstack([walls, liquid])[np.newaxis], boxes_nm=[[8.0, box_side, box_side]],
+                           times_ps=[0.0], groups={"walls": np.arange(len(walls)),
+                                                   "liquid": np.arange(len(walls), len(walls) + 200)})  # fmt: skip
+
+
+def test_slit_from_a_tube_is_an_error_not_a_tiny_slit() -> None:
+    """On a nanotube the wall atoms leave only sub-ångström gaps along z: that is not a slit (was: H = 0.034 nm)."""
+    with pytest.raises(InvalidTrajectoryError, match="not a slit"):  # the liquid is not in the chosen gap
+        SlitPore.from_trajectory(tube_trajectory(), walls="walls", liquid="liquid")
+    with pytest.raises(InvalidTrajectoryError, match="not a slit"):  # tubes fill the box: no gap wider than 0.5 nm
+        SlitPore.from_trajectory(tube_trajectory(box_side=4.3), walls="walls")
