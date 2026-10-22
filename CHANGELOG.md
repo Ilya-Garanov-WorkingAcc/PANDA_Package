@@ -25,7 +25,11 @@ Kopanichuk, Colloids Surf. A 708 (2025) 135994.
   (`validation/REPORT.md`).
 - Plots (extra `plot`, matplotlib): density profile with the error over blocks, fit, blocks, density map, stability
   diagram, accuracy.
-- Bulk density of a liquid from its 2D map (`DensityMap.bulk_density`); pores print their dimensions readably.
+- Bulk density of a liquid from its 2D map (`DensityMap.bulk_density`, robust to layering peaks and to menisci
+  smeared by a moving shape); pores print their dimensions readably.
+- `load_trajectory` opens LAMMPS runs (`.data` of `atom_style atomic` + `.lammpstrj`) and passes MDAnalysis
+  options through (`dt`, `atom_style`, `format`, …); a file MDAnalysis cannot read gives an error with a hint
+  (e.g. a `.tpr` from a newer GROMACS → use the `.gro`).
 - `examples/demo.ipynb`: the whole analysis of a real trajectory, step by step, with figures.
 - Command line `panda`: `shapes`, `profile`, `fit`, `run CONFIG.toml`, `--version`; exit codes 0 / 1 / 2.
 - Reproducibility: the PANDA version is stored in every `FitResult` and in saved `.npz` / `.csv` files.

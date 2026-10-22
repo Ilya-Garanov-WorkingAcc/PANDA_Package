@@ -1,5 +1,7 @@
 """Frame sources (numpy arrays and MDAnalysis) and a slit built from the wall atoms."""
 
+import warnings
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -211,3 +213,50 @@ def test_overlapping_times_are_an_error() -> None:
     with pytest.raises(InvalidTrajectoryError, match="trjcat"):
         trajectory.frame_indices()
     assert base.frame_indices() == [0, 1, 2, 3, 4]
+
+
+LAMMPS_DATA = """LAMMPS data file
+3 atoms
+2 atom types
+0.0 30.0 xlo xhi
+0.0 20.0 ylo yhi
+0.0 50.0 zlo zhi
+Masses
+1 1.0
+2 1.0
+Atoms # atomic
+1 1 1.0 1.0 1.0
+2 2 5.0 5.0 20.0
+3 2 6.0 5.0 22.0
+"""
+
+
+def lammps_dump(steps: list[int]) -> str:
+    frames = []
+    for step in steps:
+        frames.append(
+            f"ITEM: TIMESTEP\n{step}\nITEM: NUMBER OF ATOMS\n3\nITEM: BOX BOUNDS pp pp pp\n0 30\n0 20\n0 50\n"
+            "ITEM: ATOMS id type x y z\n1 1 1.0 1.0 1.0\n2 2 5.0 5.0 20.0\n3 2 6.0 5.0 22.0\n"
+        )
+    return "".join(frames)
+
+
+def test_load_trajectory_opens_lammps_data_and_dump(tmp_path: Path) -> None:
+    """A LAMMPS run: `atom_style atomic` data file + .lammpstrj dump open without extra options."""
+    pytest.importorskip("MDAnalysis")
+    (tmp_path / "system.data").write_text(LAMMPS_DATA)
+    (tmp_path / "trajectory.lammpstrj").write_text(lammps_dump([0, 100, 200]))
+    trajectory = load_trajectory(tmp_path / "system.data", tmp_path / "trajectory.lammpstrj")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", PandaWarning)  # regular dump: frame spacing ≠ MDAnalysis dt, but no warning
+        np.testing.assert_allclose(trajectory.times_ps(), [0.0, 100.0, 200.0])
+    assert trajectory.select("type 2").tolist() == [1, 2]
+    scaled = load_trajectory(tmp_path / "system.data", tmp_path / "trajectory.lammpstrj", dt=0.002)
+    np.testing.assert_allclose(scaled.times_ps(), [0.0, 0.2, 0.4])  # MDAnalysis options are passed through
+
+
+def test_load_trajectory_explains_an_unreadable_topology(tmp_path: Path) -> None:
+    pytest.importorskip("MDAnalysis")
+    (tmp_path / "broken.tpr").write_bytes(b"\x00\x01not a tpr file")
+    with pytest.raises(InvalidTrajectoryError, match=r"cannot open .*broken\.tpr.*\.gro"):
+        load_trajectory(tmp_path / "broken.tpr")

@@ -260,3 +260,38 @@ def test_bulk_density_ignores_dense_layers_at_the_walls() -> None:
     assert density.bulk_density() == pytest.approx(3.0)
     with pytest.raises(ValueError, match="core_fraction"):
         density.bulk_density(core_fraction=0.0)
+
+
+def test_bulk_density_ignores_single_dense_bins_in_the_core() -> None:
+    """Layering or noise in one core bin must not set the threshold: decane in a 10 nm slit gave 14 instead of 3."""
+    edges = np.linspace(-2.0, 2.0, 21)
+    rows = np.full((10, 20), 3.0)
+    rows[6:, :] = 0.0  # the other liquid occupies part of the core
+    rows[2, 9] = 22.0  # one dense bin in the middle band
+    rows[3, 10] = 9.0
+    density = DensityMap(length_edges_nm=np.linspace(0.0, 8.0, 11), height_edges_nm=edges, density_per_nm3=rows,
+                         frame="pore", axis_centered=False, frame_count=1, selection="test")  # fmt: skip
+    assert density.bulk_density() == pytest.approx(3.0)
+
+
+def test_density_map_rejects_a_pore_without_a_length_axis() -> None:
+    from panda_md import TrianglePore
+    from panda_md.core.errors import PandaError
+
+    trajectory = ArrayTrajectory(positions_nm=np.zeros((1, 2, 3)) + 1.0, boxes_nm=[[6.0, 24.0, 24.0]], times_ps=[0.0])
+    pore = TrianglePore(side_nm=12.0, length_nm=6.0, layer_width_nm=24.0)
+    with pytest.raises(PandaError, match="slit"):
+        density_map(trajectory, pore, [0, 1], pore_center_nm=12.0)  # type: ignore[arg-type]
+
+
+def test_bulk_density_is_not_pulled_down_by_smeared_interfaces() -> None:
+    """A roll that wanders along x smears its menisci over many bins of an uncentred map: those bins of intermediate
+    density must not lower ρ_bulk (LAMMPS roll: 0.70 instead of 0.734 σ⁻³, θ off by 3°)."""
+    edges = np.linspace(-2.0, 2.0, 21)
+    generator = np.random.default_rng(0)
+    plateau = 3.0 * (1.0 + 0.03 * generator.standard_normal((45, 20)))  # the core with 3 % noise per bin
+    smeared = np.repeat(np.linspace(1.5, 2.9, 55)[:, np.newaxis], 20, axis=1)  # interface bins, 0.5–1 × ρ_bulk
+    rows = np.vstack([plateau, smeared])
+    density = DensityMap(length_edges_nm=np.linspace(0.0, 10.0, 101), height_edges_nm=edges, density_per_nm3=rows,
+                         frame="pore", axis_centered=False, frame_count=1, selection="test")  # fmt: skip
+    assert density.bulk_density() == pytest.approx(3.0, rel=0.01)

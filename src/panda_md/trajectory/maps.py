@@ -37,7 +37,10 @@ DEFAULT_MAP_BINS = (100, 100)
 MIN_MAP_BINS = 2
 
 BULK_CORE_FRACTION = 0.5  # bulk density: the middle half of the map height, away from the wall layering
-BULK_LEVEL = 0.5  # and the bins denser than half the densest bin there (the core of the phase)
+BULK_LEVEL = 0.5  # and the bins denser than half the median density of the phase there (the core of the phase)
+MAX_THRESHOLD_ITERATIONS = 50
+HALF_SAMPLE_MIN_SIZE = 3
+MODE_WINDOW_FRACTION = 0.1  # ρ_bulk: median of the phase bins within ±10 % of the most common density
 
 
 class DensityMap(PandaModel):
@@ -63,10 +66,13 @@ class DensityMap(PandaModel):
     def bulk_density(self, core_fraction: float = BULK_CORE_FRACTION, level: float = BULK_LEVEL) -> float:
         """Bulk density of the mapped liquid, nm⁻³: the median over the core of its phase.
         The core is the middle `core_fraction` of the map height (away from the layering at the walls) and, in it,
-        the bins denser than `level` × the densest bin there. Gives ρ_bulk for the fit (`density_bulk_per_nm3`) of a
-        liquid that crosses the middle of the slit (a roll, a layer, the continuous phase around another liquid). A
-        droplet or a worm on one wall does not reach the middle, and the map averages it over the short side: take
-        ρ_bulk from the other phase or from a bulk simulation.
+        the bins of the phase: denser than `level` × the median density of the phase, found self-consistently (a
+        threshold tied to the densest bin would follow a single layering peak or a noisy bin). The result is the
+        median of the phase bins within ±10 % of their most common density (half-sample mode): menisci smeared over
+        many bins by a shape that moves during the run do not pull it down. Gives ρ_bulk for the
+        fit (`density_bulk_per_nm3`) of a liquid that crosses the middle of the slit (a roll, a layer, the continuous
+        phase around another liquid). A droplet or a worm on one wall does not reach the middle, and the map averages
+        it over the short side: take ρ_bulk from the other phase or from a bulk simulation.
         """
         if not 0.0 < core_fraction <= 1.0 or not 0.0 <= level < 1.0:
             raise ValueError(
@@ -79,7 +85,16 @@ class DensityMap(PandaModel):
         band = self.density_per_nm3[:, np.abs(heights - middle) <= half_band]
         if band.size == 0 or float(np.max(band)) <= 0.0:
             raise ValueError("no liquid in the middle of the map; increase core_fraction or check the selection")
-        return float(np.median(band[band > level * float(np.max(band))]))
+        values = band[band > 0.0]
+        threshold = 0.0
+        for _ in range(MAX_THRESHOLD_ITERATIONS):  # the threshold only grows, so it settles in a few steps
+            updated = level * float(np.median(values[values > threshold]))
+            if updated <= threshold:
+                break
+            threshold = updated
+        phase = values[values > threshold]
+        mode = _half_sample_mode(phase)
+        return float(np.median(phase[np.abs(phase - mode) <= MODE_WINDOW_FRACTION * mode]))
 
     def save(self, path: str | Path) -> None:
         arrays = {name: getattr(self, name) for name in ("length_edges_nm", "height_edges_nm", "density_per_nm3")}
@@ -89,6 +104,17 @@ class DensityMap(PandaModel):
     def load(cls, path: str | Path) -> "DensityMap":
         arrays, metadata = load_npz_arrays(Path(path))
         return cls(**arrays, **metadata)
+
+
+def _half_sample_mode(values: FloatArray) -> float:
+    """Most common value of a sample (Bickel's half-sample mode): repeatedly keep the densest half of the values."""
+    ordered = np.sort(values)
+    while ordered.size > HALF_SAMPLE_MIN_SIZE:
+        half = math.ceil(ordered.size / 2)
+        widths = ordered[half - 1 :] - ordered[: ordered.size - half + 1]
+        start = int(np.argmin(widths))
+        ordered = ordered[start : start + half]
+    return float(np.mean(ordered))
 
 
 def density_map(
@@ -115,6 +141,11 @@ def density_map(
     width_window_nm — only for a vertical axis: particles no farther than half the window from the axis along the
     short side are counted.
     """
+    if not isinstance(pore, SlitPore):
+        raise NotDerivedError(
+            f"2D density maps are implemented for slit pores only, not for pore '{pore.name}'; "
+            "use density_profile for a 1D profile"
+        )
     centering = resolve_centering(centering, pore, pore_center_nm)
     orientation = Orientation(orientation)
     grouping = ParticleGrouping(per)

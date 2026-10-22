@@ -105,11 +105,9 @@ def test_shapes_that_cannot_be_fitted_are_listed_with_a_reason() -> None:
     assert [row.shape_name for row in comparison.rows] == ["droplet_w1c0", "droplet_w2c0"]
     skipped = comparison.rows[1]
     assert (
-        skipped.result is None
-        and skipped.skipped_reason is not None
-        and "profile is not derived" in skipped.skipped_reason
+        skipped.result is None and skipped.skipped_reason is not None and "no density profile" in skipped.skipped_reason
     )
-    assert "skipped:" in comparison.summary()
+    assert "no density profile (stability diagram only): droplet_w2c0" in comparison.summary()
     only_skipped = compare_shapes(triangle, profile, FitSpec(density_bulk_per_nm3=30.0), shape_names=["droplet_w2c0"])
     with pytest.raises(PandaError, match="no shape gave"):
         _ = only_skipped.best
@@ -165,7 +163,7 @@ def test_best_names_the_reasons_when_nothing_fits() -> None:
         triangle.interface("droplet_w1c0"), {"theta": 140.0, "delta": 0.02, "phi": 0.05}, density_bulk_per_nm3=30.0
     )
     comparison = compare_shapes(triangle, profile, FitSpec(density_bulk_per_nm3=30.0), shape_names=["droplet_w2c0"])
-    with pytest.raises(PandaError, match=r"droplet_w2c0.*profile is not derived"):
+    with pytest.raises(PandaError, match=r"droplet_w2c0.*no density profile"):
         _ = comparison.best
 
 
@@ -210,3 +208,15 @@ def test_mean_normalization_without_phi_explains_what_to_set() -> None:
         pore.interface("roll").fit(profile, normalization=Normalization.MEAN)
     with pytest.raises(InvalidProfileError, match="ρ_bulk"):
         compare_shapes(pore, profile)
+
+
+def test_comparison_summary_lists_shapes_without_a_profile_in_one_line() -> None:
+    from panda_md import TrianglePore
+    from panda_md.synthetic.profiles import synthetic_profile
+
+    pore = TrianglePore(side_nm=12.0, length_nm=6.0, layer_width_nm=24.0)
+    model = pore.interface("filament_w0c0")
+    profile = synthetic_profile(model, {"delta": 0.0, "phi": 0.25}, density_bulk_per_nm3=33.0)
+    text = compare_shapes(pore, profile, FitSpec(density_bulk_per_nm3=33.0)).summary()
+    assert text.count("density profile is not derived") == 0
+    assert "no density profile (stability diagram only): droplet_w2c0, droplet_w3c0" in text

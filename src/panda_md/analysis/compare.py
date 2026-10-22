@@ -26,6 +26,7 @@ from panda_md.core.spec import FitSpec
 from panda_md.core.types import PandaModel
 
 LOSS_TIE_FRACTION = 0.02  # shape losses closer than 2 % — one profile cannot tell the shapes apart
+NO_PROFILE_REASON = "no density profile (stability diagram only)"  # skip reason of shapes without a profile
 
 # Errors that depend on the shape: the shape is skipped with a reason. Errors of the profile and the settings (the
 # profile does not match the pore, an empty window, no ρ_bulk) are the same for all shapes — the search keeps them.
@@ -92,7 +93,10 @@ class ShapeComparison(PandaModel):
     def summary(self) -> str:
         lines = [f"{self.pore_name}: shape comparison"]
         tied = self.indistinguishable
+        without_profile = [row.shape_name for row in self.rows if row.skipped_reason == NO_PROFILE_REASON]
         for row in self.rows:
+            if row.skipped_reason == NO_PROFILE_REASON:
+                continue
             if row.result is None:
                 lines.append(f"  {row.shape_name:<24} skipped: {row.skipped_reason}")
                 continue
@@ -101,6 +105,8 @@ class ShapeComparison(PandaModel):
             mark = "" if result.feasible else "  (outside the existence domain)"
             tie = "≈ " if row.shape_name in tied else "  "
             lines.append(f"{tie}{row.shape_name:<24} loss = {result.loss:.4g}  {values}{mark}")
+        if without_profile:
+            lines.append(f"  {NO_PROFILE_REASON}: {', '.join(without_profile)}")
         if tied:
             lines.append(f"≈ losses within {LOSS_TIE_FRACTION:.0%}: the profile cannot tell apart {', '.join(tied)}")
         return "\n".join(lines)
@@ -127,6 +133,9 @@ def compare_shapes(
     skipped: list[ShapeFit] = []
     for name in names:
         model = pore.interface(name)
+        if not model.shape.has_profile():
+            skipped.append(ShapeFit(shape_name=name, skipped_reason=NO_PROFILE_REASON))
+            continue
         try:
             fitted.append(ShapeFit(shape_name=name, result=fit(model, profile, settings)))
         except SHAPE_LEVEL_ERRORS as error:  # no profile, no feasible start, regime not declared, …
