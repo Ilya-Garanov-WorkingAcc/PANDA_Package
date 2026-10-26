@@ -4,10 +4,10 @@
 contact angle and the interface shape of liquids confined in pores from one-dimensional density profiles
 of molecular simulations.
 
-> **Status: alpha (0.1.0).** Slit pore (six shapes, rectangular base L × kL), triangular pore (12 shapes) and
-> square pore (7 shapes); fitting, the data path from MD trajectories (MDAnalysis, extra `md`), analysis over
-> time blocks, stability diagrams, figures (extra `plot`) and the command line `panda`. Limitations: no formulas
-> for the wetting regime θ < 90° of the slit shapes; see [CHANGELOG.md](https://github.com/Ilya-Garanov-WorkingAcc/PANDA_2.0/blob/main/CHANGELOG.md).
+> **Status: alpha (0.1.0).** Slit pore (six shapes, rectangular base L × kL), triangular pore (12 shapes),
+> square pore (7 shapes) and cylindrical pore (capsule); fitting, the data path from MD trajectories (MDAnalysis,
+> extra `md`), analysis over time blocks, stability diagrams, figures (extra `plot`) and the command line `panda`.
+> Limitations: no formulas for the wetting regime θ < 90° of the slit and cylinder shapes; see [CHANGELOG.md](https://github.com/Ilya-Garanov-WorkingAcc/PANDA_2.0/blob/main/CHANGELOG.md).
 
 A walk-through of the whole analysis of a real trajectory: `examples/demo.ipynb`; a full test run: `examples/test_panda.ipynb`. Documentation: `make docs` builds it from `docs/manual/` (mkdocs); examples: [examples/](https://github.com/Ilya-Garanov-WorkingAcc/PANDA_2.0/blob/main/examples/).
 

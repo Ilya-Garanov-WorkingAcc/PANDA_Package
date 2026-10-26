@@ -31,6 +31,7 @@ class Pore(PandaModel, ABC):
     normal_axis: Axis = Axis.Z  # box axis along which the profile is built
     wall_selection: str | None = None  # wall atoms: used to find the pore centre in each frame
     wall_size_label: ClassVar[str] = "gap between the walls"  # what wall_size_check_nm measures, for warnings
+    # fields that may be set without the dimensions when the pore is measured from a trajectory; empty — it cannot be
     trajectory_fields: ClassVar[tuple[str, ...]] = ()
 
     def __str__(self) -> str:
@@ -109,6 +110,7 @@ class Pore(PandaModel, ABC):
         self, wall_positions_nm: FloatArray, box_nm: FloatArray, center_nm: float
     ) -> tuple[float, float]:
         """(measured, expected) pore size in a frame from the wall atoms (n × 3) around the found centre.
+
         Default: the empty gap between the nearest wall atoms below and above the centre along the profile axis.
         """
         axis = self.normal_axis.column

@@ -10,6 +10,10 @@ Kopanichuk, Colloids Surf. A 708 (2025) 135994.
 
 ### Added
 
+- Cylindrical pore `CylinderPore` (`cylinder`) with the shape `capsule` — a plug with two spherical menisci, θ > 90°
+  (formulas: alpha.py `rollx`); `CylinderPore.from_trajectory` measures a (multi-walled) tube from the wall atoms; the
+  command line measures any pore that can be measured (`Pore.measure_from_trajectory`), and the per-frame wall check
+  is a method of the pore (`Pore.wall_size_check_nm`).
 - Core: a pore with its shapes and a single parameter description (`Parameter`, `FitSpec`): free / fixed /
   bounds / initial for every parameter, units of the user (θ in degrees, δ in units of the pore size), checks
   with readable errors; one generic fit (multistart, L1 or L2 loss, normalization by the bulk density or by the

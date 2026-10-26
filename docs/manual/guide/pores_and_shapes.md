@@ -11,6 +11,7 @@ bounds, regimes and symmetry axes.
 | slit | `SlitPore` | `width_nm` (H), `length_nm` (L), `base_aspect_ratio` (k: base L × kL), `wall_offset_nm` | normal to the walls | H |
 | triangle | `TrianglePore` | `side_nm` (a), `length_nm` (L), `layer_width_nm` | across the channel | a |
 | square | `SquarePore` | `side_nm` (a), `length_nm` (L), `layer_width_nm` | across the channel | a |
+| cylinder | `CylinderPore` | `diameter_nm` (D), `length_nm` (L: box edge along the tube), `layer_width_nm`, `axis`, `wall_offset_nm` | across the tube | D |
 
 All pores also have `normal_axis` (box axis of the profile, default `z`) and `wall_selection` (atoms of the
 walls, used to find the pore centre in every frame). The coordinate of the profile is measured in units of the
@@ -48,6 +49,15 @@ Formulas follow Semenchuk et al. (2025) for the square base and Shistko et al., 
 Shape names encode how the liquid sits in the pore: `w` — number of walls it touches, `c` — number of corners it
 occupies, e.g. `droplet_w2c1` is a droplet touching two walls and occupying one corner. Formulas come from PANDA_Polygon
 (G. Vandyshev); some shapes have no density profile yet and take part only in stability diagrams.
+
+## Cylindrical pore
+
+A tube of diameter D whose axis (`axis`, default `x`) runs through the periodic box, as a nanotube does. One shape,
+`capsule`: a liquid plug filling the cross-section, closed by two spherical menisci; formulas for θ > 90° only
+(convex menisci). Conventions: the profile runs across the tube (z = 0 on the axis, walls at ±D/2) and is normalized
+to the box layer L × L_y, where L is the box edge along the tube and L_y (`layer_width_nm`) the box edge along the
+third axis; φ is relative to the whole tube π D² L / 4. At the largest φ the menisci touch the periodic image of the
+plug. `CylinderPore.from_trajectory` measures the tube from the wall atoms (see “From a trajectory”).
 
 ## Feasibility
 
