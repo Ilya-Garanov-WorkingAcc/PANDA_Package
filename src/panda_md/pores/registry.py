@@ -2,11 +2,12 @@
 
 from panda_md.core.errors import PandaError, UnknownPoreError
 from panda_md.core.pore import Pore
+from panda_md.pores.cylinder import CylinderPore
 from panda_md.pores.slit import SlitPore
 from panda_md.pores.square import SquarePore
 from panda_md.pores.triangle import TrianglePore
 
-PORE_TYPES: tuple[type[Pore], ...] = (SlitPore, SquarePore, TrianglePore)  # a new pore type is added here
+PORE_TYPES: tuple[type[Pore], ...] = (SlitPore, SquarePore, TrianglePore, CylinderPore)  # a new pore type is added here
 
 
 def pore_types() -> dict[str, type[Pore]]:

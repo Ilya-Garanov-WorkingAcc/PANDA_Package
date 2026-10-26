@@ -36,6 +36,7 @@ from panda_md.core.profile import DensityProfile, ProfileSet
 from panda_md.core.result import FitResult
 from panda_md.core.spec import FitSpec
 from panda_md.core.version import library_version
+from panda_md.pores.cylinder import CylinderPore
 from panda_md.pores.slit import SlitPore
 from panda_md.pores.square import SquarePore
 from panda_md.pores.triangle import TrianglePore
@@ -53,6 +54,7 @@ __all__ = [
     "Axis",
     "AxisLocator",
     "AxisOrientation",
+    "CylinderPore",
     "DensityMap",
     "DensityProfile",
     "FitResult",

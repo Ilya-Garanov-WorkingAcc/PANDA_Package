@@ -4,7 +4,7 @@ title: "PANDA: Predicting Angle from Nanoscale Density Analysis"
 type: software
 abstract: >-
   Python library that determines the contact angle and the interface shape of liquids confined in slit,
-  triangular and square pores from one-dimensional density profiles of molecular simulations.
+  triangular, square and cylindrical pores from one-dimensional density profiles of molecular simulations.
 authors:
   - family-names: Garanov
     given-names: Ilya

@@ -149,8 +149,9 @@ def profile(
 ) -> int:
     """Density profiles over time blocks from an MD trajectory (needs panda-md[md]).
 
-    Without pore dimensions (--pore-file, -g) the slit is measured from the wall atoms (--walls “selection”) in the
-    --start frame; --pore-output saves the measured pore — its JSON is then passed to panda fit --pore-file.
+    Without pore dimensions (--pore-file, -g) a slit or cylinder pore is measured from the wall atoms (--walls
+    “selection”) in the --start frame; --pore-output saves the measured pore — its JSON is then passed to panda fit
+    --pore-file.
     """
     if bins is not None and bin_width is not None:
         raise CommandLineError("--bins and --bin-width are mutually exclusive; set only one")

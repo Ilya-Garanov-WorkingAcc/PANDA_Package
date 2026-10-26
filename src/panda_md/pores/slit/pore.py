@@ -5,6 +5,7 @@ The parameter k (squeeze parameter) is from Shistko et al., Mol. Simul. (2025), 
 
 import math
 import warnings
+from collections.abc import Mapping
 from typing import ClassVar
 
 import numpy as np
@@ -13,7 +14,7 @@ from pydantic import Field
 from panda_md.core.enums import AXIS_ORDER, Axis
 from panda_md.core.errors import InvalidTrajectoryError, PandaWarning
 from panda_md.core.pbc import empty_gaps, wrap_centered
-from panda_md.core.pore import Pore
+from panda_md.core.pore import Pore, field_as_float
 from panda_md.core.shape import PoreGeometry
 from panda_md.core.timing import TimeValue
 from panda_md.core.trajectory import Trajectory
@@ -57,6 +58,7 @@ class SlitGeometry(PoreGeometry):
 
 class SlitPore(Pore):
     name: ClassVar[str] = "slit"
+    trajectory_fields: ClassVar[tuple[str, ...]] = ("wall_selection", "length_axis", "normal_axis", "wall_offset_nm")
 
     width_nm: float = Field(gt=0.0)  # H — distance between the walls
     length_nm: float = Field(gt=0.0)  # L — long side of the cell base
@@ -95,6 +97,26 @@ class SlitPore(Pore):
             key=lambda gap: abs(gap[1] - gap[0] - self.expected_wall_gap_nm()),
         )
         return (0.5 * (start + end)) % period_nm
+
+    @classmethod
+    def measure_from_trajectory(
+        cls,
+        trajectory: Trajectory,
+        *,
+        walls: str,
+        time: TimeValue,
+        liquid: str | None,
+        fields: Mapping[str, object],
+    ) -> "SlitPore":
+        return cls.from_trajectory(
+            trajectory,
+            walls=walls,
+            length_axis=Axis(fields.get("length_axis", Axis.X)),
+            normal_axis=Axis(fields.get("normal_axis", Axis.Z)),
+            wall_offset_nm=field_as_float(fields, "wall_offset_nm", 0.0),
+            time=time,
+            liquid=liquid,
+        )
 
     @classmethod
     def from_trajectory(

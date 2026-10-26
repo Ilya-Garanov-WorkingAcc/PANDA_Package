@@ -4,10 +4,10 @@
 contact angle and the interface shape of liquids confined in pores from one-dimensional density profiles
 of molecular simulations.
 
-> **Status: alpha (0.1.0).** Slit pore (six shapes, rectangular base L × kL), triangular pore (12 shapes) and
-> square pore (7 shapes); fitting, the data path from MD trajectories (MDAnalysis, extra `md`), analysis over
-> time blocks, stability diagrams, figures (extra `plot`) and the command line `panda`. Limitations: no formulas
-> for the wetting regime θ < 90° of the slit shapes; see [CHANGELOG.md](https://github.com/Ilya-Garanov-WorkingAcc/PANDA_2.0/blob/main/CHANGELOG.md).
+> **Status: alpha (0.1.0).** Slit pore (six shapes, rectangular base L × kL), triangular pore (12 shapes),
+> square pore (7 shapes) and cylindrical pore (capsule); fitting, the data path from MD trajectories (MDAnalysis,
+> extra `md`), analysis over time blocks, stability diagrams, figures (extra `plot`) and the command line `panda`.
+> Limitations: no formulas for the wetting regime θ < 90° of the slit and cylinder shapes; see [CHANGELOG.md](https://github.com/Ilya-Garanov-WorkingAcc/PANDA_2.0/blob/main/CHANGELOG.md).
 
 A walk-through of the whole analysis of a real trajectory: `examples/demo.ipynb`; a full test run: `examples/test_panda.ipynb`. Documentation: `make docs` builds it from `docs/manual/` (mkdocs); examples: [examples/](https://github.com/Ilya-Garanov-WorkingAcc/PANDA_2.0/blob/main/examples/).
 
@@ -47,7 +47,7 @@ The same pipeline from the shell (`panda --help`, `panda COMMAND --help`):
 
 ```bash
 panda shapes --pore slit      # pore fields, shapes, their parameters, bounds, regimes, symmetry axes
-# profiles by time blocks; without -g/--pore-file the slit is measured from the wall atoms
+# profiles by time blocks; without -g/--pore-file the pore (slit, cylinder) is measured from the wall atoms
 panda profile system.tpr system.xtc --walls "resname GRAPHITE" --select "resname WATER and name OW" \
       --start "2 ns" --block "1 ns" -o water.npz --pore-output pore.json
 panda fit water.npz --pore-file pore.json --shape roll --rho-bulk 33.1 --blocks -o result.json --plot fit.png

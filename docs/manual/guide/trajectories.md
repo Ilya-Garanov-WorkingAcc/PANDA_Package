@@ -42,6 +42,15 @@ pore = panda.SlitPore.from_trajectory(trajectory, walls="type 1", liquid="type 2
 `liquid=` the gap that holds the liquid, useful when the box has a vacuum slab), L and k from the box edges.
 `wall_offset_nm` moves each wall surface away from the centres of its outermost atoms (H = gap − 2·offset).
 
+`CylinderPore.from_trajectory(trajectory, walls=…, axis="x", liquid=…)` measures a tube along `axis`: the axis lies
+opposite the widest empty gap of the wall atoms in each cross-section direction, D is twice the distance from the axis
+to the nearest wall atom (the inner shell of a multi-walled tube) minus 2·`wall_offset_nm`, L and L_y are the box
+edges. Walls that do not form concentric shells around an empty channel, or a liquid mostly outside the tube, are an
+error (“not a tube”). In every frame the pore centring checks the tube diameter instead of the wall gap. The walls
+must be shells with empty space outside the tube: a cylindrical channel cut in a solid matrix (MCM-41-like silica)
+is not supported — the axis cannot be found from such walls. Liquid outside the tube still falls into the profile
+layer L × L_y, so `from_trajectory` warns when more than 2 % of the selected liquid lies outside the tube.
+
 ## Centering
 
 By default (`centering=None`) the profile is centred on the pore if its walls (`wall_selection`) or its

@@ -228,28 +228,18 @@ def profile_frame_center(
         return circular_mean(heights, period)
     if pore_center_nm is not None:
         return pore_center_nm
-    walls = frame.positions_nm[1][:, axis]
-    center = pore.locate_center_nm(walls, period)
-    gap = _wall_gap(walls, period, center)
-    expected = pore.expected_wall_gap_nm()
-    if abs(gap - expected) > WALL_GAP_TOLERANCE * expected and "gap" not in warned:
+    walls = frame.positions_nm[1]
+    center = pore.locate_center_nm(walls[:, axis], period)
+    measured, expected = pore.wall_size_check_nm(walls, frame.box_nm, center)
+    if abs(measured - expected) > WALL_GAP_TOLERANCE * expected and "gap" not in warned:
         warned.add("gap")
         warnings.warn(
-            f"frame {frame.index}: the gap between the walls is {gap:.3f} nm, the pore size is {expected:.3f} nm; "
-            f"the walls have moved or the pore is set incorrectly",
+            f"frame {frame.index}: the {pore.wall_size_label} is {measured:.3f} nm, the pore size is "
+            f"{expected:.3f} nm; the walls have moved or the pore is set incorrectly",
             PandaWarning,
             stacklevel=3,
         )
     return center
-
-
-def _wall_gap(walls: FloatArray, period: float, center: float) -> float:
-    """Width of the empty gap around center: the nearest wall atoms below and above."""
-    offsets = wrap_centered(walls - center, period)
-    above, below = offsets[offsets > 0], offsets[offsets <= 0]
-    if above.size == 0 or below.size == 0:
-        return period  # walls in one plane: the pore is the whole box
-    return float(np.min(above) - np.max(below))
 
 
 def profile_bin_edges(

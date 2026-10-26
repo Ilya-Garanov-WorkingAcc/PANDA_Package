@@ -13,8 +13,8 @@ calls the same functions as the Python API.
 ## Pore
 
 `--pore-file pore.json` (a JSON of the pore fields, optionally with `"type"`) and/or `-g FIELD=VALUE`
-(`-g width_nm=8 -g length_nm=16`). Without dimensions `panda profile` measures the slit from the wall atoms
-(`--walls "selection"`) and `--pore-output pore.json` saves it for `panda fit`. Without walls and without
+(`-g width_nm=8 -g length_nm=16`). Without dimensions `panda profile` measures a slit or cylinder pore (`--pore cylinder`) from
+the wall atoms (`--walls "selection"`) and `--pore-output pore.json` saves it for `panda fit`. Without walls and without
 `--center-by` the profile is centred on the liquid (with a warning). `--walls z1,z2` fixes the wall
 positions instead (the pore dimensions are then required).
 
