@@ -10,7 +10,7 @@ from typing import Any
 import numpy as np
 import pytest
 
-from panda_md import SlitPore, SquarePore, TrianglePore
+from panda_md import CylinderPore, SlitPore, SquarePore, TrianglePore
 from panda_md.analysis.stability import stability_diagram
 from panda_md.core.enums import ProfileCentering
 from panda_md.pores.polygon import PolygonPore
@@ -127,3 +127,24 @@ def test_density_profile_matches_old_panda() -> None:
         np.testing.assert_allclose(
             profiles.mean().density_per_nm3, reference["density_per_nm3"], rtol=0.0, atol=TOLERANCE
         )
+
+
+CYLINDER = load("cylinder_reference.json")
+CYLINDER_DIAMETER_NM = 1.0
+
+
+@pytest.mark.parametrize("case", CYLINDER["cases"], ids=lambda case: f"θ={case['theta']}-δ={case['delta']}")
+def test_cylinder_capsule_matches_alpha(case: dict[str, Any]) -> None:
+    """Capsule in a cylinder = rollx of alpha.py: profile, φ interval, wall + meniscus area."""
+    pore = CylinderPore(
+        diameter_nm=CYLINDER_DIAMETER_NM,
+        length_nm=case["length_ratio"] * CYLINDER_DIAMETER_NM,
+        layer_width_nm=case["layer_width_ratio"] * CYLINDER_DIAMETER_NM,
+    )
+    model = pore.interface("capsule")
+    values = {name: case[name] for name in ("theta", "delta", "phi")}
+    coordinate = np.array(CYLINDER["coordinate"])
+    np.testing.assert_allclose(model.profile(coordinate, **values), case["profile"], rtol=0.0, atol=TOLERANCE)
+    np.testing.assert_allclose(model.phi_limits(**values), case["phi_limits"], rtol=0.0, atol=TOLERANCE)
+    terms = model.surface_terms(**values)
+    assert terms.liquid_liquid_area + terms.liquid_solid_area == pytest.approx(case["surface"], abs=TOLERANCE)

@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 from scipy.integrate import trapezoid
 
-from panda_md import SlitPore, SquarePore, TrianglePore
+from panda_md import CylinderPore, SlitPore, SquarePore, TrianglePore
 from panda_md.core.enums import ParameterName, Regime
 from panda_md.core.errors import NotDerivedError
 from panda_md.core.model import InterfaceModel
@@ -24,6 +24,7 @@ PORES: tuple[Pore, ...] = (
     SlitPore(width_nm=8.0, length_nm=32.0, base_aspect_ratio=0.4),  # rectangular base (RectCell)
     SquarePore(side_nm=6.0, length_nm=12.0, layer_width_nm=6.0),
     TrianglePore(side_nm=6.0, length_nm=12.0, layer_width_nm=6.0),
+    CylinderPore(diameter_nm=6.0, length_nm=12.0, layer_width_nm=9.0),
 )
 MODELS = [model for pore in PORES for model in pore.available_interfaces()]
 INTEGRATION_POINTS = 200_001
