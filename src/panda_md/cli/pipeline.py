@@ -10,7 +10,7 @@ from numpy.lib.npyio import NpzFile
 from panda_md.analysis.blocks import FitResultSet, fit_blocks
 from panda_md.analysis.compare import ShapeComparison, compare_shapes
 from panda_md.cli.options import OPTIONS_HINT, CommandLineError, missing_fields, pore_json, require_dimensions
-from panda_md.core.enums import Axis, Orientation, ParticleGrouping, ProfileCentering
+from panda_md.core.enums import Orientation, ParticleGrouping, ProfileCentering
 from panda_md.core.errors import UnknownShapeError
 from panda_md.core.fitting import fit
 from panda_md.core.pore import Pore
@@ -20,7 +20,6 @@ from panda_md.core.spec import FitSpec
 from panda_md.core.timing import TimeValue
 from panda_md.core.trajectory import Trajectory
 from panda_md.core.types import PandaModel
-from panda_md.pores.slit import SlitPore
 from panda_md.trajectory.density import density_profile
 from panda_md.trajectory.reader import load_trajectory
 
@@ -28,8 +27,6 @@ AUTO_SHAPE = "auto"  # --shape auto: try all shapes of the pore, take the best
 PROFILE_SET_KEY = "bin_edges_nm"  # the array that tells a .npz of a profile set from a single profile
 METADATA_KEY = "metadata"  # metadata JSON in a .npz saved by PANDA
 WALL_SELECTION_FIELD = "wall_selection"
-# slit fields that can be set without the dimensions: SlitPore.from_trajectory finds the rest itself
-FROM_TRAJECTORY_FIELDS = (WALL_SELECTION_FIELD, "length_axis", "normal_axis", "wall_offset_nm")
 EXIT_SUCCESS = 0
 EXIT_INPUT_ERROR = 1
 EXIT_FIT_PROBLEMS = 2
@@ -120,33 +117,26 @@ def trajectory_pore(
     start: TimeValue,
     hint: str = OPTIONS_HINT,
 ) -> Pore:
-    """Pore with the given dimensions; without them a slit from the wall atoms in frame start (from_trajectory)."""
+    """Pore with the given dimensions; without them measured from the wall atoms in frame start, if the pore type can
+    be measured (Pore.trajectory_fields, Pore.measure_from_trajectory)."""
     missing = missing_fields(pore_type, values)
     required = missing_fields(pore_type, {})
-    if not missing or not issubclass(pore_type, SlitPore) or missing != required:
+    if not missing or not pore_type.trajectory_fields or missing != required:
         return require_dimensions(pore_type, values, hint)
     walls = values.get(WALL_SELECTION_FIELD)
-    unused = sorted(set(values) - set(FROM_TRAJECTORY_FIELDS))
+    unused = sorted(set(values) - set(pore_type.trajectory_fields))
     if walls is None:
         raise CommandLineError(
-            "slit dimensions are measured from the trajectory by the wall atoms: set their selection (--walls "
-            f"“selection” or wall_selection in [pore]) — wall coordinates “z1,z2” do not measure the slit; or set "
-            f"the dimensions with {hint}"
+            f"{pore_type.name} pore dimensions are measured from the trajectory by the wall atoms: set their "
+            f"selection (--walls “selection” or wall_selection in [pore]) — wall coordinates “z1,z2” do not measure "
+            f"the pore; or set the dimensions with {hint}"
         )
     if unused:
         raise CommandLineError(
-            f"without dimensions the slit is measured from the trajectory, and fields {', '.join(unused)} are unused; "
-            f"remove them or set all dimensions ({hint})"
+            f"without dimensions the {pore_type.name} pore is measured from the trajectory, and fields "
+            f"{', '.join(unused)} are unused; remove them or set all dimensions ({hint})"
         )
-    return SlitPore.from_trajectory(
-        trajectory,
-        walls=str(walls),
-        length_axis=Axis(values.get("length_axis", Axis.X)),
-        normal_axis=Axis(values.get("normal_axis", Axis.Z)),
-        wall_offset_nm=float(str(values.get("wall_offset_nm", 0.0))),
-        time=start,
-        liquid=select,
-    )
+    return pore_type.measure_from_trajectory(trajectory, walls=str(walls), time=start, liquid=select, fields=values)
 
 
 def build_profiles(

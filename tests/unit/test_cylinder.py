@@ -10,8 +10,10 @@ from pydantic import ValidationError
 from scipy.integrate import trapezoid
 
 import panda_md as panda
-from panda_md import CylinderPore
-from panda_md.cli.options import load_pore, pore_json
+from panda_md import CylinderPore, TrianglePore
+from panda_md.cli import main
+from panda_md.cli.options import CommandLineError, load_pore, pore_json
+from panda_md.cli.pipeline import trajectory_pore
 from panda_md.core.enums import Axis
 from panda_md.core.errors import InvalidTrajectoryError, PandaWarning, UnsupportedRegimeError
 from panda_md.pores.cylinder.capsule import CylinderCapsule
@@ -248,3 +250,24 @@ def test_capsule_profile_from_a_tube_trajectory() -> None:
     )
     assert result.values["theta"] == pytest.approx(130.0, abs=5.0)
     assert result.values["phi"] == pytest.approx(0.4, abs=0.03)
+
+
+def test_command_line_measures_a_tube_without_dimensions() -> None:
+    tube = trajectory_pore(CylinderPore, {"wall_selection": "walls"}, cylinder_trajectory(), select="liquid", start=0.0)
+    assert isinstance(tube, CylinderPore)
+    assert tube.diameter_nm == pytest.approx(4.0, abs=1e-9)
+    with pytest.raises(CommandLineError, match="missing dimensions of pore 'triangle'"):
+        trajectory_pore(TrianglePore, {"wall_selection": "walls"}, cylinder_trajectory(), select="liquid", start=0.0)
+    with pytest.raises(CommandLineError, match="unused"):
+        trajectory_pore(
+            CylinderPore,
+            {"wall_selection": "walls", "length_axis": "x"},
+            cylinder_trajectory(),
+            select="liquid",
+            start=0.0,
+        )
+
+
+def test_command_line_lists_the_capsule(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["shapes", "--pore", "cylinder"]) == 0
+    assert "capsule" in capsys.readouterr().out

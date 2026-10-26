@@ -1,6 +1,7 @@
 """Pore type: geometry, position in the simulation box, reduction of the profile to dimensionless form, shapes."""
 
 from abc import ABC, abstractmethod
+from collections.abc import Mapping
 from enum import Enum
 from typing import TYPE_CHECKING, Any, ClassVar, TypeVar
 
@@ -15,6 +16,8 @@ from panda_md.core.types import FloatArray, PandaModel
 
 if TYPE_CHECKING:
     from panda_md.core.model import InterfaceModel
+    from panda_md.core.timing import TimeValue
+    from panda_md.core.trajectory import Trajectory
 
 # Any: the registry holds shapes with different geometry subclasses; the concrete type is known only to the pore.
 ShapeClassT = TypeVar("ShapeClassT", bound=type[InterfaceShape[Any]])
@@ -28,6 +31,7 @@ class Pore(PandaModel, ABC):
     normal_axis: Axis = Axis.Z  # box axis along which the profile is built
     wall_selection: str | None = None  # wall atoms: used to find the pore centre in each frame
     wall_size_label: ClassVar[str] = "gap between the walls"  # what wall_size_check_nm measures, for warnings
+    trajectory_fields: ClassVar[tuple[str, ...]] = ()
 
     def __str__(self) -> str:
         """Readable form, e.g. `slit pore: width_nm = 8.269, length_nm = 17.271`; default fields are omitted."""
@@ -113,6 +117,21 @@ class Pore(PandaModel, ABC):
         if above.size == 0 or below.size == 0:
             return float(box_nm[axis]), self.expected_wall_gap_nm()  # walls in one plane: the pore is the whole box
         return float(np.min(above) - np.max(below)), self.expected_wall_gap_nm()
+
+    @classmethod
+    def measure_from_trajectory(
+        cls,
+        trajectory: "Trajectory",
+        *,
+        walls: str,
+        time: "TimeValue",
+        liquid: str | None,
+        fields: Mapping[str, object],
+    ) -> "Pore":
+        """The pore measured from the wall atoms of a trajectory frame; `fields` are among `trajectory_fields`."""
+        raise NotDerivedError(
+            f"measuring pore '{cls.name}' from a trajectory is not implemented; set its dimensions explicitly"
+        )
 
     def reduce(
         self, profile: DensityProfile, normalization: Normalization, density_bulk_per_nm3: float | None

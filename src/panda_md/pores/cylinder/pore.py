@@ -6,6 +6,7 @@ layer of width ly = L_y / D along the third axis, φ is relative to the whole tu
 """
 
 import math
+from collections.abc import Mapping
 from typing import ClassVar
 
 import numpy as np
@@ -64,6 +65,7 @@ class CylinderPore(Pore):
 
     name: ClassVar[str] = "cylinder"
     wall_size_label: ClassVar[str] = "tube diameter"
+    trajectory_fields: ClassVar[tuple[str, ...]] = ("wall_selection", "axis", "normal_axis", "wall_offset_nm")
 
     diameter_nm: float = Field(gt=0.0)  # D — tube diameter (wall surface to wall surface)
     length_nm: float = Field(gt=0.0)  # L — box edge along the tube axis (the tube is periodic)
@@ -124,6 +126,26 @@ class CylinderPore(Pore):
         )
         inner_radius = float(np.min(_radial_distances(wall_positions_nm, box_nm, columns, center)))
         return 2.0 * inner_radius, self.expected_wall_gap_nm()
+
+    @classmethod
+    def measure_from_trajectory(
+        cls,
+        trajectory: Trajectory,
+        *,
+        walls: str,
+        time: TimeValue,
+        liquid: str | None,
+        fields: Mapping[str, object],
+    ) -> "CylinderPore":
+        return cls.from_trajectory(
+            trajectory,
+            walls=walls,
+            axis=Axis(fields.get("axis", Axis.X)),
+            normal_axis=Axis(fields.get("normal_axis", Axis.Z)),
+            wall_offset_nm=float(str(fields.get("wall_offset_nm", 0.0))),
+            time=time,
+            liquid=liquid,
+        )
 
     @classmethod
     def from_trajectory(
