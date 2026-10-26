@@ -13,6 +13,7 @@ import pytest
 from panda_md import CylinderPore, SlitPore, SquarePore, TrianglePore
 from panda_md.analysis.stability import stability_diagram
 from panda_md.core.enums import ProfileCentering
+from panda_md.pores.cylinder.capsule import CylinderCapsule
 from panda_md.pores.polygon import PolygonPore
 from panda_md.trajectory.arrays import ArrayTrajectory
 from panda_md.trajectory.density import density_profile
@@ -133,7 +134,9 @@ CYLINDER = load("cylinder_reference.json")
 CYLINDER_DIAMETER_NM = 1.0
 
 
-@pytest.mark.parametrize("case", CYLINDER["cases"], ids=lambda case: f"θ={case['theta']}-δ={case['delta']}")
+@pytest.mark.parametrize(
+    "case", CYLINDER["cases"], ids=lambda case: f"θ={case['theta']}-δ={case['delta']}-l={case['length_ratio']}"
+)
 def test_cylinder_capsule_matches_alpha(case: dict[str, Any]) -> None:
     """Capsule in a cylinder = rollx of alpha.py: profile, φ interval, wall + meniscus area."""
     pore = CylinderPore(
@@ -146,5 +149,7 @@ def test_cylinder_capsule_matches_alpha(case: dict[str, Any]) -> None:
     coordinate = np.array(CYLINDER["coordinate"])
     np.testing.assert_allclose(model.profile(coordinate, **values), case["profile"], rtol=0.0, atol=TOLERANCE)
     np.testing.assert_allclose(model.phi_limits(**values), case["phi_limits"], rtol=0.0, atol=TOLERANCE)
+    plug_length = CylinderCapsule().plug_length(pore.geometry(), model.supported_values(values))
+    assert plug_length == pytest.approx(case["plug_length"], abs=TOLERANCE)
     terms = model.surface_terms(**values)
     assert terms.liquid_liquid_area + terms.liquid_solid_area == pytest.approx(case["surface"], abs=TOLERANCE)

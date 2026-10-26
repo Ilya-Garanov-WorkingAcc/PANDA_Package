@@ -15,6 +15,7 @@ from panda_md.core.enums import Frame, ParameterName, Regime
 from panda_md.core.parameters import CONTACT_ANGLE, VOLUME_FRACTION, WALL_LAYER_THICKNESS, Parameter, ParameterValues
 from panda_md.core.shape import InterfaceShape, SurfaceTerms
 from panda_md.core.types import BoolArray, FloatArray
+from panda_md.pores.common import circular_segment_area
 from panda_md.pores.cylinder.pore import CylinderGeometry, CylinderPore, accessible_radius
 
 
@@ -76,16 +77,18 @@ class CylinderCapsule(InterfaceShape[CylinderGeometry]):
     def profile(self, coordinate: FloatArray, geometry: CylinderGeometry, values: ParameterValues) -> FloatArray:
         """ρ/ρ_bulk = (d · H₁ + 2 · segment) / (l · ly): the section of the plug by the plane z = const.
 
-        H₁ = 2√(R′² − z²) — chord of the tube; segment = r₁² (α − sin α) / 2 of a cap circle of radius
-        r₁ = √(r² − z²), α = 2 arcsin(R₁ / r₁), R₁ = H₁ / 2 (S_layer_rollx_alpha).
+        H₁ = 2√(R′² − z²) — chord of the tube; segment — of a cap circle of radius r₁ = √(r² − z²) cut by the chord
+        H₁, which lies at r · sin θ from the circle centre for every z (S_layer_rollx_alpha writes the same segment as
+        r₁² (α − sin α) / 2 with α = 2 arcsin(H₁ / 2r₁)).
         """
         radius = accessible_radius(values[ParameterName.WALL_LAYER_THICKNESS])
         inside = np.abs(coordinate) < radius
         height = np.where(inside, coordinate, 0.0)  # outside the formulas are undefined (r may be < 1/2)
         half_chord = np.sqrt(radius**2 - height**2)
-        cap_radius = np.sqrt(self.meniscus_radius(values) ** 2 - height**2)  # r ≥ R′ > |z|
-        angle = 2.0 * np.arcsin(np.clip(half_chord / cap_radius, 0.0, 1.0))
-        segment = 0.5 * cap_radius**2 * (angle - np.sin(angle))
+        meniscus_radius = self.meniscus_radius(values)
+        cap_radius = np.sqrt(meniscus_radius**2 - height**2)  # r ≥ R′ > |z|
+        chord_distance = meniscus_radius * math.sin(values[ParameterName.CONTACT_ANGLE])
+        segment = circular_segment_area(cap_radius, chord_distance)
         section = self.plug_length(geometry, values) * 2.0 * half_chord + 2.0 * segment
         return np.where(inside, section / geometry.layer_area(), 0.0)
 

@@ -19,6 +19,15 @@ if TYPE_CHECKING:
     from panda_md.core.timing import TimeValue
     from panda_md.core.trajectory import Trajectory
 
+
+def field_as_float(fields: Mapping[str, object], name: str, default: float) -> float:
+    """A numeric pore field from settings or the command line: a number or its text; `default` if absent."""
+    value = fields.get(name, default)
+    if isinstance(value, bool) or not isinstance(value, int | float | str):
+        raise ValueError(f"pore field {name} must be a number, got {value!r}")
+    return float(value)
+
+
 # Any: the registry holds shapes with different geometry subclasses; the concrete type is known only to the pore.
 ShapeClassT = TypeVar("ShapeClassT", bound=type[InterfaceShape[Any]])
 
@@ -33,6 +42,16 @@ class Pore(PandaModel, ABC):
     wall_size_label: ClassVar[str] = "gap between the walls"  # what wall_size_check_nm measures, for warnings
     # fields that may be set without the dimensions when the pore is measured from a trajectory; empty — it cannot be
     trajectory_fields: ClassVar[tuple[str, ...]] = ()
+
+    @classmethod
+    def __pydantic_init_subclass__(cls, **kwargs: Any) -> None:  # noqa: ANN401 — pydantic's hook signature
+        """Measuring from a trajectory is one capability: `trajectory_fields` and `measure_from_trajectory` together."""
+        super().__pydantic_init_subclass__(**kwargs)
+        measures = any("measure_from_trajectory" in vars(klass) for klass in cls.__mro__ if klass is not Pore)
+        if measures != bool(cls.trajectory_fields):
+            raise TypeError(
+                f"pore class {cls.__name__}: declare both trajectory_fields and measure_from_trajectory, or neither"
+            )
 
     def __str__(self) -> str:
         """Readable form, e.g. `slit pore: width_nm = 8.269, length_nm = 17.271`; default fields are omitted."""

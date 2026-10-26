@@ -1,10 +1,12 @@
 """Cylindrical pore and its capsule shape (formulas: alpha.py rollx)."""
 
+import json
 import math
 import subprocess
 import sys
 import warnings
 from pathlib import Path
+from typing import ClassVar
 
 import numpy as np
 import pytest
@@ -18,6 +20,8 @@ from panda_md.cli.options import CommandLineError, load_pore, pore_json
 from panda_md.cli.pipeline import trajectory_pore
 from panda_md.core.enums import Axis
 from panda_md.core.errors import InvalidTrajectoryError, PandaWarning, UnsupportedRegimeError
+from panda_md.core.pore import field_as_float
+from panda_md.core.profile import DensityProfile
 from panda_md.pores.cylinder.capsule import CylinderCapsule
 from panda_md.pores.registry import pore_class
 from panda_md.synthetic.profiles import synthetic_profile
@@ -310,3 +314,51 @@ def test_profile_help_says_any_measurable_pore_is_measured() -> None:
     help_text = " ".join(completed.stdout.split())
     assert "the slit is measured" not in help_text
     assert "cylinder" in help_text
+
+
+def test_liquid_partly_outside_the_tube_is_reported() -> None:
+    """Liquid outside the tube still falls into the profile layer L × L_y: the share is reported once, radially."""
+    generator = np.random.default_rng(5)
+    radius, angle = 1.6 * np.sqrt(generator.random(180)), 2.0 * np.pi * generator.random(180)
+    inside = np.column_stack([8.0 * generator.random(180), 3.0 + radius * np.cos(angle), 3.0 + radius * np.sin(angle)])
+    corners = np.column_stack([8.0 * generator.random(20), np.full(20, 0.2), np.full(20, 0.2)])
+    walls = ring_walls((2.0,), (3.0, 3.0), 8.0)
+    liquid = np.vstack([inside, corners])
+    trajectory = ArrayTrajectory(
+        positions_nm=np.vstack([walls, liquid])[np.newaxis],
+        boxes_nm=[TUBE_BOX_NM],
+        times_ps=[0.0],
+        groups={"walls": np.arange(len(walls)), "liquid": np.arange(len(walls), len(walls) + len(liquid))},
+    )
+    with pytest.warns(PandaWarning, match="10% of the liquid lies outside the tube"):
+        CylinderPore.from_trajectory(trajectory, walls="walls", liquid="liquid")
+
+
+def test_command_line_fit_of_a_cylinder_pore_file(tmp_path: Path) -> None:
+    model = CAPSULE_PORE.interface("capsule")
+    values = capsule_values(130.0, 0.03)
+    profile_path, pore_path, output = tmp_path / "profile.npz", tmp_path / "pore.json", tmp_path / "fit.json"
+    synthetic_profile(model, values, density_bulk_per_nm3=33.0).save(profile_path)
+    pore_path.write_text(pore_json(CAPSULE_PORE), encoding="utf-8")
+    arguments = ["fit", str(profile_path), "--pore-file", str(pore_path), "--shape", "capsule"]
+    code = main([*arguments, "--optimize", "theta,delta", "--rho-bulk", "33", "-o", str(output)])
+    assert code == 0
+    expected = model.fit(
+        DensityProfile.load(profile_path), optimize=["theta", "delta"], density_bulk_per_nm3=33.0
+    ).values["theta"]
+    assert json.loads(output.read_text())["fit"]["values"]["theta"] == pytest.approx(expected, abs=1e-9)
+
+
+def test_a_pore_declares_both_trajectory_hooks_or_neither() -> None:
+    with pytest.raises(TypeError, match="trajectory_fields"):
+
+        class HalfMeasuredPore(CylinderPore):
+            trajectory_fields: ClassVar[tuple[str, ...]] = ()
+
+
+def test_field_as_float_reads_numbers_and_strings() -> None:
+    assert field_as_float({"wall_offset_nm": "0.1"}, "wall_offset_nm", 0.0) == 0.1
+    assert field_as_float({"wall_offset_nm": 2}, "wall_offset_nm", 0.0) == 2.0
+    assert field_as_float({}, "wall_offset_nm", 0.0) == 0.0
+    with pytest.raises(ValueError, match="wall_offset_nm"):
+        field_as_float({"wall_offset_nm": [1.0]}, "wall_offset_nm", 0.0)

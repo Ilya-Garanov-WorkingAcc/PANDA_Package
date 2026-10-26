@@ -6,6 +6,7 @@ layer of width ly = L_y / D along the third axis, φ is relative to the whole tu
 """
 
 import math
+import warnings
 from collections.abc import Mapping
 from typing import ClassVar
 
@@ -13,9 +14,9 @@ import numpy as np
 from pydantic import Field, model_validator
 
 from panda_md.core.enums import AXIS_ORDER, Axis
-from panda_md.core.errors import InvalidTrajectoryError
+from panda_md.core.errors import InvalidTrajectoryError, PandaWarning
 from panda_md.core.pbc import empty_gaps, wrap_centered
-from panda_md.core.pore import Pore
+from panda_md.core.pore import Pore, field_as_float
 from panda_md.core.shape import PoreGeometry
 from panda_md.core.timing import TimeValue
 from panda_md.core.trajectory import Trajectory
@@ -28,6 +29,7 @@ INNER_SHELL_THICKNESS_NM = 0.2  # wall atoms this close to the innermost one for
 RING_SECTORS = 12  # the inner shell must have atoms in every 30° sector around the axis (a slit fills two)
 MAX_AXIAL_GAP_NM = 1.0  # a wider empty gap along the axis: the tube does not run through the box
 MIN_LIQUID_INSIDE_FRACTION = 0.5  # less of the liquid inside the tube — the walls do not form a tube around it
+OUTSIDE_LIQUID_WARNING_FRACTION = 0.02  # more of the liquid outside the tube — a warning: it lands in the profile
 
 
 def accessible_radius(wall_layer: float) -> float:
@@ -144,7 +146,7 @@ class CylinderPore(Pore):
             walls=walls,
             axis=Axis(fields.get("axis", Axis.X)),
             normal_axis=Axis(fields.get("normal_axis", Axis.Z)),
-            wall_offset_nm=float(str(fields.get("wall_offset_nm", 0.0))),
+            wall_offset_nm=field_as_float(fields, "wall_offset_nm", 0.0),
             time=time,
             liquid=liquid,
         )
@@ -204,6 +206,14 @@ class CylinderPore(Pore):
                 raise InvalidTrajectoryError(
                     f"not a tube along {axis.value} around the liquid: only {inside_fraction:.0%} of it lies inside "
                     f"the wall shells (radius {inner:.3f} nm); check the wall selection and the axis"
+                )
+            if 1.0 - inside_fraction > OUTSIDE_LIQUID_WARNING_FRACTION:
+                warnings.warn(
+                    f"{1.0 - inside_fraction:.0%} of the liquid lies outside the tube (farther than {inner:.3f} nm "
+                    "from the axis); the profile layer L × L_y spans the whole box, so this liquid is counted in the "
+                    "profile — check the selection",
+                    PandaWarning,
+                    stacklevel=2,
                 )
         diameter = 2.0 * inner - 2.0 * wall_offset_nm
         if diameter <= 0.0:

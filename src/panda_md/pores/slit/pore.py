@@ -14,7 +14,7 @@ from pydantic import Field
 from panda_md.core.enums import AXIS_ORDER, Axis
 from panda_md.core.errors import InvalidTrajectoryError, PandaWarning
 from panda_md.core.pbc import empty_gaps, wrap_centered
-from panda_md.core.pore import Pore
+from panda_md.core.pore import Pore, field_as_float
 from panda_md.core.shape import PoreGeometry
 from panda_md.core.timing import TimeValue
 from panda_md.core.trajectory import Trajectory
@@ -113,7 +113,7 @@ class SlitPore(Pore):
             walls=walls,
             length_axis=Axis(fields.get("length_axis", Axis.X)),
             normal_axis=Axis(fields.get("normal_axis", Axis.Z)),
-            wall_offset_nm=float(str(fields.get("wall_offset_nm", 0.0))),
+            wall_offset_nm=field_as_float(fields, "wall_offset_nm", 0.0),
             time=time,
             liquid=liquid,
         )
