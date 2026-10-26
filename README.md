@@ -47,7 +47,7 @@ The same pipeline from the shell (`panda --help`, `panda COMMAND --help`):
 
 ```bash
 panda shapes --pore slit      # pore fields, shapes, their parameters, bounds, regimes, symmetry axes
-# profiles by time blocks; without -g/--pore-file the slit is measured from the wall atoms
+# profiles by time blocks; without -g/--pore-file the pore (slit, cylinder) is measured from the wall atoms
 panda profile system.tpr system.xtc --walls "resname GRAPHITE" --select "resname WATER and name OW" \
       --start "2 ns" --block "1 ns" -o water.npz --pore-output pore.json
 panda fit water.npz --pore-file pore.json --shape roll --rho-bulk 33.1 --blocks -o result.json --plot fit.png

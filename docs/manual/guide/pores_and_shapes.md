@@ -57,7 +57,13 @@ A tube of diameter D whose axis (`axis`, default `x`) runs through the periodic 
 (convex menisci). Conventions: the profile runs across the tube (z = 0 on the axis, walls at ±D/2) and is normalized
 to the box layer L × L_y, where L is the box edge along the tube and L_y (`layer_width_nm`) the box edge along the
 third axis; φ is relative to the whole tube π D² L / 4. At the largest φ the menisci touch the periodic image of the
-plug. `CylinderPore.from_trajectory` measures the tube from the wall atoms (see “From a trajectory”).
+plug. `CylinderPore.from_trajectory` measures the tube from the wall atoms (see “From a trajectory”); the walls must
+be shells with empty space outside the tube, and the tube must run through the box.
+
+The profile across a short plug constrains θ weakly: θ enters only through the two caps, while the cylindrical part
+dominates the profile. On a synthetic plug in an 8 nm tube (l = 2) a per-bin noise of 0.02 ρ_bulk already spreads the
+fitted θ by about ±10°, and layering of the liquid at the wall shifts it as well. Judge θ by its spread over time
+blocks (`fit_blocks`) rather than by a single fit.
 
 ## Feasibility
 

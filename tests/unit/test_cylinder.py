@@ -1,6 +1,8 @@
 """Cylindrical pore and its capsule shape (formulas: alpha.py rollx)."""
 
 import math
+import subprocess
+import sys
 import warnings
 from pathlib import Path
 
@@ -271,3 +273,40 @@ def test_command_line_measures_a_tube_without_dimensions() -> None:
 def test_command_line_lists_the_capsule(capsys: pytest.CaptureFixture[str]) -> None:
     assert main(["shapes", "--pore", "cylinder"]) == 0
     assert "capsule" in capsys.readouterr().out
+
+
+def walls_only_trajectory(walls: np.ndarray) -> ArrayTrajectory:
+    return ArrayTrajectory(
+        positions_nm=(walls % np.array(TUBE_BOX_NM))[np.newaxis],
+        boxes_nm=[TUBE_BOX_NM],
+        times_ps=[0.0],
+        groups={"walls": np.arange(len(walls))},
+    )
+
+
+def test_a_tube_that_does_not_run_through_the_box_is_an_error() -> None:
+    """L, l and φ all use the box edge along the axis: a finite tube would silently get the wrong length."""
+    finite = walls_only_trajectory(ring_walls((2.0,), (3.0, 3.0), length=4.0))
+    with pytest.raises(InvalidTrajectoryError, match="does not run through the box"):
+        CylinderPore.from_trajectory(finite, walls="walls")
+
+
+@pytest.mark.parametrize(
+    ("shells", "diameter"),
+    [
+        (tuple(0.8 + 0.34 * shell for shell in range(7)), 1.6),  # multi-walled tube with a narrow core
+        ((0.41, 0.75), 0.82),  # double-walled (6,6)@(11,11)
+    ],
+)
+def test_multiwalled_and_thin_tubes_are_tubes(shells: tuple[float, ...], diameter: float) -> None:
+    pore = CylinderPore.from_trajectory(walls_only_trajectory(ring_walls(shells, (3.0, 3.0), 8.0)), walls="walls")
+    assert pore.diameter_nm == pytest.approx(diameter, abs=1e-9)
+
+
+def test_profile_help_says_any_measurable_pore_is_measured() -> None:
+    completed = subprocess.run(
+        [sys.executable, "-m", "panda_md", "profile", "--help"], capture_output=True, text=True, check=False
+    )
+    help_text = " ".join(completed.stdout.split())
+    assert "the slit is measured" not in help_text
+    assert "cylinder" in help_text

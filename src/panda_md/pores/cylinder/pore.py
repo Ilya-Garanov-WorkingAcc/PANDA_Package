@@ -24,7 +24,9 @@ from panda_md.core.types import FloatArray
 CYLINDER_HALF_DIAMETER = 0.5  # tube walls in the dimensionless coordinate: z = ±0.5
 CYLINDER_SECTION_AREA = math.pi / 4.0  # area of the tube cross-section at D = 1
 MIN_TUBE_DIAMETER_NM = 0.5  # a narrower empty channel along the axis is the spacing inside a solid, not a tube
-MAX_SHELL_SPREAD_FRACTION = 0.5  # wall atoms farther from the axis than 1.5 inner radii: not concentric shells
+INNER_SHELL_THICKNESS_NM = 0.2  # wall atoms this close to the innermost one form the inner shell
+RING_SECTORS = 12  # the inner shell must have atoms in every 30° sector around the axis (a slit fills two)
+MAX_AXIAL_GAP_NM = 1.0  # a wider empty gap along the axis: the tube does not run through the box
 MIN_LIQUID_INSIDE_FRACTION = 0.5  # less of the liquid inside the tube — the walls do not form a tube around it
 
 
@@ -178,12 +180,22 @@ class CylinderPore(Pore):
         box = frame.box_nm
         wall_positions = frame.positions_nm[0]
         center = np.array([tube_axis_coordinate(wall_positions[:, column], float(box[column])) for column in columns])
-        radii = _radial_distances(wall_positions, box, columns, center)
-        inner, outer = float(np.min(radii)), float(np.max(radii))
-        if 2.0 * inner < MIN_TUBE_DIAMETER_NM or outer - inner > MAX_SHELL_SPREAD_FRACTION * inner:
+        offsets = wrap_centered(wall_positions[:, list(columns)] - center, box[list(columns)])
+        radii = np.hypot(offsets[:, 0], offsets[:, 1])
+        inner = float(np.min(radii))
+        shell = radii < inner + INNER_SHELL_THICKNESS_NM
+        sectors = np.floor((np.arctan2(offsets[shell, 1], offsets[shell, 0]) + np.pi) / (2.0 * np.pi) * RING_SECTORS)
+        filled = np.unique(np.minimum(sectors, RING_SECTORS - 1)).size
+        if 2.0 * inner < MIN_TUBE_DIAMETER_NM or filled < RING_SECTORS:
             raise InvalidTrajectoryError(
-                f"not a tube along {axis.value}: the wall atoms lie {inner:.3f}–{outer:.3f} nm from the axis, not on "
-                "concentric shells around an empty channel; check the wall selection and the axis"
+                f"not a tube along {axis.value}: the wall atoms nearest to the axis ({inner:.3f} nm) do not surround "
+                f"it (atoms in {filled} of {RING_SECTORS} directions); check the wall selection and the axis"
+            )
+        start, end = empty_gaps(wall_positions[:, axis.column], float(box[axis.column]))[0]
+        if end - start > MAX_AXIAL_GAP_NM:
+            raise InvalidTrajectoryError(
+                f"the tube does not run through the box along {axis.value}: the walls leave a {end - start:.3f} nm "
+                "gap along the axis; a capsule needs a tube periodic through the box"
             )
         if liquid is not None:
             inside = np.count_nonzero(_radial_distances(frame.positions_nm[1], box, columns, center) < inner)
