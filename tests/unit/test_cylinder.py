@@ -1,6 +1,7 @@
 """Cylindrical pore and its capsule shape (formulas: alpha.py rollx)."""
 
 import math
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -12,10 +13,12 @@ import panda_md as panda
 from panda_md import CylinderPore
 from panda_md.cli.options import load_pore, pore_json
 from panda_md.core.enums import Axis
-from panda_md.core.errors import UnsupportedRegimeError
+from panda_md.core.errors import InvalidTrajectoryError, PandaWarning, UnsupportedRegimeError
 from panda_md.pores.cylinder.capsule import CylinderCapsule
 from panda_md.pores.registry import pore_class
 from panda_md.synthetic.profiles import synthetic_profile
+from panda_md.trajectory.arrays import ArrayTrajectory
+from panda_md.trajectory.density import density_profile
 
 TUBE = {"diameter_nm": 8.0, "length_nm": 16.0, "layer_width_nm": 11.345}
 
@@ -120,3 +123,128 @@ def test_capsule_fit_recovers_parameters(theta: float) -> None:
     result = model.fit(profile, optimize=["theta", "delta"], fixed={"phi": values["phi"]}, density_bulk_per_nm3=33.0)
     assert result.values["theta"] == pytest.approx(theta, abs=0.1)
     assert result.values["delta"] == pytest.approx(0.03, abs=1e-3)
+
+
+TUBE_BOX_NM = (8.0, 6.0, 6.0)
+POINT_DENSITY_PER_NM3 = 3000.0  # sampling density of the synthetic liquid
+
+
+def ring_walls(shells: tuple[float, ...], center: tuple[float, float], length: float) -> np.ndarray:
+    """Wall atoms on rings around an axis along x: 60 atoms per ring, a ring every 0.25 nm, wrapped into the box."""
+    angles = np.linspace(0.0, 2.0 * np.pi, 60, endpoint=False)
+    rings = [
+        np.column_stack([np.full(60, x), center[0] + radius * np.cos(angles), center[1] + radius * np.sin(angles)])
+        for radius in shells
+        for x in np.arange(0.0, length, 0.25)
+    ]
+    return np.vstack(rings)
+
+
+def capsule_liquid(values: dict[str, float], center: tuple[float, float], seed: int) -> np.ndarray:
+    """Liquid points of a capsule in the tube of diameter 4 nm: uniform points kept where the capsule contains them."""
+    pore = CylinderPore(diameter_nm=4.0, length_nm=TUBE_BOX_NM[0], layer_width_nm=TUBE_BOX_NM[1])
+    model = pore.interface("capsule")
+    generator = np.random.default_rng(seed)
+    count = int(POINT_DENSITY_PER_NM3 * TUBE_BOX_NM[0] * 4.0 * 4.0)
+    points = np.column_stack([generator.random(count) * TUBE_BOX_NM[0], (generator.random((count, 2)) - 0.5) * 4.0])
+    reduced = np.column_stack([points[:, 0] - 0.5 * TUBE_BOX_NM[0], points[:, 1:]]) / 4.0
+    inside = model.shape.contains(reduced, pore.geometry(), model.supported_values(values))
+    liquid = points[inside]
+    liquid[:, 1] += center[0]
+    liquid[:, 2] += center[1]
+    return liquid
+
+
+def cylinder_trajectory(
+    shells: tuple[float, ...] = (2.0,),
+    center: tuple[float, float] = (3.0, 3.0),
+    liquid_values: dict[str, float] | None = None,
+    frames: int = 1,
+    liquid_outside: bool = False,
+) -> ArrayTrajectory:
+    """A tube along x (wall rings of the given radii) with liquid: a capsule, a uniform rod, or a rod outside."""
+    walls = ring_walls(shells, center, TUBE_BOX_NM[0])
+    liquids = []
+    for seed in range(frames):
+        if liquid_values is not None:
+            liquids.append(capsule_liquid(liquid_values, center, seed))
+            continue
+        generator = np.random.default_rng(seed)
+        radius = 1.6 * np.sqrt(generator.random(200))
+        angle = 2.0 * np.pi * generator.random(200)
+        offset = (0.0, 0.0) if not liquid_outside else (2.9, 2.9)
+        liquids.append(
+            np.column_stack(
+                [
+                    TUBE_BOX_NM[0] * generator.random(200),
+                    center[0] + offset[0] + 0.3 * radius * np.cos(angle),
+                    center[1] + offset[1] + 0.3 * radius * np.sin(angle),
+                ]
+            )
+        )
+    liquid_count = min(len(liquid) for liquid in liquids)
+    positions = [np.vstack([walls, liquid[:liquid_count]]) % np.array(TUBE_BOX_NM) for liquid in liquids]
+    return ArrayTrajectory(
+        positions_nm=np.array(positions),
+        boxes_nm=[TUBE_BOX_NM] * frames,
+        times_ps=np.arange(frames, dtype=float),
+        groups={"walls": np.arange(len(walls)), "liquid": np.arange(len(walls), len(walls) + liquid_count)},
+    )
+
+
+def test_tube_from_trajectory() -> None:
+    pore = CylinderPore.from_trajectory(cylinder_trajectory(), walls="walls", liquid="liquid")
+    assert pore.diameter_nm == pytest.approx(4.0, abs=1e-9)
+    assert (pore.length_nm, pore.layer_width_nm) == (8.0, 6.0)
+    assert pore.axis is Axis.X and pore.normal_axis is Axis.Z and pore.wall_selection == "walls"
+    with_offset = CylinderPore.from_trajectory(cylinder_trajectory(), walls="walls", wall_offset_nm=0.1)
+    assert with_offset.diameter_nm == pytest.approx(3.8, abs=1e-9)
+
+
+def test_multishell_tube_uses_the_inner_shell() -> None:
+    pore = CylinderPore.from_trajectory(cylinder_trajectory(shells=(2.0, 2.34, 2.68)), walls="walls")
+    assert pore.diameter_nm == pytest.approx(4.0, abs=1e-9)
+
+
+def test_tube_across_the_box_edge() -> None:
+    values = {"theta": 130.0, "delta": 0.05, "phi": 0.4}
+    trajectory = cylinder_trajectory(center=(0.3, 0.3), liquid_values=values)
+    pore = CylinderPore.from_trajectory(trajectory, walls="walls", liquid="liquid")
+    assert pore.diameter_nm == pytest.approx(4.0, abs=1e-9)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", PandaWarning)
+        profile = density_profile(trajectory, pore, "liquid", bins=40).mean()
+    center = np.sum(profile.coordinate_nm * profile.density_per_nm3) / np.sum(profile.density_per_nm3)
+    assert center == pytest.approx(0.0, abs=0.05)
+
+
+def test_slit_is_not_a_tube() -> None:
+    grid = np.stack(np.meshgrid(np.arange(0.0, 8.0, 0.25), np.arange(0.0, 6.0, 0.25)), axis=-1).reshape(-1, 2)
+    planes = np.vstack([np.column_stack([grid, np.full(len(grid), z)]) for z in (1.0, 5.0)])
+    liquid = np.column_stack([np.full(50, 4.0), np.full(50, 3.0), np.linspace(2.0, 4.0, 50)])
+    slit = ArrayTrajectory(
+        positions_nm=np.vstack([planes, liquid])[np.newaxis],
+        boxes_nm=[TUBE_BOX_NM],
+        times_ps=[0.0],
+        groups={"walls": np.arange(len(planes)), "liquid": np.arange(len(planes), len(planes) + 50)},
+    )
+    with pytest.raises(InvalidTrajectoryError, match="not a tube"):
+        CylinderPore.from_trajectory(slit, walls="walls")
+    with pytest.raises(InvalidTrajectoryError, match="not a tube"):
+        CylinderPore.from_trajectory(cylinder_trajectory(liquid_outside=True), walls="walls", liquid="liquid")
+    with pytest.raises(InvalidTrajectoryError, match="axis"):
+        CylinderPore.from_trajectory(cylinder_trajectory(), walls="walls", axis="z")
+
+
+def test_capsule_profile_from_a_tube_trajectory() -> None:
+    values = {"theta": 130.0, "delta": 0.05, "phi": 0.4}
+    trajectory = cylinder_trajectory(liquid_values=values, frames=3)
+    pore = CylinderPore.from_trajectory(trajectory, walls="walls", liquid="liquid")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", PandaWarning)
+        profile = density_profile(trajectory, pore, "liquid", bins=40).mean()
+    result = pore.interface("capsule").fit(
+        profile, optimize=["theta", "delta", "phi"], density_bulk_per_nm3=POINT_DENSITY_PER_NM3
+    )
+    assert result.values["theta"] == pytest.approx(130.0, abs=5.0)
+    assert result.values["phi"] == pytest.approx(0.4, abs=0.03)

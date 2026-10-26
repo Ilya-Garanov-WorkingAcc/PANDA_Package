@@ -4,8 +4,11 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from typing import TYPE_CHECKING, Any, ClassVar, TypeVar
 
+import numpy as np
+
 from panda_md.core.enums import Axis, Normalization
 from panda_md.core.errors import NotDerivedError, UnknownShapeError
+from panda_md.core.pbc import wrap_centered
 from panda_md.core.profile import DensityProfile, ReducedProfile, reduce_profile
 from panda_md.core.shape import InterfaceShape, PoreGeometry
 from panda_md.core.types import FloatArray, PandaModel
@@ -24,6 +27,7 @@ class Pore(PandaModel, ABC):
     shape_registry: ClassVar[dict[str, type[InterfaceShape[Any]]]]
     normal_axis: Axis = Axis.Z  # box axis along which the profile is built
     wall_selection: str | None = None  # wall atoms: used to find the pore centre in each frame
+    wall_size_label: ClassVar[str] = "gap between the walls"  # what wall_size_check_nm measures, for warnings
 
     def __str__(self) -> str:
         """Readable form, e.g. `slit pore: width_nm = 8.269, length_nm = 17.271`; default fields are omitted."""
@@ -96,6 +100,19 @@ class Pore(PandaModel, ABC):
             f"locating the centre of pore '{self.name}' from wall atoms is not implemented; "
             "give the centre explicitly (pore_center_nm)"
         )
+
+    def wall_size_check_nm(
+        self, wall_positions_nm: FloatArray, box_nm: FloatArray, center_nm: float
+    ) -> tuple[float, float]:
+        """(measured, expected) pore size in a frame from the wall atoms (n × 3) around the found centre.
+        Default: the empty gap between the nearest wall atoms below and above the centre along the profile axis.
+        """
+        axis = self.normal_axis.column
+        offsets = wrap_centered(wall_positions_nm[:, axis] - center_nm, float(box_nm[axis]))
+        above, below = offsets[offsets > 0], offsets[offsets <= 0]
+        if above.size == 0 or below.size == 0:
+            return float(box_nm[axis]), self.expected_wall_gap_nm()  # walls in one plane: the pore is the whole box
+        return float(np.min(above) - np.max(below)), self.expected_wall_gap_nm()
 
     def reduce(
         self, profile: DensityProfile, normalization: Normalization, density_bulk_per_nm3: float | None
