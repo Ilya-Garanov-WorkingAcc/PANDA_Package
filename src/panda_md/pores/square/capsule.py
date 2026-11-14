@@ -1,7 +1,4 @@
-"""Capsules in a square pore. Formulas: PANDA_Polygon `square.py` (commit 38ff491).
-
-capsule_w4c4 is not ported: in the source ∫ρ dz ≠ φ (0.986 φ at δ = 0 and δ = 0.03).
-"""
+"""Capsules in a square pore. Formulas: PANDA_Polygon `square.py` (commit 38ff491)."""
 
 import math
 from typing import ClassVar
@@ -13,6 +10,7 @@ from panda_md.core.parameters import CONTACT_ANGLE, VOLUME_FRACTION, WALL_LAYER_
 from panda_md.core.shape import SurfaceTerms
 from panda_md.core.types import FloatArray
 from panda_md.pores.common import circular_segment_area
+from panda_md.pores.polygon_capsule import capsule_end_integrals, hemisphere_slice
 from panda_md.pores.square.pore import SquareGeometry, SquarePore
 from panda_md.pores.square.shape import NON_WETTING_ABOVE_THREE_QUARTERS_PI, THREE_QUARTERS_PI, SquareShape
 
@@ -89,3 +87,40 @@ class SquareCapsuleFourWalls(SquareShape):
         )
         section = np.where(section_radius <= half_side, unclipped, clipped)
         return np.where(inside, section / geometry.layer_area(), 0.0)
+
+
+def square_half_width(z: float) -> float:
+    return 0.5
+
+
+@SquarePore.register
+class SquareCapsuleFourCorners(SquareShape):
+    """capsule_w4c4: two spherical menisci span the full square."""
+
+    name: ClassVar[str] = "capsule_w4c4"
+    parameters: ClassVar[tuple[Parameter, ...]] = (CONTACT_ANGLE, WALL_LAYER_THICKNESS, VOLUME_FRACTION)
+    regimes: ClassVar[dict[Regime, tuple[float, float]]] = {Regime.NON_WETTING: (90.0, 135.0)}
+
+    def dimensions(self, geometry: SquareGeometry, values: ParameterValues) -> tuple[float, float, float, float]:
+        side = self.side(values)
+        radius = max(1.0 / math.sqrt(2.0), -0.5 / math.cos(values[ParameterName.CONTACT_ANGLE]))
+        end_volume, free, contact = capsule_end_integrals(radius, -0.5, 0.5, square_half_width, 0.5)
+        body = values[ParameterName.VOLUME_FRACTION] * geometry.pore_length_ratio / side**2 - 2.0 * end_volume * side
+        return radius * side, body, free * side**2, contact * side**2
+
+    def feasible(self, geometry: SquareGeometry, values: ParameterValues) -> bool:
+        if self.side(values) <= 0.0 or not math.pi / 2 < values[ParameterName.CONTACT_ANGLE] <= THREE_QUARTERS_PI:
+            return False
+        radius, body, _, _ = self.dimensions(geometry, values)
+        return body >= 0.0 and 2.0 * radius + body <= geometry.pore_length_ratio
+
+    def profile(self, coordinate: FloatArray, geometry: SquareGeometry, values: ParameterValues) -> FloatArray:
+        radius, body, _, _ = self.dimensions(geometry, values)
+        side = self.side(values)
+        width = np.full_like(coordinate, side / 2.0)
+        area = side * body + 2.0 * hemisphere_slice(radius, coordinate, width)
+        return np.where(np.abs(coordinate) <= side / 2.0, area / geometry.layer_area(), 0.0)
+
+    def surface_terms(self, geometry: SquareGeometry, values: ParameterValues) -> SurfaceTerms:
+        _, body, free, contact = self.dimensions(geometry, values)
+        return SurfaceTerms(liquid_liquid_area=2.0 * free, liquid_solid_area=4.0 * (self.side(values) * body + contact))

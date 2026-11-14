@@ -1,20 +1,17 @@
-"""Droplets in a triangular pore. Formulas: PANDA_Polygon `docs/model/triangle.py` (commit 38ff491).
-
-The source derives a density profile only for droplet_w1c0; the other droplets serve the stability diagram.
-droplet_w2c1 is not ported: the S_LV area in the source disagrees with the geometry over the whole θ range
-(Monte Carlo S_LV / R² = 2.66 / 3.29 / 4.67 at θ = 95° / 100° / 110°, the formula gives 1.56 / 1.07 / 0.20).
-"""
+"""Droplets in a triangular pore. Formulas: PANDA_Polygon `docs/model/triangle.py` (commit 38ff491)."""
 
 import math
+from functools import lru_cache
 from typing import ClassVar
 
 import numpy as np
+from scipy.integrate import quad
 
 from panda_md.core.enums import ParameterName, Regime
 from panda_md.core.parameters import CONTACT_ANGLE, VOLUME_FRACTION, WALL_LAYER_THICKNESS, Parameter, ParameterValues
 from panda_md.core.shape import SurfaceTerms
 from panda_md.core.types import FloatArray
-from panda_md.pores.common import spherical_cap_centroid_offset
+from panda_md.pores.common import circular_segment_area, spherical_cap_centroid_offset
 from panda_md.pores.triangle.pore import SQRT3, TRIANGLE_SECTION_AREA, TriangleGeometry, TrianglePore, accessible_bottom
 from panda_md.pores.triangle.shape import (
     NON_WETTING_ABOVE_TWO_THIRDS_PI,
@@ -143,6 +140,12 @@ class TriangleDropletTwoWalls(TriangleShape):
             liquid_solid_area=2.0 * math.pi * radius**2 * math.sin(contact_angle) ** 2,
         )
 
+    def profile(self, coordinate: FloatArray, geometry: TriangleGeometry, values: ParameterValues) -> FloatArray:
+        radius = self.sphere_radius(geometry, values)
+        floor = accessible_bottom(values[ParameterName.WALL_LAYER_THICKNESS])
+        cosine = -math.cos(values[ParameterName.CONTACT_ANGLE])
+        return radius**2 * wedge_slice((coordinate - floor) / radius, cosine) / geometry.layer_area()
+
 
 @TrianglePore.register
 class TriangleDropletThreeWalls(TriangleShape):
@@ -179,3 +182,61 @@ class TriangleDropletThreeWalls(TriangleShape):
             liquid_liquid_area=-2.0 * math.pi * radius**2 * (1.0 + 3.0 * math.cos(contact_angle)),
             liquid_solid_area=3.0 * math.pi * (radius * math.sin(contact_angle)) ** 2,
         )
+
+
+def wedge_slice(height: FloatArray, cosine: float) -> FloatArray:
+    """Slice area of a unit sphere cut by the base and one inclined wall."""
+    radius = np.sqrt(np.maximum(0.0, 1.0 - (height - cosine) ** 2))
+    distance = (3.0 * cosine - height) / SQRT3
+    area = math.pi * radius**2 - circular_segment_area(radius, distance)
+    return np.where(height >= 0.0, np.maximum(area, 0.0), 0.0)
+
+
+@lru_cache(maxsize=128)
+def wedge_surface_factors(contact_angle: float) -> tuple[float, float]:
+    """Free sphere area and contact area of both faces, for unit radius."""
+    cosine = -math.cos(contact_angle)
+    sine = math.sin(contact_angle)
+    cutoff = 1.5 * cosine + SQRT3 / 2.0 * sine
+
+    def azimuth_span(height: float) -> float:
+        radius = math.sqrt(max(0.0, 1.0 - (height - cosine) ** 2))
+        distance = (3.0 * cosine - height) / SQRT3
+        return 2.0 * math.acos(max(-1.0, min(1.0, -distance / radius)))
+
+    free = quad(azimuth_span, 0.0, cutoff, epsabs=1e-10)[0]
+    distance = SQRT3 * cosine
+    contact = 2.0 * (math.pi * sine**2 - float(circular_segment_area(np.array(sine), distance)))
+    return free, contact
+
+
+@TrianglePore.register
+class TriangleDropletTwoWallsOneCorner(TriangleDropletTwoWalls):
+    """Sphere intersecting two adjacent walls and wetting their common edge."""
+
+    name: ClassVar[str] = "droplet_w2c1"
+    regimes: ClassVar[dict[Regime, tuple[float, float]]] = {Regime.NON_WETTING: (90.0, 120.0)}
+
+    @staticmethod
+    def volume_factor(contact_angle: float) -> float:
+        free, contact = wedge_surface_factors(contact_angle)
+        return (free - math.cos(contact_angle) * contact) / 3.0
+
+    def feasible(self, geometry: TriangleGeometry, values: ParameterValues) -> bool:
+        side = self.side(values)
+        angle = values[ParameterName.CONTACT_ANGLE]
+        if (
+            side <= 0.0
+            or not math.pi / 2.0 < angle < 2.0 * THIRD_PI
+            or not 0.0 < values[ParameterName.VOLUME_FRACTION] < side**2
+        ):
+            return False
+        radius = self.sphere_radius(geometry, values)
+        return 2.0 * radius <= geometry.pore_length_ratio and (
+            radius * (1.0 - 2.0 * math.cos(angle)) < accessible_height_of(side)
+        )
+
+    def surface_terms(self, geometry: TriangleGeometry, values: ParameterValues) -> SurfaceTerms:
+        radius = self.sphere_radius(geometry, values)
+        free, contact = wedge_surface_factors(values[ParameterName.CONTACT_ANGLE])
+        return SurfaceTerms(liquid_liquid_area=free * radius**2, liquid_solid_area=contact * radius**2)

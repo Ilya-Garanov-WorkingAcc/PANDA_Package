@@ -6,6 +6,7 @@ from typing import ClassVar
 from panda_md.core.enums import Frame, ParameterName
 from panda_md.core.parameters import ParameterValues
 from panda_md.core.shape import InterfaceShape
+from panda_md.pores.common import circular_segment_factor
 from panda_md.pores.triangle.pore import TriangleGeometry, accessible_side
 
 THIRD_PI = math.pi / 3.0
@@ -31,4 +32,5 @@ class TriangleShape(InterfaceShape[TriangleGeometry]):
 
 def corner_factor(supplementary_angle: float) -> float:
     """θ′ − π/3 − sin(2θ′ − π/3) + √3/2 — area of a rounded empty corner divided by R²."""
-    return supplementary_angle - THIRD_PI - math.sin(2.0 * supplementary_angle - THIRD_PI) + math.sqrt(3.0) / 2.0
+    excess = THIRD_PI - supplementary_angle
+    return math.sqrt(3.0) * math.sin(excess) ** 2 - circular_segment_factor(excess)

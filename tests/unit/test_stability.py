@@ -43,14 +43,14 @@ def test_shapes_can_be_restricted_and_unknown_names_fail() -> None:
     )
     assert diagram.shape_names == ("filament_w1c0", "droplet_w1c0")
     assert {name for row in diagram.stable_shapes for name in row} <= {"filament_w1c0", "droplet_w1c0", None}
-    with pytest.raises(PandaError, match="perforation"):
+    with pytest.raises(PandaError, match="unknown_shape"):
         stability_diagram(
             SQUARE,
             contact_angle_deg=150.0,
             wall_layer=0.0,
             volume_fractions=(0.1,),
             length_ratios=(2.0,),
-            shape_names=("perforation",),
+            shape_names=("unknown_shape",),
         )
 
 

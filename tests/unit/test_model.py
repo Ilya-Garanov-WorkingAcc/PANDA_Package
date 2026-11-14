@@ -67,16 +67,25 @@ def test_surface_terms_not_derived_for_slit_doughnut() -> None:
 def test_each_pore_exposes_its_shapes() -> None:
     assert set(SquarePore.shape_names()) == {
         "filament_w0c0",
-        "filament_w0c0_straight",
+        "filament_w0c0_square",
         "filament_w1c0",
         "droplet_w1c0",
         "droplet_w2c0",
         "droplet_w2c1",
         "capsule_w4c0",
+        "capsule_w4c4",
+        "filament_w4c0",
+        "filament_w4c1",
+        "filament_w4c2",
+        "filament_w4c3",
+        "filament_w3c2",
+        "filament_w2c0_opp",
+        "filament_w2c1",
+        "perforation",
     }
     assert set(TrianglePore.shape_names()) == {
         "filament_w0c0",
-        "filament_w0c0_straight",
+        "filament_w0c0_triangle",
         "filament_w1c0",
         "filament_w2c0",
         "filament_w2c1",
@@ -87,6 +96,8 @@ def test_each_pore_exposes_its_shapes() -> None:
         "droplet_w2c0",
         "droplet_w3c0",
         "capsule_w3c0",
+        "capsule_w3c3",
+        "droplet_w2c1",
     }
     assert set(SlitPore.shape_names()) == {"droplet", "doughnut", "worm", "roll", "perforation", "layer"}
 

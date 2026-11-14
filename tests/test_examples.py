@@ -14,9 +14,9 @@ EXAMPLES = Path(__file__).parents[1] / "examples"
 
 def run_example(name: str, *arguments: str) -> str:
     completed = subprocess.run(
-        [sys.executable, str(EXAMPLES / name), *arguments],
+        [sys.executable, "-X", "utf8", str(EXAMPLES / name), *arguments],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
         check=False,
         env={**os.environ, "MPLBACKEND": "Agg"},
     )
@@ -73,7 +73,7 @@ def test_notebooks_compile_and_match_their_builders(notebook_name: str, builder_
     import importlib.util
     import json
 
-    notebook = json.loads((EXAMPLES / notebook_name).read_text())
+    notebook = json.loads((EXAMPLES / notebook_name).read_text(encoding="utf-8"))
     sources = ["".join(cell["source"]) for cell in notebook["cells"]]
     for cell, source in zip(notebook["cells"], sources, strict=True):
         if cell["cell_type"] == "code":

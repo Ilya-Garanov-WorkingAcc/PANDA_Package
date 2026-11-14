@@ -1,5 +1,6 @@
 """Common fit: barrier, evaluation counter per regime, error messages, shapes without θ and without φ."""
 
+import math
 from collections.abc import Iterator
 from typing import ClassVar
 
@@ -124,13 +125,16 @@ def test_fit_of_shape_without_profile_fails_before_optimizing() -> None:
         {"theta": 140.0, "delta": 0.02, "phi": 0.1},
         density_bulk_per_nm3=DENSITY_BULK,
     )
-    corner_droplet = triangle.interface("droplet_w2c0")
-    with pytest.raises(NotDerivedError, match=r"shape 'droplet_w2c0' cannot be fitted.*droplet_w1c0"):
+    corner_droplet = triangle.interface("droplet_w3c0")
+    with pytest.raises(NotDerivedError, match=r"shape 'droplet_w3c0' cannot be fitted.*droplet_w1c0"):
         corner_droplet.fit(profile, density_bulk_per_nm3=DENSITY_BULK)
-    with pytest.raises(NotDerivedError, match=r"profile is not derived.*droplet_w2c0"):
-        synthetic_profile(
-            corner_droplet, {"theta": 140.0, "delta": 0.02, "phi": 0.1}, density_bulk_per_nm3=DENSITY_BULK
-        )
+    # At θ = 150°, the three-wall droplet has a fixed volume.
+    cosine = math.cos(math.radians(150.0))
+    radius = -1.0 / (2.0 * math.sqrt(3.0) * cosine)
+    volume = math.pi * radius**3 * (3.0 * cosine**3 - 9.0 * cosine - 2.0) / 3.0
+    phi = volume / (2.0 * math.sqrt(3.0) / 4.0)
+    with pytest.raises(NotDerivedError, match=r"profile is not derived.*droplet_w3c0"):
+        synthetic_profile(corner_droplet, {"theta": 150.0, "phi": phi}, density_bulk_per_nm3=DENSITY_BULK)
 
 
 def test_volume_fraction_from_histogram_is_exact_on_a_coarse_grid() -> None:

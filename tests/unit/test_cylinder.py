@@ -309,7 +309,10 @@ def test_multiwalled_and_thin_tubes_are_tubes(shells: tuple[float, ...], diamete
 
 def test_profile_help_says_any_measurable_pore_is_measured() -> None:
     completed = subprocess.run(
-        [sys.executable, "-m", "panda_md", "profile", "--help"], capture_output=True, text=True, check=False
+        [sys.executable, "-X", "utf8", "-m", "panda_md", "profile", "--help"],
+        capture_output=True,
+        encoding="utf-8",
+        check=False,
     )
     help_text = " ".join(completed.stdout.split())
     assert "the slit is measured" not in help_text

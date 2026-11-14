@@ -1,8 +1,7 @@
 """Filaments in a triangular pore: uniform along the channel axis, so the profile does not depend on l.
 
-Formulas: PANDA_Polygon `docs/model/triangle.py` (commit 38ff491), ported verbatim. The shape name
-`filament_w<N>c<M>`: touches N walls, occupies M corners. The source derives a density profile only for
-filament_w0c0 and filament_w3c0; the other filaments take part in the stability diagram but not in the fit.
+Formulas: PANDA_Polygon `docs/model/triangle.py` and the revised triangle model.
+The shape name `filament_w<N>c<M>` denotes N contacted walls and M occupied corners.
 """
 
 import math
@@ -16,7 +15,13 @@ from panda_md.core.parameters import CONTACT_ANGLE, VOLUME_FRACTION, WALL_LAYER_
 from panda_md.core.shape import SurfaceTerms
 from panda_md.core.types import FloatArray
 from panda_md.pores.common import circular_segment_factor
-from panda_md.pores.triangle.pore import SQRT3, TRIANGLE_SECTION_AREA, TriangleGeometry, TrianglePore, accessible_height
+from panda_md.pores.triangle.pore import (
+    SQRT3,
+    TRIANGLE_SECTION_AREA,
+    TriangleGeometry,
+    TrianglePore,
+    accessible_bottom,
+)
 from panda_md.pores.triangle.shape import (
     NON_WETTING_ABOVE_TWO_THIRDS_PI,
     NON_WETTING_FULL,
@@ -78,9 +83,9 @@ class TriangleFilamentNoWall(TriangleFilament):
 
 @TrianglePore.register
 class TriangleFilamentStraight(TriangleFilament):
-    """filament_w0c0_straight: a straight cord along the channel axis that touches no walls — no contact angle."""
+    """filament_w0c0_triangle: a straight cord along the channel axis that touches no walls — no contact angle."""
 
-    name: ClassVar[str] = "filament_w0c0_straight"
+    name: ClassVar[str] = "filament_w0c0_triangle"
     parameters: ClassVar[tuple[Parameter, ...]] = NO_ANGLE_PARAMETERS
     regimes: ClassVar[dict[Regime, tuple[float, float]]] = {}
     default_optimize: ClassVar[tuple[str, ...]] = (ParameterName.VOLUME_FRACTION.value,)
@@ -92,8 +97,14 @@ class TriangleFilamentStraight(TriangleFilament):
         return side > 0.0 and volume_fraction > 0.0 and math.sqrt(volume_fraction) <= side
 
     def perimeters(self, geometry: TriangleGeometry, values: ParameterValues) -> tuple[float, float]:
-        """P_LV = 3√φ (area_filament_w0c0_straight_triangle), S_SL = 0."""
+        """P_LV = 3√φ, S_SL = 0."""
         return 3.0 * math.sqrt(values[ParameterName.VOLUME_FRACTION]), 0.0
+
+    def profile(self, coordinate: FloatArray, geometry: TriangleGeometry, values: ParameterValues) -> FloatArray:
+        side = math.sqrt(values[ParameterName.VOLUME_FRACTION])
+        height = side * SQRT3 / 2.0
+        width = 2.0 * (2.0 * height / 3.0 - coordinate) / SQRT3
+        return np.where((coordinate >= -height / 3.0) & (width > 0.0), width / geometry.layer_width_ratio, 0.0)
 
 
 @TrianglePore.register
@@ -139,6 +150,24 @@ class TriangleFilamentOneWall(TriangleFilament):
         radius = self.arc_radius(values)
         return 2.0 * radius * contact_angle, 2.0 * radius * math.sin(contact_angle)
 
+    def profile(self, coordinate: FloatArray, geometry: TriangleGeometry, values: ParameterValues) -> FloatArray:
+        radius = self.arc_radius(values)
+        height = coordinate - accessible_bottom(values[ParameterName.WALL_LAYER_THICKNESS])
+        center = -radius * math.cos(values[ParameterName.CONTACT_ANGLE])
+        width = 2.0 * np.sqrt(np.maximum(0.0, radius**2 - (height - center) ** 2))
+        return np.where(height >= 0.0, width / geometry.layer_width_ratio, 0.0)
+
+
+def wedge_filament_profile(
+    coordinate: FloatArray, geometry: TriangleGeometry, values: ParameterValues, radius: float
+) -> FloatArray:
+    height = coordinate - accessible_bottom(values[ParameterName.WALL_LAYER_THICKNESS])
+    center = -radius * math.cos(values[ParameterName.CONTACT_ANGLE])
+    half_chord = np.sqrt(np.maximum(0.0, radius**2 - (height - center) ** 2))
+    distance = (3.0 * center - height) / SQRT3
+    width = np.clip(half_chord + distance, 0.0, 2.0 * half_chord)
+    return np.where(height >= 0.0, width / geometry.layer_width_ratio, 0.0)
+
 
 @TrianglePore.register
 class TriangleFilamentTwoWalls(TriangleFilament):
@@ -175,6 +204,9 @@ class TriangleFilamentTwoWalls(TriangleFilament):
         radius = self.arc_radius(values)
         return 2.0 * radius * (math.pi - 2.0 * supplementary), 4.0 * radius * math.sin(supplementary)
 
+    def profile(self, coordinate: FloatArray, geometry: TriangleGeometry, values: ParameterValues) -> FloatArray:
+        return wedge_filament_profile(coordinate, geometry, values, self.arc_radius(values))
+
 
 @TrianglePore.register
 class TriangleFilamentTwoWallsOneCorner(TriangleFilament):
@@ -182,7 +214,7 @@ class TriangleFilamentTwoWallsOneCorner(TriangleFilament):
 
     name: ClassVar[str] = "filament_w2c1"
     parameters: ClassVar[tuple[Parameter, ...]] = ANGLE_SHAPE_PARAMETERS
-    regimes: ClassVar[dict[Regime, tuple[float, float]]] = {Regime.NON_WETTING: NON_WETTING_FULL}
+    regimes: ClassVar[dict[Regime, tuple[float, float]]] = {Regime.NON_WETTING: (90.0, 120.0)}
 
     @staticmethod
     def area_factor(supplementary: float) -> float:
@@ -198,10 +230,10 @@ class TriangleFilamentTwoWallsOneCorner(TriangleFilament):
         return 2.0 * self.arc_radius(values) * math.sin(THIRD_PI + self.supplementary_angle(values))
 
     def feasible(self, geometry: TriangleGeometry, values: ParameterValues) -> bool:
-        """As in the source: only the lower bound θ > π/2 is checked; φ < 1 (cond_filament_w2c1_triangle)."""
+        """The common edge is wet for θ < 120°."""
         side = self.side(values)
         supplementary = self.supplementary_angle(values)
-        if side <= 0.0 or values[ParameterName.CONTACT_ANGLE] <= math.pi / 2.0:
+        if side <= 0.0 or not math.pi / 2.0 < values[ParameterName.CONTACT_ANGLE] < 2.0 * THIRD_PI:
             return False
         if self.area_factor(supplementary) <= 0.0:
             return False
@@ -216,6 +248,9 @@ class TriangleFilamentTwoWallsOneCorner(TriangleFilament):
         """P_LV = R(4π/3 − 2θ′), P_SL = 2x."""
         radius = self.arc_radius(values)
         return radius * (4.0 * THIRD_PI - 2.0 * self.supplementary_angle(values)), 2.0 * self.contact_length(values)
+
+    def profile(self, coordinate: FloatArray, geometry: TriangleGeometry, values: ParameterValues) -> FloatArray:
+        return wedge_filament_profile(coordinate, geometry, values, self.arc_radius(values))
 
 
 class TriangleFilamentEmptyCorners(TriangleFilament):
@@ -253,6 +288,23 @@ class TriangleFilamentEmptyCorners(TriangleFilament):
         liquid_liquid = 2.0 * corners * radius * (THIRD_PI - self.supplementary_angle(values))
         return liquid_liquid, 3.0 * self.side(values) - 2.0 * corners * self.corner_contact(values)
 
+    def profile(self, coordinate: FloatArray, geometry: TriangleGeometry, values: ParameterValues) -> FloatArray:
+        radius = self.arc_radius(values)
+        contact = self.corner_contact(values)
+        offset = radius * math.cos(self.supplementary_angle(values))
+        side = self.side(values)
+        height = side * SQRT3 / 2.0
+        above_base = coordinate + height / 3.0
+        below_top = 2.0 * height / 3.0 - coordinate
+        lower_chord = np.sqrt(np.maximum(0.0, radius**2 - (above_base - offset) ** 2))
+        lower_cut = SQRT3 * offset - above_base / SQRT3 - lower_chord
+        width = 2.0 * below_top / SQRT3
+        width -= (self.empty_corner_count - 1) * np.where(above_base <= contact * SQRT3 / 2.0, lower_cut, 0.0)
+        upper_chord = 2.0 * np.sqrt(np.maximum(0.0, radius**2 - (below_top - 2.0 * offset) ** 2))
+        width = np.where(below_top < contact * SQRT3 / 2.0, upper_chord, width)
+        inside = (above_base >= 0.0) & (below_top >= 0.0)
+        return np.where(inside, np.maximum(width, 0.0) / geometry.layer_width_ratio, 0.0)
+
 
 @TrianglePore.register
 class TriangleFilamentThreeWalls(TriangleFilamentEmptyCorners):
@@ -264,32 +316,6 @@ class TriangleFilamentThreeWalls(TriangleFilamentEmptyCorners):
     corner_area_scale: ClassVar[float] = SQRT3 / 12.0
     contact_limit_fraction: ClassVar[float] = 0.5
 
-    def profile(self, coordinate: FloatArray, geometry: TriangleGeometry, values: ParameterValues) -> FloatArray:
-        """Three segments: lower rounded corners, full triangle width, upper rounded corner."""
-        supplementary = self.supplementary_angle(values)
-        side = self.side(values)
-        height = accessible_height(values[ParameterName.WALL_LAYER_THICKNESS])
-        radius = self.arc_radius(values)
-        bottom, top = -height / 3.0, 2.0 * height / 3.0
-        lower_center = bottom + radius * math.cos(supplementary)  # circle centres of the lower corners
-        upper_center = top - 2.0 * radius * math.cos(supplementary)  # circle centre of the upper corner
-        vertex_to_contact = 2.0 * radius * math.sin(THIRD_PI - supplementary)
-        lower_width = side - 2.0 * SQRT3 * radius * math.cos(supplementary)
-        lower_end = bottom + vertex_to_contact * SQRT3 / 2.0
-        upper_start = top - vertex_to_contact * SQRT3 / 2.0
-        upper_end = upper_center + radius
-
-        width = np.zeros_like(coordinate, dtype=np.float64)
-        in_lower = (coordinate >= bottom) & (coordinate <= lower_end)
-        width[in_lower] = lower_width + 2.0 * np.sqrt(
-            np.maximum(0.0, radius**2 - (coordinate[in_lower] - lower_center) ** 2)
-        )
-        in_middle = (coordinate > lower_end) & (coordinate <= upper_start)
-        width[in_middle] = side - 2.0 / SQRT3 * (coordinate[in_middle] - bottom)
-        in_upper = (coordinate > upper_start) & (coordinate <= upper_end)
-        width[in_upper] = 2.0 * np.sqrt(np.maximum(0.0, radius**2 - (coordinate[in_upper] - upper_center) ** 2))
-        return width / geometry.layer_width_ratio
-
 
 @TrianglePore.register
 class TriangleFilamentThreeWallsTwoCorners(TriangleFilamentEmptyCorners):
@@ -297,9 +323,9 @@ class TriangleFilamentThreeWallsTwoCorners(TriangleFilamentEmptyCorners):
 
     name: ClassVar[str] = "filament_w3c2"
     parameters: ClassVar[tuple[Parameter, ...]] = ANGLE_SHAPE_PARAMETERS
-    empty_corner_count: ClassVar[int] = 2
-    corner_area_scale: ClassVar[float] = SQRT3 / 8.0
-    contact_limit_fraction: ClassVar[float] = 0.5
+    empty_corner_count: ClassVar[int] = 1
+    corner_area_scale: ClassVar[float] = SQRT3 / 4.0
+    contact_limit_fraction: ClassVar[float] = 1.0
 
 
 @TrianglePore.register
@@ -308,6 +334,6 @@ class TriangleFilamentThreeWallsOneCorner(TriangleFilamentEmptyCorners):
 
     name: ClassVar[str] = "filament_w3c1"
     parameters: ClassVar[tuple[Parameter, ...]] = ANGLE_SHAPE_PARAMETERS
-    empty_corner_count: ClassVar[int] = 1
-    corner_area_scale: ClassVar[float] = SQRT3 / 4.0
-    contact_limit_fraction: ClassVar[float] = 1.0
+    empty_corner_count: ClassVar[int] = 2
+    corner_area_scale: ClassVar[float] = SQRT3 / 8.0
+    contact_limit_fraction: ClassVar[float] = 0.5

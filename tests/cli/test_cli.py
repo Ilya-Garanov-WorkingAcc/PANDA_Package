@@ -539,7 +539,10 @@ def test_run_bad_config_is_input_error(
 
 def test_console_entry_point_runs() -> None:
     completed = subprocess.run(
-        [sys.executable, "-m", "panda_md", "shapes", "--pore", "slit"], capture_output=True, text=True, check=False
+        [sys.executable, "-X", "utf8", "-m", "panda_md", "shapes", "--pore", "slit"],
+        capture_output=True,
+        encoding="utf-8",
+        check=False,
     )
     assert completed.returncode == 0, completed.stderr
     assert "roll" in completed.stdout

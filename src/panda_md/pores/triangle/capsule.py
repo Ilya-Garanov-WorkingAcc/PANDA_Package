@@ -1,10 +1,6 @@
 """Capsules in a triangular pore: a bridge across the cross-section with two menisci at the ends.
 
-Formulas: PANDA_Polygon `docs/model/triangle.py` (commit 38ff491).
-
-capsule_w3c3 is not ported: the free end area in the source disagrees with the geometry already at δ = 0
-(Monte Carlo: 0.88 / 0.92 / 1.04 at θ = 100° / 110° / 119.9°, the formula gives 0.94 / 1.25 / 3.68).
-"""
+Formulas: PANDA_Polygon `docs/model/triangle.py` (commit 38ff491)."""
 
 import math
 from typing import ClassVar
@@ -16,6 +12,7 @@ from panda_md.core.parameters import CONTACT_ANGLE, VOLUME_FRACTION, WALL_LAYER_
 from panda_md.core.shape import SurfaceTerms
 from panda_md.core.types import FloatArray
 from panda_md.pores.common import circular_segment_area
+from panda_md.pores.polygon_capsule import capsule_end_integrals, hemisphere_slice
 from panda_md.pores.triangle.pore import (
     SQRT3,
     TRIANGLE_SECTION_AREA,
@@ -106,3 +103,49 @@ class TriangleCapsuleThreeWalls(TriangleShape):
         clipped = 2.0 * insertion * half_width + np.pi * section_radius**2 - 2.0 * segment
         section = np.where(section_radius <= half_width, unclipped, clipped)
         return np.where(inside, section / geometry.layer_area(), 0.0)
+
+
+def triangle_half_width(z: float) -> float:
+    return (1.0 / SQRT3 - z) / SQRT3
+
+
+@TrianglePore.register
+class TriangleCapsuleThreeCorners(TriangleShape):
+    """capsule_w3c3: two spherical menisci span the full triangle."""
+
+    name: ClassVar[str] = "capsule_w3c3"
+    parameters: ClassVar[tuple[Parameter, ...]] = CAPSULE_PARAMETERS
+    regimes: ClassVar[dict[Regime, tuple[float, float]]] = {Regime.NON_WETTING: (90.0, 120.0)}
+
+    def dimensions(self, geometry: TriangleGeometry, values: ParameterValues) -> tuple[float, float, float, float]:
+        side = self.side(values)
+        radius = meniscus_radius(1.0, values[ParameterName.CONTACT_ANGLE])
+        end_volume, free, contact = capsule_end_integrals(
+            radius, -1.0 / (2.0 * SQRT3), 1.0 / SQRT3, triangle_half_width, 1.0 / (2.0 * SQRT3)
+        )
+        body = (
+            values[ParameterName.VOLUME_FRACTION] * geometry.pore_length_ratio / side**2
+            - 2.0 * end_volume * side / TRIANGLE_SECTION_AREA
+        )
+        return radius * side, body, free * side**2, contact * side**2
+
+    def feasible(self, geometry: TriangleGeometry, values: ParameterValues) -> bool:
+        side = self.side(values)
+        if side <= 0.0 or not math.pi / 2.0 < values[ParameterName.CONTACT_ANGLE] < 2.0 * THIRD_PI:
+            return False
+        radius, body, _, _ = self.dimensions(geometry, values)
+        vertex_depth = math.sqrt(max(0.0, radius**2 - side**2 / 3.0))
+        return body + 2.0 * vertex_depth > 0.0 and body + 2.0 * radius <= geometry.pore_length_ratio
+
+    def profile(self, coordinate: FloatArray, geometry: TriangleGeometry, values: ParameterValues) -> FloatArray:
+        radius, body, _, _ = self.dimensions(geometry, values)
+        delta = values[ParameterName.WALL_LAYER_THICKNESS]
+        top = accessible_top(delta)
+        half_width = np.maximum((top - coordinate) / SQRT3, 0.0)
+        area = 2.0 * (half_width * body + hemisphere_slice(radius, coordinate, half_width))
+        inside = (coordinate >= accessible_bottom(delta)) & (coordinate <= top)
+        return np.where(inside, area / geometry.layer_area(), 0.0)
+
+    def surface_terms(self, geometry: TriangleGeometry, values: ParameterValues) -> SurfaceTerms:
+        _, body, free, contact = self.dimensions(geometry, values)
+        return SurfaceTerms(liquid_liquid_area=2.0 * free, liquid_solid_area=3.0 * (self.side(values) * body + contact))
