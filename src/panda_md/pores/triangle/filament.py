@@ -210,7 +210,7 @@ class TriangleFilamentTwoWalls(TriangleFilament):
 
 @TrianglePore.register
 class TriangleFilamentTwoWallsOneCorner(TriangleFilament):
-    """filament_w2c1: liquid fills the corner between two walls (θ > π/2)."""
+    """filament_w2c1: liquid fills the corner between two walls (π/2 < θ < 2π/3)."""
 
     name: ClassVar[str] = "filament_w2c1"
     parameters: ClassVar[tuple[Parameter, ...]] = ANGLE_SHAPE_PARAMETERS

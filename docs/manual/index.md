@@ -21,7 +21,8 @@ print(panda.fit_blocks(pore.interface("roll"), profiles, panda.FitSpec(density_b
 
 What is inside:
 
-- three pore types — slit (rectangular base L × kL, six shapes), triangular (12 shapes) and square (7 shapes);
+- four pore types — slit (rectangular base L × kL, six shapes), triangular (14 shapes), square (16 shapes) and
+  cylindrical (a capsule plug in a tube);
 - one fit for every shape: free, fixed and bounded parameters by name, wetting regimes kept apart, problem
   flags in the result;
 - the data path from an MD trajectory (MDAnalysis): pore dimensions from the wall atoms, centering, time

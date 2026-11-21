@@ -47,8 +47,50 @@ Formulas follow Semenchuk et al. (2025) for the square base and Shistko et al., 
 ## Triangular and square pores
 
 Shape names encode how the liquid sits in the pore: `w` — number of walls it touches, `c` — number of corners it
-occupies, e.g. `droplet_w2c1` is a droplet touching two walls and occupying one corner. Formulas come from PANDA_Polygon
-(G. Vandyshev); some shapes have no density profile yet and take part only in stability diagrams.
+occupies, e.g. `droplet_w2c1` is a droplet touching two walls and occupying one corner. A filament is uniform along
+the channel, a droplet sits on the walls, a capsule spans the whole cross-section and ends in two menisci. Formulas
+come from PANDA_Polygon and its revised model (G. Vandyshev). Every shape has surface areas for the stability
+diagrams; a shape without a density profile takes part only in them.
+
+Square pore — 16 shapes:
+
+| Shape | Picture | θ regime | Profile |
+|-------|---------|----------|---------|
+| `filament_w0c0` | circular cylinder along the axis, no walls touched; no θ | — | yes |
+| `filament_w0c0_square` | cord of square cross-section along the axis, no walls touched; no θ | — | yes |
+| `filament_w1c0` | cylindrical segment on one wall | 0°–90°, 90°–180° | yes |
+| `filament_w2c1` | fills the corner between two adjacent walls | 45°–90°, 90°–135° | yes |
+| `filament_w2c0_opp` | bridge between two opposite walls, two menisci | 90°–180° | yes |
+| `filament_w3c2` | touches three walls, fills two corners, one meniscus | 90°–180° | yes |
+| `filament_w4c0` … `filament_w4c3` | fills the section, touches all four walls; 0–3 corners filled, the rest empty | 135°–180° | yes |
+| `droplet_w1c0` | spherical cap on one wall | 90°–180° | yes |
+| `droplet_w2c0` | droplet touching two adjacent walls, corner empty | 135°–180° | yes |
+| `droplet_w2c1` | droplet filling the corner between two adjacent walls | 90°–135° | yes |
+| `capsule_w4c0` | bridge touching four walls, corners empty, menisci at the ends | 135°–180° | yes |
+| `capsule_w4c4` | plug filling the whole square, two spherical menisci | 90°–135° | yes |
+| `perforation` | liquid filling the channel except an axisymmetric hole through two opposite walls | 90°–180° | yes |
+
+Triangular pore — 14 shapes:
+
+| Shape | Picture | θ regime | Profile |
+|-------|---------|----------|---------|
+| `filament_w0c0` | circular cylinder along the axis, no walls touched; no θ | — | yes |
+| `filament_w0c0_triangle` | cord of triangular cross-section along the axis, no walls touched; no θ | — | yes |
+| `filament_w1c0` | cylindrical segment on the base | 0°–90°, 90°–180° | yes |
+| `filament_w2c0` | in the corner between two walls, corner empty | 120°–180° | yes |
+| `filament_w2c1` | fills the corner between two walls | 90°–120° | yes |
+| `filament_w3c0` | middle of the section, all three corners empty | 120°–180° | yes |
+| `filament_w3c1` | touches three walls, one corner filled, two empty | 120°–180° | yes |
+| `filament_w3c2` | touches three walls, two corners filled, one empty | 120°–180° | yes |
+| `droplet_w1c0` | spherical cap on the base | 90°–180° | yes |
+| `droplet_w2c0` | droplet touching two walls, corner empty | 120°–180° | yes |
+| `droplet_w2c1` | droplet wetting the edge between two walls | 90°–120° | yes |
+| `droplet_w3c0` | droplet touching three walls; its size is fixed by the section | 120°–180° | no |
+| `capsule_w3c0` | bridge touching three walls, corners empty, menisci at the ends | 120°–180° | yes |
+| `capsule_w3c3` | plug filling the whole triangle, two spherical menisci | 90°–120° | yes |
+
+The hole of the square `perforation`, like that of the slit perforation, has a circular generating arc: an
+approximation, not a surface of constant mean curvature.
 
 ## Cylindrical pore
 

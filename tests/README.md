@@ -17,7 +17,8 @@ shape does not derive). Run time: about a minute.
 | slit with base L × kL | `unit/test_slit_rectangular_cell.py` | the six slit shapes against the closed formulas of Shistko et al. (2025) |
 | regression | `regression/test_reference_formulas.py` | profiles, φ limits, existence conditions, areas and stability diagrams equal the reference implementations (the previous PANDA, commit 93c6dbb; PANDA_Polygon, commit 38ff491) to 1e-12; reference numbers in `regression/data/` |
 | fitting | `unit/test_fitting.py`, `unit/test_fitting_details.py` | one optimizer for any number of free parameters, problem flags, wetting regimes, barrier, φ from the data, profile / pore mismatch |
-| polygon pores | `unit/test_polygon_shapes.py` | shapes with defects in the source are not ported; strict boundaries |
+| polygon pores | `unit/test_polygon_shapes.py` | revised morphologies: strict boundaries, the wet and dry corner droplets meet at 120°, free areas against sphere sampling, the square perforation against the area of revolution, retired names are errors |
+| cylinder | `unit/test_cylinder.py` | tube geometry, capsule against alpha.py, the tube measured from the wall atoms (multi-walled, across the box boundary, not a tube), fit end to end, command line |
 | stability diagrams | `unit/test_stability.py` | the shape with the lowest capillary energy wins; regimes without formulas; parameter bounds |
 | data path | `unit/test_trajectory.py`, `unit/test_density_profile.py`, `unit/test_molecules_and_offset.py`, `unit/test_pbc_and_time.py` | reading trajectories, slit from the wall atoms across periodic boundaries, pore and liquid centering, time blocks, per-molecule profiles, wall offset, warnings |
 | 3D shapes and maps | `unit/test_shapes_3d.py`, `synthetic/test_point_clouds.py` | `contains` against the profile, symmetry axes, axial centering, 2D maps, bulk density from the map |

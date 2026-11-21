@@ -10,6 +10,10 @@ Kopanichuk, Colloids Surf. A 708 (2025) 135994.
 
 ### Added
 
+- Revised polygon morphologies (G. Vandyshev): the square pore gains `filament_w4c0`–`filament_w4c3`,
+  `filament_w3c2`, `filament_w2c0_opp`, `filament_w2c1`, `capsule_w4c4` and `perforation` (16 shapes); the
+  triangular pore gains `droplet_w2c1` and `capsule_w3c3` (14 shapes), and every triangle shape except `droplet_w3c0`
+  now has a density profile and can be fitted.
 - Cylindrical pore `CylinderPore` (`cylinder`) with the shape `capsule` — a plug with two spherical menisci, θ > 90°
   (formulas: alpha.py `rollx`); `CylinderPore.from_trajectory` measures a (multi-walled) tube from the wall atoms; the
   command line measures any pore that can be measured (`Pore.measure_from_trajectory`), and the per-frame wall check
@@ -19,7 +23,7 @@ Kopanichuk, Colloids Surf. A 708 (2025) 135994.
   with readable errors; one generic fit (multistart, L1 or L2 loss, normalization by the bulk density or by the
   mean density, wetting regimes kept apart, problem flags in `FitResult`).
 - Slit pore with a rectangular base L × kL and six shapes (droplet, doughnut, worm, roll, perforation, layer);
-  triangular pore (12 shapes) and square pore (7 shapes); stability diagrams by the capillary functional.
+  triangular pore (14 shapes) and square pore (16 shapes); stability diagrams by the capillary functional.
 - New shapes and pores are added by a decorator without changes to the core (`examples/05_custom_shape.py`).
 - Data path (extra `md`, MDAnalysis): slit dimensions from the wall atoms across periodic boundaries, density
   profiles centred on the pore or on the liquid, time blocks, per-molecule profiles, wall offset, 2D density maps
@@ -41,9 +45,18 @@ Kopanichuk, Colloids Surf. A 708 (2025) 135994.
 
 ### Not yet available
 
-- Formulas of the wetting regime (θ < 90°) for the slit shapes; the fit flags a result pressed to 90°.
-- Surface areas of the doughnut and the perforation (they do not enter stability diagrams).
-- Cylindrical pore; 3D shapes (`contains`) of the triangular and square pores; wall detection in polygonal pores.
+- Formulas of the wetting regime (θ < 90°) for the slit shapes and the cylinder capsule; the fit flags a result
+  pressed to 90°.
+- Surface areas of the slit doughnut and perforation (they do not enter stability diagrams).
+- Density profile of the triangular `droplet_w3c0` (stability diagrams only).
+- 3D shapes (`contains`) of the triangular and square pores; wall detection in polygonal pores.
+
+### Changed
+
+- Shape names of the polygon pores: `filament_w0c0_straight` is now `filament_w0c0_square` in the square pore and
+  `filament_w0c0_triangle` in the triangular pore; the old name is an error. In the triangular pore
+  `filament_w3c1` and `filament_w3c2` swapped their geometry so that the name counts the occupied corners
+  (`w3c1`: one corner filled, two empty).
 
 ### Known limitations
 
