@@ -9,7 +9,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); ver
 
 - The command line no longer fails with `UnicodeEncodeError` when its output goes to an encoding without θ, ≈ or →
   (on Windows, output redirected to a file or a pipe in the ANSI code page, e.g. cp1251): such characters are written
-  as escapes (`θ`). Set `PYTHONUTF8=1` to get them as UTF-8.
+  as escapes (`\u03b8`). Set `PYTHONUTF8=1` to get them as UTF-8.
 
 ### Changed
 
