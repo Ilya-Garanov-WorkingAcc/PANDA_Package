@@ -3,7 +3,7 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/) (0.x: the API may still change between minor versions).
 
-## [0.1.0] — unreleased
+## [0.1.0] — 2026-11-23
 
 First release of the rewritten library (`import panda_md`). The method follows Semenchuk, Kondratyuk and
 Kopanichuk, Colloids Surf. A 708 (2025) 135994.

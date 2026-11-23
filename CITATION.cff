@@ -17,6 +17,7 @@ keywords:
   - nanopores
   - density profile
 version: 0.1.0
+date-released: "2026-11-23"
 preferred-citation:
   type: article
   title: "PANDA: Predicting angle from nanoscale density analysis"
