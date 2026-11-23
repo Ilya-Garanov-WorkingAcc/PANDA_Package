@@ -3,6 +3,18 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/) (0.x: the API may still change between minor versions).
 
+## [0.1.1] — 2026-11-23
+
+### Fixed
+
+- The command line no longer fails with `UnicodeEncodeError` when its output goes to an encoding without θ, ≈ or →
+  (on Windows, output redirected to a file or a pipe in the ANSI code page, e.g. cp1251): such characters are written
+  as escapes (`θ`). Set `PYTHONUTF8=1` to get them as UTF-8.
+
+### Changed
+
+- The repository is renamed to `PANDA_Package`; the project links point to the new address.
+
 ## [0.1.0] — 2026-11-23
 
 First release of the rewritten library (`import panda_md`). The method follows Semenchuk, Kondratyuk and

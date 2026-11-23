@@ -4,7 +4,7 @@
 contact angle and the interface shape of liquids confined in pores from one-dimensional density profiles
 of molecular simulations.
 
-> **Status: alpha (0.1.0).** Slit pore (six shapes, rectangular base L × kL), triangular pore (14 shapes),
+> **Status: alpha (0.1.1).** Slit pore (six shapes, rectangular base L × kL), triangular pore (14 shapes),
 > square pore (16 shapes) and cylindrical pore (capsule); fitting, the data path from MD trajectories (MDAnalysis,
 > extra `md`), analysis over time blocks, stability diagrams, figures (extra `plot`) and the command line `panda`.
 > Limitations: no formulas for the wetting regime θ < 90° of the slit and cylinder shapes; see [CHANGELOG.md](https://github.com/Ilya-Garanov-WorkingAcc/PANDA_Package/blob/main/CHANGELOG.md).

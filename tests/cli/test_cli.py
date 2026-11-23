@@ -2,6 +2,7 @@
 
 import importlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -546,6 +547,41 @@ def test_console_entry_point_runs() -> None:
     )
     assert completed.returncode == 0, completed.stderr
     assert "roll" in completed.stdout
+
+
+def run_in_legacy_encoding(*arguments: str) -> subprocess.CompletedProcess[bytes]:
+    """`python -m panda_md ...` with output redirected in a Windows ANSI code page (cp1251 has no θ, ≈, →)."""
+    environment = {name: value for name, value in os.environ.items() if name != "PYTHONUTF8"}
+    environment["PYTHONIOENCODING"] = "cp1251"
+    return subprocess.run(
+        [sys.executable, "-X", "utf8=0", "-m", "panda_md", *arguments],
+        capture_output=True,
+        env=environment,
+        check=False,
+    )
+
+
+def test_output_in_a_legacy_code_page_does_not_fail() -> None:
+    """Pre-release Windows report: `panda shapes > file` in cp1251 failed with UnicodeEncodeError on θ."""
+    completed = run_in_legacy_encoding("shapes", "--pore", "slit")
+    assert completed.returncode == 0, completed.stderr.decode("cp1251")
+    text = completed.stdout.decode("cp1251")
+    assert "roll" in text and "non_wetting \\u03b8 90" in text  # θ written as an escape, the rest as is
+
+
+def test_error_message_in_a_legacy_code_page_is_printed(tmp_path: Path) -> None:
+    """An error with θ in its text reaches stderr instead of a traceback of a second UnicodeEncodeError."""
+    model = SlitPore(width_nm=8.0, length_nm=16.0).interface("roll")
+    synthetic_profile(model, {"theta": 120.0, "delta": 0.03, "phi": 0.4}, density_bulk_per_nm3=30.0).save(
+        tmp_path / "profile.csv"
+    )
+    completed = run_in_legacy_encoding(
+        "fit", str(tmp_path / "profile.csv"), "-g", "width_nm=8", "-g", "length_nm=16", "--shape", "roll",
+        "--rho-bulk", "30", "--bounds", "theta=10:20",
+    )  # fmt: skip
+    error = completed.stderr.decode("cp1251")
+    assert completed.returncode == 1, error
+    assert error.startswith("error: \\u03b8 bounds") and "Traceback" not in error
 
 
 # --- stage 8 final review ---

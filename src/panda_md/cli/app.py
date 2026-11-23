@@ -4,7 +4,7 @@ error, 2 — the fit finished with problem flags."""
 import sys
 import warnings
 from collections.abc import Iterator, Sequence
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from enum import Enum
 from pathlib import Path
 from typing import Annotated, TextIO
@@ -376,6 +376,16 @@ def _strict(message: str) -> str:
     return message[:1].lower() + message[1:]
 
 
+def _tolerate_unencodable_output() -> None:
+    """Write characters the output encoding lacks as escapes (θ → \\u03b8) instead of failing the command.
+    On Windows redirected output uses the ANSI code page (cp1251 has no θ, ≈, →) unless PYTHONUTF8=1 is set."""
+    for stream in (sys.stdout, sys.stderr):
+        # a stream that is not an io text stream (replaced, detached) is left as it is
+        with suppress(AttributeError, ValueError):
+            stream.reconfigure(errors="backslashreplace")  # type: ignore[union-attr]
+
+
 def console() -> None:
     """Entry point of the `panda` console script."""
+    _tolerate_unencodable_output()
     raise SystemExit(main())
