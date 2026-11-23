@@ -7,9 +7,9 @@ of molecular simulations.
 > **Status: alpha (0.1.0).** Slit pore (six shapes, rectangular base L × kL), triangular pore (14 shapes),
 > square pore (16 shapes) and cylindrical pore (capsule); fitting, the data path from MD trajectories (MDAnalysis,
 > extra `md`), analysis over time blocks, stability diagrams, figures (extra `plot`) and the command line `panda`.
-> Limitations: no formulas for the wetting regime θ < 90° of the slit and cylinder shapes; see [CHANGELOG.md](https://github.com/Ilya-Garanov-WorkingAcc/PANDA_2.0/blob/main/CHANGELOG.md).
+> Limitations: no formulas for the wetting regime θ < 90° of the slit and cylinder shapes; see [CHANGELOG.md](https://github.com/Ilya-Garanov-WorkingAcc/PANDA_Package/blob/main/CHANGELOG.md).
 
-A walk-through of the whole analysis of a real trajectory: `examples/demo.ipynb`; a full test run: `examples/test_panda.ipynb`. Documentation: `make docs` builds it from `docs/manual/` (mkdocs); examples: [examples/](https://github.com/Ilya-Garanov-WorkingAcc/PANDA_2.0/blob/main/examples/).
+A walk-through of the whole analysis of a real trajectory: `examples/demo.ipynb`; a full test run: `examples/test_panda.ipynb`. Documentation: `make docs` builds it from `docs/manual/` (mkdocs); examples: [examples/](https://github.com/Ilya-Garanov-WorkingAcc/PANDA_Package/blob/main/examples/).
 
 ```python
 import panda_md as panda
@@ -146,8 +146,8 @@ The original research code lives at https://github.com/FlufffyMelon/PANDA.
 ## How to cite
 
 Cite the method paper (Semenchuk, Kondratyuk, Kopanichuk, Colloids Surf. A 708 (2025) 135994) and the software;
-metadata for both are in [CITATION.cff](https://github.com/Ilya-Garanov-WorkingAcc/PANDA_2.0/blob/main/CITATION.cff).
+metadata for both are in [CITATION.cff](https://github.com/Ilya-Garanov-WorkingAcc/PANDA_Package/blob/main/CITATION.cff).
 
 ## License
 
-MIT, see [LICENSE](https://github.com/Ilya-Garanov-WorkingAcc/PANDA_2.0/blob/main/LICENSE).
+MIT, see [LICENSE](https://github.com/Ilya-Garanov-WorkingAcc/PANDA_Package/blob/main/LICENSE).

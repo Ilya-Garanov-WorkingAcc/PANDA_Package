@@ -9,7 +9,7 @@ authors:
   - family-names: Garanov
     given-names: Ilya
 license: MIT
-repository-code: "https://github.com/Ilya-Garanov-WorkingAcc/PANDA_2.0"
+repository-code: "https://github.com/Ilya-Garanov-WorkingAcc/PANDA_Package"
 keywords:
   - molecular dynamics
   - contact angle

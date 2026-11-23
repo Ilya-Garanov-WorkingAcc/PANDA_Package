@@ -24,8 +24,8 @@ figures without `plot`. Importing `panda_md` never loads MDAnalysis or matplotli
 The project is managed with [uv](https://docs.astral.sh/uv/):
 
 ```bash
-git clone https://github.com/Ilya-Garanov-WorkingAcc/PANDA_2.0
-cd PANDA_2.0
+git clone https://github.com/Ilya-Garanov-WorkingAcc/PANDA_Package
+cd PANDA_Package
 make install    # .venv with the package, all extras and the development tools
 make check      # black + ruff + mypy + pytest
 make docs       # this documentation into site/

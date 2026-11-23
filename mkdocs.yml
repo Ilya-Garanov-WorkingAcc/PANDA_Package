@@ -1,6 +1,6 @@
 site_name: PANDA
 site_description: Contact angle and interface shape of confined liquids from MD density profiles
-repo_url: https://github.com/Ilya-Garanov-WorkingAcc/PANDA_2.0
+repo_url: https://github.com/Ilya-Garanov-WorkingAcc/PANDA_Package
 docs_dir: docs/manual  # the rest of docs/ is internal development notes, not published
 strict: true
 

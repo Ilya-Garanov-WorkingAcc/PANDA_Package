@@ -38,7 +38,7 @@ dependencies = [
 panda = "panda_md.cli:console"
 
 [project.urls]
-Repository = "https://github.com/Ilya-Garanov-WorkingAcc/PANDA_2.0"
+Repository = "https://github.com/Ilya-Garanov-WorkingAcc/PANDA_Package"
 
 [project.optional-dependencies]
 md = [
